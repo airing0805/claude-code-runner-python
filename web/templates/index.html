@@ -32,6 +32,14 @@
                     <span class="nav-icon">⚙️</span>
                     <span class="nav-text">Claude 状态</span>
                 </div>
+                <div class="nav-item" data-view="agent-monitor">
+                    <span class="nav-icon">🤖</span>
+                    <span class="nav-text">Agent 监控</span>
+                </div>
+                <div class="nav-item" data-view="skills">
+                    <span class="nav-icon">🧩</span>
+                    <span class="nav-text">技能管理</span>
+                </div>
             </div>
 
             <div class="nav-footer">
@@ -330,6 +338,106 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- 插件管理区块 (v0.3.7) -->
+                        <div class="status-section" id="plugins-section">
+                            <div class="status-section-header">
+                                <h2>🧩 插件管理</h2>
+                                <div>
+                                    <button class="btn btn-small" id="refresh-plugins-btn">🔄 刷新</button>
+                                </div>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="plugin-list" id="plugin-list">
+                                    <div class="loading-placeholder">加载中...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 钩子配置区块 (v0.3.8) -->
+                        <div class="status-section" id="hooks-section">
+                            <div class="status-section-header">
+                                <h2>🪝 钩子配置</h2>
+                                <div>
+                                    <button class="btn btn-small" id="refresh-hooks-btn">🔄 刷新</button>
+                                    <button class="btn btn-small" id="add-hook-btn">➕ 添加钩子</button>
+                                </div>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="hook-types-info" id="hook-types-info">
+                                    <!-- 钩子类型说明将动态加载 -->
+                                </div>
+                                <div class="hook-list" id="hook-list">
+                                    <div class="loading-placeholder">加载中...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent 监控视图 -->
+            <div class="view-panel" id="view-agent-monitor">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-agent-monitor" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">🤖 Agent 监控</div>
+                        <div class="page-subtitle">监控和管理子代理运行状态</div>
+                    </div>
+
+                    <div class="page-body agent-monitor-body">
+                        <!-- 统计信息 -->
+                        <div class="agent-stats">
+                            <div class="agent-stat-card">
+                                <div class="agent-stat-value" id="running-agent-count">0</div>
+                                <div class="agent-stat-label">运行中</div>
+                            </div>
+                        </div>
+
+                        <!-- 过滤栏 -->
+                        <div class="agent-filter-bar">
+                            <label>状态筛选：</label>
+                            <select id="agent-status-filter">
+                                <option value="all">全部</option>
+                                <option value="running">运行中</option>
+                                <option value="completed">已完成</option>
+                                <option value="terminated">已终止</option>
+                                <option value="failed">失败</option>
+                            </select>
+                            <button class="btn btn-small" id="refresh-agents-btn">🔄 刷新</button>
+                            <button class="btn btn-small" id="create-test-agent-btn">➕ 创建测试代理</button>
+                        </div>
+
+                        <!-- 代理列表 -->
+                        <div class="agent-list" id="agent-list">
+                            <div class="loading-placeholder">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 技能管理视图 -->
+            <div class="view-panel" id="view-skills">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-skills" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">🧩 技能管理</div>
+                        <div class="page-subtitle">管理 Claude Code 技能系统</div>
+                    </div>
+
+                    <div class="page-body skills-body">
+                        <!-- 分类筛选 -->
+                        <div class="skills-filter-bar">
+                            <button class="btn btn-small" id="refresh-skills-btn">🔄 刷新</button>
+                        </div>
+
+                        <!-- 分类标签 -->
+                        <div id="skill-categories"></div>
+
+                        <!-- 技能列表 -->
+                        <div class="skill-list" id="skill-list">
+                            <div class="loading-placeholder">加载中...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -391,7 +499,136 @@
         </div>
     </div>
 
-    <script src="/static/constants.js"></script>
+    <!-- Agent 详情对话框 -->
+    <div class="dialog-overlay" id="agent-detail-dialog">
+        <div class="agent-detail-content">
+            <div class="dialog-header">
+                <h2 class="dialog-title">代理详情</h2>
+                <button class="dialog-close" id="close-agent-detail-dialog">×</button>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">任务描述</div>
+                <div class="detail-section-content" id="detail-agent-prompt">-</div>
+            </div>
+
+            <div class="status-grid">
+                <div class="status-item">
+                    <span class="status-label">状态</span>
+                    <span class="status-value" id="detail-agent-status">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">进度</span>
+                    <span class="status-value" id="detail-agent-progress">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">开始时间</span>
+                    <span class="status-value" id="detail-agent-started">-</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">结束时间</span>
+                    <span class="status-value" id="detail-agent-ended">-</span>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">工具使用</div>
+                <div class="detail-section-content" id="detail-agent-tools">
+                    <span class="empty-text">无</span>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">文件变更</div>
+                <div class="detail-section-content" id="detail-agent-files">
+                    <span class="empty-text">无</span>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">执行日志</div>
+                <div class="detail-section-content" id="detail-agent-logs">
+                    <span class="empty-text">暂无日志</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 技能详情对话框 -->
+    <div class="dialog-overlay" id="skill-detail-dialog">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2 class="dialog-title">技能详情</h2>
+                <button class="dialog-close" id="close-skill-detail">×</button>
+            </div>
+
+            <div id="skill-detail-content">
+                <div class="loading-placeholder">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 钩子配置对话框 -->
+    <div class="dialog-overlay" id="hook-dialog">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2 class="dialog-title" id="hook-dialog-title">添加钩子</h2>
+                <button class="dialog-close" id="close-hook-dialog">×</button>
+            </div>
+
+            <input type="hidden" id="hook-id">
+
+            <div class="form-group">
+                <label class="form-label">钩子名称</label>
+                <input type="text" class="form-input" id="hook-name" placeholder="例如：安全检查">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">钩子类型</label>
+                <select class="form-input" id="hook-type">
+                    <option value="PreToolUse">PreToolUse - 工具执行前</option>
+                    <option value="PostToolUse">PostToolUse - 工具执行后</option>
+                    <option value="Stop">Stop - 会话结束时</option>
+                    <option value="SessionStart">SessionStart - 会话开始时</option>
+                    <option value="Notification">Notification - 通知事件</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">触发工具 (留空表示所有工具)</label>
+                <input type="text" class="form-input" id="hook-tools" placeholder="例如：Bash,Write (逗号分隔)">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">操作</label>
+                <select class="form-input" id="hook-action">
+                    <option value="allow">允许 - 正常执行</option>
+                    <option value="block">阻止 - 阻止执行</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" id="hook-notification">
+                    <span>启用通知</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" id="hook-enabled" checked>
+                    <span>启用钩子</span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn-secondary" id="cancel-hook-dialog-btn">取消</button>
+                <button class="btn-primary" id="save-hook-btn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/constants.js"></script></script>
     <script src="/static/utils.js"></script>
     <script src="/static/components/toolsMultiselect.js"></script>
     <script src="/static/components/tabs.js"></script>
@@ -403,6 +640,10 @@
     <script src="/static/modules/task.js"></script>
     <script src="/static/modules/claudeStatus.js"></script>
     <script src="/static/modules/mcpManager.js"></script>
+    <script src="/static/modules/pluginManager.js"></script>
+    <script src="/static/modules/skillManager.js"></script>
+    <script src="/static/modules/hooksManager.js"></script>
+    <script src="/static/modules/agentMonitor.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

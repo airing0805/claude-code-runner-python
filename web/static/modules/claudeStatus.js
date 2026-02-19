@@ -37,6 +37,10 @@ const ClaudeStatus = {
         if (typeof MCPManager !== 'undefined') {
             MCPManager.onShow();
         }
+        // 加载插件数据
+        if (typeof PluginManager !== 'undefined') {
+            PluginManager.onShow();
+        }
     },
 
     /**

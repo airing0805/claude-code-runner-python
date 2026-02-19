@@ -20,7 +20,10 @@ const AVAILABLE_TOOLS = [
 const Views = {
     CURRENT_SESSION: 'current-session',
     HISTORY: 'history',
-    EXAMPLES: 'examples'
+    EXAMPLES: 'examples',
+    CLAUDE_STATUS: 'claude-status',
+    AGENT_MONITOR: 'agent-monitor',
+    SKILLS: 'skills'
 };
 
 // 消息类型常量

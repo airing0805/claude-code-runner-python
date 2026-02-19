@@ -79,6 +79,11 @@ class ClaudeCodeRunner {
             MCPManager.init();
         }
 
+        // 初始化钩子管理模块
+        if (typeof HooksManager !== 'undefined') {
+            HooksManager.init();
+        }
+
         // 快捷键
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') {

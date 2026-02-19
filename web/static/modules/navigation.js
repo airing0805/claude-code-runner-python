@@ -47,6 +47,20 @@ const Navigation = {
             });
         }
 
+        const menuToggleClaudeStatus = document.getElementById('menu-toggle-claude-status');
+        if (menuToggleClaudeStatus) {
+            menuToggleClaudeStatus.addEventListener('click', () => {
+                runner.navMenu.classList.toggle('open');
+            });
+        }
+
+        const menuToggleAgentMonitor = document.getElementById('menu-toggle-agent-monitor');
+        if (menuToggleAgentMonitor) {
+            menuToggleAgentMonitor.addEventListener('click', () => {
+                runner.navMenu.classList.toggle('open');
+            });
+        }
+
         // 返回项目列表
         const backToProjects = document.getElementById('back-to-projects');
         if (backToProjects) {
@@ -87,6 +101,33 @@ const Navigation = {
             // 重新加载项目列表
             runner.projects = [];
             History.loadProjects(runner);
+        }
+
+        // 如果是 Claude 状态视图，加载状态数据
+        if (view === Views.CLAUDE_STATUS) {
+            if (typeof ClaudeStatus !== 'undefined') {
+                ClaudeStatus.onShow();
+            }
+            if (typeof MCPManager !== 'undefined') {
+                MCPManager.onShow();
+            }
+            if (typeof HooksManager !== 'undefined') {
+                HooksManager.onShow();
+            }
+        }
+
+        // 如果是 Agent 监控视图，加载代理数据
+        if (view === Views.AGENT_MONITOR) {
+            if (typeof AgentMonitor !== 'undefined') {
+                AgentMonitor.onShow();
+            }
+        }
+
+        // 如果是技能管理视图，加载技能数据
+        if (view === Views.SKILLS) {
+            if (typeof SkillManager !== 'undefined') {
+                SkillManager.onShow();
+            }
         }
 
         // 移动端收起菜单
