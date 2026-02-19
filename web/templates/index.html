@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude Code Runner</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- 左侧菜单栏 -->
+        <nav class="nav-menu" id="nav-menu">
+            <div class="nav-header">
+                <span class="nav-logo">🤖</span>
+                <span class="nav-title">Claude Code</span>
+            </div>
+
+            <div class="nav-items">
+                <div class="nav-item active" data-view="current-session">
+                    <span class="nav-icon">💬</span>
+                    <span class="nav-text">当前会话</span>
+                </div>
+                <div class="nav-item" data-view="history">
+                    <span class="nav-icon">📜</span>
+                    <span class="nav-text">历史记录</span>
+                </div>
+                <div class="nav-item" data-view="examples">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-text">示例任务</span>
+                </div>
+            </div>
+
+            <div class="nav-footer">
+                <button class="nav-toggle" id="nav-toggle" title="收起/展开菜单">◀</button>
+            </div>
+        </nav>
+
+        <!-- 右侧内容区 -->
+        <main class="main-content">
+            <!-- 当前会话视图 -->
+            <div class="view-panel active" id="view-current-session">
+                <div class="session-layout">
+                    <!-- 顶部：标题栏 -->
+                    <div class="session-header">
+                        <button class="menu-toggle" id="menu-toggle" title="显示/隐藏菜单">☰</button>
+                        <div class="session-title">💬 当前会话</div>
+                    </div>
+
+                    <!-- 标签页栏 -->
+                    <div class="tabs-bar" id="tabs-bar">
+                        <button class="tab-item active" data-tab="new">
+                            <span class="tab-icon">➕</span>
+                            <span class="tab-title">新任务</span>
+                        </button>
+                    </div>
+
+                    <!-- 信息栏 -->
+                    <div class="session-info-bar">
+                        <span class="info-item">
+                            <span class="info-label">工作目录</span>
+                            <input type="text" id="working-dir" class="info-input info-input-working-dir" list="working-dir-list" value="{{ working_dir }}" title="选择或输入工作目录" placeholder="选择或输入路径">
+                            <datalist id="working-dir-list"></datalist>
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">会话ID</span>
+                            <input type="text" id="resume" placeholder="新会话" class="info-input info-input-session" readonly title="会话ID">
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">工具权限</span>
+                            <div class="tools-multiselect">
+                                <div class="tools-select-btn" id="tools-select-btn">
+                                    <span class="selected-text">选择工具...</span>
+                                    <span class="selected-count" style="display: none;">0</span>
+                                    <span>▼</span>
+                                </div>
+                                <div class="tools-dropdown" id="tools-dropdown">
+                                    <!-- 工具选项将由 JavaScript 动态生成 -->
+                                </div>
+                            </div>
+                            <input type="hidden" id="tools" value="Read,Write,Edit,Bash,Glob,Grep">
+                        </span>
+                        <span class="info-item info-item-toggle">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="continue-conversation">
+                                <span>继续会话</span>
+                            </label>
+                        </span>
+                        <span class="info-item info-item-right">
+                            <button id="new-session-btn" class="btn btn-new-session" title="创建新会话">➕ 新会话</button>
+                        </span>
+                    </div>
+
+                    <!-- 中间：会话过程显示区 -->
+                    <div class="session-output" id="output">
+                        <div class="output-placeholder">执行任务后，输出将显示在这里...</div>
+                    </div>
+
+                    <!-- 统计信息（悬浮显示） -->
+                    <div class="stats-floating" id="stats-section" style="display: none;">
+                        <span class="stat-item" id="stat-status-wrapper">
+                            <span class="stat-label">状态</span>
+                            <span class="stat-value" id="stat-status">-</span>
+                        </span>
+                        <span class="stat-item">
+                            <span class="stat-label">耗时</span>
+                            <span class="stat-value" id="stat-duration">-</span>
+                        </span>
+                        <span class="stat-item">
+                            <span class="stat-label">费用</span>
+                            <span class="stat-value" id="stat-cost">-</span>
+                        </span>
+                        <span class="stat-item">
+                            <span class="stat-label">会话ID</span>
+                            <span class="stat-value stat-session" id="stat-session" title="点击复制">-</span>
+                        </span>
+                    </div>
+
+                    <!-- 底部：对话输入区 -->
+                    <div class="session-input">
+                        <textarea id="prompt" rows="2" placeholder="描述你希望 Claude Code 执行的任务... (Ctrl+Enter 执行)"></textarea>
+                        <div class="input-actions">
+                            <button id="run-btn" class="btn btn-primary">▶ 执行</button>
+                            <button id="stop-btn" class="btn btn-danger" disabled>⏹ 停止</button>
+                            <button id="clear-btn" class="btn btn-secondary">🗑 清空</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 历史记录视图 -->
+            <div class="view-panel" id="view-history">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-history" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">📜 历史记录</div>
+                        <div class="page-subtitle">查看和管理历史会话</div>
+                    </div>
+
+                    <div class="page-body history-body">
+                        <!-- 项目列表 -->
+                        <div class="history-section" id="history-projects">
+                            <div class="history-header">
+                                <h2>📁 项目列表</h2>
+                            </div>
+                            <div class="project-list" id="project-list">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- 会话列表 (选择项目后显示) -->
+                        <div class="history-section" id="history-sessions" style="display: none;">
+                            <div class="history-header">
+                                <button class="back-btn" id="back-to-projects">← 返回项目列表</button>
+                                <h2 id="current-project-title">会话列表</h2>
+                            </div>
+                            <div class="session-list" id="session-list">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 示例任务视图 -->
+            <div class="view-panel" id="view-examples">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-examples" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">📋 示例任务</div>
+                        <div class="page-subtitle">点击示例快速填充任务描述</div>
+                    </div>
+
+                    <div class="page-body examples-body">
+                        <p class="examples-intro">点击下方示例按钮，将自动跳转到当前会话并填充任务描述。</p>
+                        <div class="example-grid">
+                            <button class="btn btn-example-large" data-prompt="列出当前目录下所有 Python 文件">
+                                <span class="example-icon">📄</span>
+                                <span class="example-title">列出 Python 文件</span>
+                                <span class="example-desc">查找当前目录中的所有 .py 文件</span>
+                            </button>
+                            <button class="btn btn-example-large" data-prompt="阅读 main.py 文件并总结其功能">
+                                <span class="example-icon">📖</span>
+                                <span class="example-title">总结代码功能</span>
+                                <span class="example-desc">阅读代码并生成功能摘要</span>
+                            </button>
+                            <button class="btn btn-example-large" data-prompt="检查代码中的 TODO 注释">
+                                <span class="example-icon">🔍</span>
+                                <span class="example-title">查找 TODO</span>
+                                <span class="example-desc">扫描项目中所有待办事项</span>
+                            </button>
+                            <button class="btn btn-example-large" data-prompt="分析项目结构并生成 README.md">
+                                <span class="example-icon">📝</span>
+                                <span class="example-title">生成 README</span>
+                                <span class="example-desc">自动分析并生成项目文档</span>
+                            </button>
+                            <button class="btn btn-example-large" data-prompt="检查代码中的安全问题">
+                                <span class="example-icon">🔒</span>
+                                <span class="example-title">安全检查</span>
+                                <span class="example-desc">扫描代码中的安全漏洞</span>
+                            </button>
+                            <button class="btn btn-example-large" data-prompt="优化代码性能并给出建议">
+                                <span class="example-icon">⚡</span>
+                                <span class="example-title">性能优化</span>
+                                <span class="example-desc">分析代码并提供优化建议</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/constants.js"></script>
+    <script src="/static/utils.js"></script>
+    <script src="/static/components/toolsMultiselect.js"></script>
+    <script src="/static/components/tabs.js"></script>
+    <script src="/static/modules/navigation.js"></script>
+    <script src="/static/modules/workingDir.js"></script>
+    <script src="/static/modules/session.js"></script>
+    <script src="/static/modules/messageRenderer.js"></script>
+    <script src="/static/modules/history.js"></script>
+    <script src="/static/modules/task.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
