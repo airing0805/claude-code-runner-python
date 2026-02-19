@@ -19,15 +19,16 @@ const Task = {
         const tools = ToolsMultiselect.getSelectedTools(runner);
         const continueConversation = document.getElementById('continue-conversation').checked;
         const resume = runner.resumeInput.value.trim() || null;
+        const permissionMode = runner.permissionSelect ? runner.permissionSelect.value : 'default';
 
         // 更新 UI 状态
         this.setRunning(runner, true);
         this.hideStats(runner);
 
         // 创建新的对话轮次
-        this.startNewRound(runner, prompt);
+        await this.startNewRound(runner, prompt);
 
-        await this.executeTask(runner, prompt, workingDir, tools, continueConversation, resume);
+        await this.executeTask(runner, prompt, workingDir, tools, continueConversation, resume, permissionMode);
     },
 
     /**
@@ -35,7 +36,7 @@ const Task = {
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} userPrompt - 用户输入的提示
      */
-    startNewRound(runner, userPrompt) {
+    async startNewRound(runner, userPrompt) {
         // 移除占位符
         const placeholder = runner.outputEl.querySelector('.output-placeholder');
         if (placeholder) {
@@ -72,6 +73,26 @@ const Task = {
 
         // 清空输入框（在用户消息已添加到 DOM 后）
         document.getElementById('prompt').value = '';
+
+        // 保存用户消息到会话历史
+        const sessionId = runner.currentSessionId;
+        if (sessionId) {
+            const workingDir = runner.workingDirInput.value.trim() || null;
+            try {
+                await fetch(`/api/sessions/${sessionId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        role: 'user',
+                        content: [{ type: 'text', text: userPrompt }],
+                        working_dir: workingDir,
+                    }),
+                });
+            } catch (error) {
+                console.error('保存用户消息失败:', error);
+            }
+        }
     },
 
     /**
@@ -83,14 +104,15 @@ const Task = {
     async runTaskWithSession(runner, sessionId, prompt) {
         const workingDir = runner.workingDirInput.value.trim();
         const tools = ToolsMultiselect.getSelectedTools(runner);
+        const permissionMode = runner.permissionSelect ? runner.permissionSelect.value : 'default';
 
         this.setRunning(runner, true);
         this.hideStats(runner);
 
         // 创建新的对话轮次
-        this.startNewRound(runner, prompt);
+        await this.startNewRound(runner, prompt);
 
-        await this.executeTask(runner, prompt, workingDir, tools, false, sessionId);
+        await this.executeTask(runner, prompt, workingDir, tools, false, sessionId, permissionMode);
     },
 
     /**
@@ -101,8 +123,9 @@ const Task = {
      * @param {Array} tools - 工具列表
      * @param {boolean} continueConversation - 是否继续对话
      * @param {string|null} resume - 会话 ID
+     * @param {string} permissionMode - 权限模式
      */
-    async executeTask(runner, prompt, workingDir, tools, continueConversation, resume) {
+    async executeTask(runner, prompt, workingDir, tools, continueConversation, resume, permissionMode = 'default') {
         try {
             runner.abortController = new AbortController();
 
@@ -115,6 +138,7 @@ const Task = {
                     tools,
                     continue_conversation: continueConversation,
                     resume: resume,
+                    permission_mode: permissionMode,
                 }),
                 signal: runner.abortController.signal,
             });
@@ -170,6 +194,8 @@ const Task = {
         if (runner.reader) {
             runner.reader.cancel();
         }
+        // 恢复输入框
+        this._setInputEnabled(runner, true);
     },
 
     /**
@@ -178,7 +204,12 @@ const Task = {
      * @param {Object} data - 消息数据
      */
     handleStreamMessage(runner, data) {
-        const { type, content, timestamp, tool_name, tool_input, metadata } = data;
+        const { type, content, timestamp, tool_name, tool_input, metadata, question, session_id } = data;
+
+        // 更新 session_id（如果存在）
+        if (session_id && !runner.currentSessionId) {
+            runner.currentSessionId = session_id;
+        }
 
         switch (type) {
             case 'text':
@@ -194,11 +225,33 @@ const Task = {
                 MessageRenderer.addAssistantMessage(runner, 'tool_use', toolInfo, timestamp);
                 break;
 
+            case 'ask_user_question':
+                // 显示问答对话框时，禁用输入框和发送按钮
+                this._setInputEnabled(runner, false);
+
+                // 显示问答对话框
+                if (question) {
+                    // 优先使用 metadata 中的 session_id，否则使用 runner 中的
+                    const sessionId = metadata?.session_id || runner.currentSessionId;
+                    AskUserQuestionDialog.show(runner, question, sessionId);
+                } else {
+                    MessageRenderer.addAssistantMessage(runner, 'text', content, timestamp);
+                }
+                break;
+
             case 'error':
+                // 错误时，恢复输入框
+                this._setInputEnabled(runner, true);
                 MessageRenderer.addAssistantMessage(runner, 'error', content, timestamp);
                 break;
 
             case 'complete':
+                // 任务完成时，恢复输入框
+                this._setInputEnabled(runner, true);
+                // 更新 session_id
+                if (metadata?.session_id) {
+                    runner.currentSessionId = metadata.session_id;
+                }
                 MessageRenderer.addAssistantMessage(runner, 'complete', `✅ ${content}`, timestamp);
                 if (metadata) {
                     this.showStats(runner, metadata);
@@ -352,9 +405,30 @@ const Task = {
      */
     setRunning(runner, running) {
         runner.isRunning = running;
-        runner.runBtn.disabled = running;
-        runner.stopBtn.disabled = !running;
-        runner.runBtn.innerHTML = running ? '⏳ 执行中...' : '▶ 执行';
+        if (running) {
+            // 执行中：显示停止按钮，隐藏发送按钮
+            runner.sendBtn.style.display = 'none';
+            runner.stopBtn.style.display = 'inline-block';
+        } else {
+            // 未执行：显示发送按钮，隐藏停止按钮
+            runner.sendBtn.style.display = 'inline-block';
+            runner.stopBtn.style.display = 'none';
+        }
+    },
+
+    /**
+     * 设置输入框启用/禁用状态
+     * 用于问答交互时禁用输入框
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {boolean} enabled - 是否启用
+     */
+    _setInputEnabled(runner, enabled) {
+        if (runner.promptInput) {
+            runner.promptInput.disabled = !enabled;
+        }
+        if (runner.sendBtn) {
+            runner.sendBtn.disabled = !enabled;
+        }
     }
 };
 

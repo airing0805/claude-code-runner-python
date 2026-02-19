@@ -261,6 +261,11 @@ class SkillManager:
                 skills.append(skill)
                 categories_set.add(skill.category)
 
+        # 预先计算所有分类的计数（不过滤）
+        all_category_counts: dict[str, int] = {}
+        for skill in skills:
+            all_category_counts[skill.category] = all_category_counts.get(skill.category, 0) + 1
+
         # 过滤
         if category:
             skills = [s for s in skills if s.category == category]
@@ -268,15 +273,11 @@ class SkillManager:
         if enabled_only:
             skills = [s for s in skills if s.is_enabled]
 
-        # 构建分类列表
+        # 构建分类列表 - 使用所有分类的计数，而不是过滤后的
         categories = []
-        category_counts: dict[str, int] = {}
-        for skill in skills:
-            category_counts[skill.category] = category_counts.get(skill.category, 0) + 1
-
         for cat_name in sorted(categories_set):
             categories.append(
-                SkillCategory(name=cat_name, count=category_counts.get(cat_name, 0))
+                SkillCategory(name=cat_name, count=all_category_counts.get(cat_name, 0))
             )
 
         return SkillListResponse(

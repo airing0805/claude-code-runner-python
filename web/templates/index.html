@@ -32,6 +32,10 @@
                     <span class="nav-icon">⚙️</span>
                     <span class="nav-text">Claude 状态</span>
                 </div>
+                <div class="nav-item" data-view="claude-docs">
+                    <span class="nav-icon">📚</span>
+                    <span class="nav-text">Claude 文档</span>
+                </div>
                 <div class="nav-item" data-view="agent-monitor">
                     <span class="nav-icon">🤖</span>
                     <span class="nav-text">Agent 监控</span>
@@ -39,6 +43,18 @@
                 <div class="nav-item" data-view="skills">
                     <span class="nav-icon">🧩</span>
                     <span class="nav-text">技能管理</span>
+                </div>
+                <div class="nav-item" data-view="mcp-servers">
+                    <span class="nav-icon">🔌</span>
+                    <span class="nav-text">MCP 服务器</span>
+                </div>
+                <div class="nav-item" data-view="plugins">
+                    <span class="nav-icon">🧩</span>
+                    <span class="nav-text">插件管理</span>
+                </div>
+                <div class="nav-item" data-view="hooks-config">
+                    <span class="nav-icon">⚓</span>
+                    <span class="nav-text">钩子配置</span>
                 </div>
             </div>
 
@@ -108,7 +124,7 @@
                     </div>
 
                     <!-- 统计信息（悬浮显示） -->
-                    <div class="stats-floating" id="stats-section" style="display: none;">
+                    <div class="stats-floating" id="task-stats-floating" style="display: none;">
                         <span class="stat-item" id="stat-status-wrapper">
                             <span class="stat-label">状态</span>
                             <span class="stat-value" id="stat-status">-</span>
@@ -128,12 +144,27 @@
                     </div>
 
                     <!-- 底部：对话输入区 -->
-                    <div class="session-input">
-                        <textarea id="prompt" rows="2" placeholder="描述你希望 Claude Code 执行的任务... (Ctrl+Enter 执行)"></textarea>
-                        <div class="input-actions">
-                            <button id="run-btn" class="btn btn-primary">▶ 执行</button>
-                            <button id="stop-btn" class="btn btn-danger" disabled>⏹ 停止</button>
-                            <button id="clear-btn" class="btn btn-secondary">🗑 清空</button>
+                    <div class="session-input-container">
+                        <div class="session-input">
+                            <textarea id="prompt" rows="2" placeholder="描述你希望 Claude Code 执行的任务... (Enter 发送, Ctrl+Enter 换行)"></textarea>
+                        </div>
+                        <div class="input-toolbar">
+                            <div class="toolbar-left">
+                                <div class="permission-select">
+                                    <label class="permission-label">权限模式</label>
+                                    <select id="permission-mode" class="permission-dropdown">
+                                        <option value="default">default - 默认</option>
+                                        <option value="acceptEdits">acceptEdits - 接受编辑</option>
+                                        <option value="plan">plan - 计划模式</option>
+                                        <option value="bypassPermissions">bypassPermissions - 绕过权限</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="toolbar-right">
+                                <button id="send-btn" class="btn btn-primary">➤ 发送</button>
+                                <button id="stop-btn" class="btn btn-stop" style="display: none;">⏹ 停止</button>
+                                <button id="clear-btn" class="btn btn-secondary">🗑 清空</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -293,8 +324,8 @@
                             </div>
                         </div>
 
-                        <!-- 工具使用统计区块 (v0.3.2) -->
-                        <div class="status-section" id="stats-section">
+                        <!-- 工具使用统计区块 -->
+                        <div class="status-section" id="tools-usage-section">
                             <div class="status-section-header">
                                 <h2>📈 工具使用统计</h2>
                             </div>
@@ -303,7 +334,7 @@
                             </div>
                         </div>
 
-                        <!-- 权限模式说明区块 (v0.3.2) -->
+                        <!-- 权限模式说明区块 -->
                         <div class="status-section" id="permission-modes-section">
                             <div class="status-section-header">
                                 <h2>🔐 权限模式说明</h2>
@@ -313,7 +344,7 @@
                             </div>
                         </div>
 
-                        <!-- 可用工具列表区块 (v0.3.2) -->
+                        <!-- 可用工具列表区块 -->
                         <div class="status-section" id="tools-list-section">
                             <div class="status-section-header">
                                 <h2>🛠️ 可用工具列表</h2>
@@ -322,52 +353,46 @@
                                 <div class="loading-placeholder">加载中...</div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
 
-                        <!-- MCP 服务器管理区块 (v0.3.4) -->
-                        <div class="status-section" id="mcp-section">
-                            <div class="status-section-header">
-                                <h2>🔌 MCP 服务器管理</h2>
-                                <div>
-                                    <button class="btn btn-small" id="refresh-mcp-btn">🔄 刷新</button>
-                                    <button class="btn btn-small" id="add-mcp-server-btn">➕ 添加服务器</button>
-                                </div>
-                            </div>
-                            <div class="status-section-content">
-                                <div class="mcp-server-list" id="mcp-server-list">
+            <!-- Claude 文档视图 -->
+            <div class="view-panel" id="view-claude-docs">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-claude-docs" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">📚 Claude Code 文档</div>
+                        <div class="page-subtitle">工具详解、代理类型、内置命令和最佳实践</div>
+                    </div>
+
+                    <div class="page-body claude-docs-body">
+                        <!-- Tab 导航 -->
+                        <div class="docs-tabs">
+                            <button class="docs-tab active" data-tab="tools-docs">工具详解</button>
+                            <button class="docs-tab" data-tab="agents-docs">代理类型</button>
+                            <button class="docs-tab" data-tab="commands-docs">内置命令</button>
+                            <button class="docs-tab" data-tab="best-practices-docs">最佳实践</button>
+                        </div>
+                        <!-- Tab 内容 -->
+                        <div class="docs-tab-content">
+                            <div class="docs-tab-pane active" id="tools-docs">
+                                <div class="docs-list" id="tools-docs-list">
                                     <div class="loading-placeholder">加载中...</div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- 插件管理区块 (v0.3.7) -->
-                        <div class="status-section" id="plugins-section">
-                            <div class="status-section-header">
-                                <h2>🧩 插件管理</h2>
-                                <div>
-                                    <button class="btn btn-small" id="refresh-plugins-btn">🔄 刷新</button>
-                                </div>
-                            </div>
-                            <div class="status-section-content">
-                                <div class="plugin-list" id="plugin-list">
+                            <div class="docs-tab-pane" id="agents-docs">
+                                <div class="docs-list" id="agents-docs-list">
                                     <div class="loading-placeholder">加载中...</div>
                                 </div>
                             </div>
-                        </div>
-
-                        <!-- 钩子配置区块 (v0.3.8) -->
-                        <div class="status-section" id="hooks-section">
-                            <div class="status-section-header">
-                                <h2>🪝 钩子配置</h2>
-                                <div>
-                                    <button class="btn btn-small" id="refresh-hooks-btn">🔄 刷新</button>
-                                    <button class="btn btn-small" id="add-hook-btn">➕ 添加钩子</button>
+                            <div class="docs-tab-pane" id="commands-docs">
+                                <div class="docs-list" id="commands-docs-list">
+                                    <div class="loading-placeholder">加载中...</div>
                                 </div>
                             </div>
-                            <div class="status-section-content">
-                                <div class="hook-types-info" id="hook-types-info">
-                                    <!-- 钩子类型说明将动态加载 -->
-                                </div>
-                                <div class="hook-list" id="hook-list">
+                            <div class="docs-tab-pane" id="best-practices-docs">
+                                <div class="docs-list" id="best-practices-docs-list">
                                     <div class="loading-placeholder">加载中...</div>
                                 </div>
                             </div>
@@ -436,6 +461,82 @@
 
                         <!-- 技能列表 -->
                         <div class="skill-list" id="skill-list">
+                            <div class="loading-placeholder">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MCP 服务器管理视图 -->
+            <div class="view-panel" id="view-mcp-servers">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-mcp-servers" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">🔌 MCP 服务器管理</div>
+                        <div class="page-subtitle">管理 Claude Code MCP 服务器连接</div>
+                    </div>
+
+                    <div class="page-body mcp-servers-body">
+                        <!-- 操作栏 -->
+                        <div class="mcp-actions-bar">
+                            <button class="btn btn-small" id="refresh-mcp-servers-btn">🔄 刷新</button>
+                            <button class="btn btn-small" id="add-mcp-server-menu-btn">➕ 添加服务器</button>
+                        </div>
+
+                        <!-- 服务器列表 -->
+                        <div class="mcp-server-list-container" id="mcp-server-list-container">
+                            <div class="loading-placeholder">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 插件管理视图 (v0.3.7) -->
+            <div class="view-panel" id="view-plugins">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-plugins" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">🧩 插件管理</div>
+                        <div class="page-subtitle">管理 Claude Code 插件</div>
+                    </div>
+
+                    <div class="page-body plugins-body">
+                        <!-- 操作栏 -->
+                        <div class="plugins-actions-bar">
+                            <button class="btn btn-small" id="refresh-plugins-btn">🔄 刷新</button>
+                        </div>
+
+                        <!-- 插件列表 -->
+                        <div class="plugin-list-container" id="plugin-list-view">
+                            <div class="loading-placeholder">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 钩子配置视图 (v0.3.8) -->
+            <div class="view-panel" id="view-hooks-config">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-hooks-config" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">⚓ 钩子配置</div>
+                        <div class="page-subtitle">管理 Claude Code 钩子配置</div>
+                    </div>
+
+                    <div class="page-body hooks-config-body">
+                        <!-- 操作栏 -->
+                        <div class="hooks-actions-bar">
+                            <button class="btn btn-small" id="refresh-hooks-btn">🔄 刷新</button>
+                            <button class="btn btn-small" id="add-hook-btn">➕ 添加钩子</button>
+                        </div>
+
+                        <!-- 钩子类型说明 -->
+                        <div id="hook-types-info">
+                            <div class="loading-placeholder">加载中...</div>
+                        </div>
+
+                        <!-- 钩子列表 -->
+                        <div class="hook-list-container" id="hook-list">
                             <div class="loading-placeholder">加载中...</div>
                         </div>
                     </div>
@@ -632,6 +733,7 @@
     <script src="/static/utils.js"></script>
     <script src="/static/components/toolsMultiselect.js"></script>
     <script src="/static/components/tabs.js"></script>
+    <script src="/static/components/askUserQuestionDialog.js"></script>
     <script src="/static/modules/navigation.js"></script>
     <script src="/static/modules/workingDir.js"></script>
     <script src="/static/modules/session.js"></script>

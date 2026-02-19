@@ -38,10 +38,29 @@ const PluginManager = {
     },
 
     /**
+     * 获取插件列表容器
+     * 优先查找独立视图容器，其次查找 claude-status 中的容器
+     */
+    getPluginListContainer() {
+        // 优先查找独立视图容器
+        let container = document.getElementById("plugin-list-view");
+        if (container && container.closest('.view-panel')?.classList.contains('active')) {
+            return container;
+        }
+        // 其次查找 claude-status 中的容器
+        container = document.getElementById("plugin-list");
+        if (container && container.closest('.view-panel')?.classList.contains('active')) {
+            return container;
+        }
+        // 任意一个容器存在即可
+        return document.getElementById("plugin-list-view") || document.getElementById("plugin-list");
+    },
+
+    /**
      * 加载插件列表
      */
     async loadPlugins() {
-        const pluginList = document.getElementById("plugin-list");
+        const pluginList = this.getPluginListContainer();
         if (!pluginList) return;
 
         pluginList.innerHTML = '<div class="loading-placeholder">加载中...</div>';
@@ -62,7 +81,7 @@ const PluginManager = {
      * 渲染插件列表
      */
     renderPlugins() {
-        const pluginList = document.getElementById("plugin-list");
+        const pluginList = this.getPluginListContainer();
         if (!pluginList) return;
 
         if (this.plugins.length === 0) {
@@ -207,7 +226,7 @@ pluginStyle.textContent = `
 
     .plugin-table th {
         font-weight: 600;
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #334155);
         font-size: 12px;
         color: var(--text-secondary, #666);
     }
@@ -283,7 +302,7 @@ pluginStyle.textContent = `
     }
 
     .btn-outline:hover {
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #334155);
     }
 
     .btn-primary {

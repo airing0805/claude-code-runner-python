@@ -20,7 +20,10 @@ from app.mcp.schemas import (
 class MCPManager:
     """MCP 服务器管理器"""
 
+    # 自定义管理配置存储路径
     CONFIG_PATH = Path.home() / ".claude" / "mcp-servers" / "servers.json"
+    # Claude Code 全局配置路径
+    CLAUDE_CONFIG_PATH = Path.home() / ".claude.json"
 
     def __init__(self):
         self._ensure_config_dir()
@@ -31,9 +34,10 @@ class MCPManager:
         self.CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     def get_servers(self) -> list[MCPServer]:
-        """获取 MCP 服务器列表"""
+        """获取 MCP 服务器列表（从自定义配置加载）"""
         if not self.CONFIG_PATH.exists():
-            return []
+            # 如果没有自定义配置，尝试从 Claude Code 配置加载
+            return self._load_from_claude_config()
 
         try:
             with open(self.CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -41,7 +45,42 @@ class MCPManager:
                 servers_data = data.get("servers", [])
                 return [MCPServer(**server) for server in servers_data]
         except (json.JSONDecodeError, IOError):
-            return []
+            return self._load_from_claude_config()
+
+    def _load_from_claude_config(self) -> list[MCPServer]:
+        """从 Claude Code 全局配置加载 MCP 服务器"""
+        servers = []
+        if not self.CLAUDE_CONFIG_PATH.exists():
+            return servers
+
+        try:
+            with open(self.CLAUDE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                mcp_servers = config.get("mcpServers", {})
+
+                for name, server_config in mcp_servers.items():
+                    connection_type = server_config.get("type", "stdio")
+                    config_obj = MCPServerConfig(
+                        command=server_config.get("command"),
+                        args=server_config.get("args", []),
+                        url=server_config.get("url"),
+                        env=server_config.get("env"),
+                    )
+
+                    server = MCPServer(
+                        id=f"mcp_{uuid.uuid4().hex[:8]}",
+                        name=name.title(),  # 首字母大写
+                        connection_type=connection_type,
+                        config=config_obj,
+                        enabled=True,
+                        created_at=datetime.now(timezone.utc),
+                        last_connected=None,
+                    )
+                    servers.append(server)
+        except (json.JSONDecodeError, IOError):
+            pass
+
+        return servers
 
     def get_server(self, server_id: str) -> Optional[MCPServer]:
         """获取单个 MCP 服务器"""
@@ -61,6 +100,65 @@ class MCPManager:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
         temp_path.replace(self.CONFIG_PATH)
+
+        # 同时更新 Claude Code 全局配置
+        self._update_claude_config(servers)
+
+    def _update_claude_config(self, servers: list[MCPServer]) -> None:
+        """更新 Claude Code 全局配置文件"""
+        if not self.CLAUDE_CONFIG_PATH.exists():
+            return
+
+        try:
+            with open(self.CLAUDE_CONFIG_PATH, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return
+
+        # 获取原有的 mcpServers 配置
+        existing_mcp_servers = config.get("mcpServers", {})
+
+        # 构建新的服务器配置（只包含用户管理的服务器）
+        managed_server_keys = {server.name.lower().replace(" ", "-") for server in servers}
+
+        # 保留不在管理范围内的原有服务器
+        mcp_servers = {}
+        for name, server_config in existing_mcp_servers.items():
+            if name not in managed_server_keys:
+                mcp_servers[name] = server_config
+
+        # 添加用户管理的服务器
+        for server in servers:
+            if not server.enabled:
+                continue
+
+            # 转换为 Claude Code 格式
+            server_config = {}
+            if server.connection_type == "stdio":
+                server_config["type"] = "stdio"
+                if server.config.command:
+                    server_config["command"] = server.config.command
+                if server.config.args:
+                    server_config["args"] = server.config.args
+                if server.config.env:
+                    server_config["env"] = server.config.env
+            elif server.connection_type == "http":
+                server_config["type"] = "http"
+                if server.config.url:
+                    server_config["url"] = server.config.url
+
+            # 使用小写名称作为 key
+            mcp_servers[server.name.lower().replace(" ", "-")] = server_config
+
+        # 更新全局配置
+        config["mcpServers"] = mcp_servers
+
+        # 写回配置文件
+        try:
+            with open(self.CLAUDE_CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+        except IOError:
+            pass  # 忽略写入错误
 
     async def _save_servers_async(self, servers: list[MCPServer]) -> None:
         """异步保存服务器列表（带锁）"""

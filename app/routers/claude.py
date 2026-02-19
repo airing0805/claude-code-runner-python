@@ -135,9 +135,22 @@ async def get_config():
 
 # ==================== v0.3.2 工具统计展示 ====================
 
+# 核心工具列表
+CORE_TOOLS = [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash",
+    "Glob",
+    "Grep",
+    "WebSearch",
+    "WebFetch",
+    "Task",
+]
+
 # 全局统计存储
 _stats = {
-    "tools_usage": defaultdict(int),
+    "tools_usage": defaultdict(int, {tool: 0 for tool in CORE_TOOLS}),
     "files_changed": 0,
     "task_stats": {
         "total": 0,

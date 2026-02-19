@@ -22,8 +22,11 @@ const Views = {
     HISTORY: 'history',
     EXAMPLES: 'examples',
     CLAUDE_STATUS: 'claude-status',
+    CLAUDE_DOCS: 'claude-docs',
     AGENT_MONITOR: 'agent-monitor',
-    SKILLS: 'skills'
+    SKILLS: 'skills',
+    MCP_SERVERS: 'mcp-servers',
+    PLUGINS: 'plugins'
 };
 
 // 消息类型常量

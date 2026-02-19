@@ -1,11 +1,13 @@
 """会话历史相关 API"""
 
 import json
-import hashlib
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["session"])
 
@@ -65,7 +67,14 @@ def parse_session_metadata(filepath: Path) -> dict[str, Any]:
 
                         if not first_user_msg:
                             content = data.get("message", {}).get("content", [])
-                            if content and isinstance(content, list):
+                            # 处理 content 为字符串的情况（简单文本消息）
+                            if isinstance(content, str):
+                                text = content
+                                # 跳过包含 ide_selection 或 ide_opened_file 的块
+                                if "<ide_selection>" not in text and "<ide_opened_file>" not in text:
+                                    first_user_msg = text[:80] + ("..." if len(text) > 80 else "")
+                            # 处理 content 为数组的情况（复杂消息）
+                            elif content and isinstance(content, list):
                                 for item in content:
                                     if item.get("type") == "text":
                                         text = item.get("text", "")
@@ -356,3 +365,63 @@ async def get_session_messages(session_id: str):
         "project_path": final_path,
         "messages": messages,
     }
+
+
+class AddMessageRequest(BaseModel):
+    """添加消息请求"""
+    session_id: str
+    role: str  # "user" or "assistant"
+    content: list[dict[str, Any]]
+    working_dir: Optional[str] = None
+
+
+@router.post("/sessions/{session_id}/messages")
+async def add_session_message(session_id: str, request: AddMessageRequest):
+    """添加消息到会话历史"""
+    # 验证会话存在
+    session_file = find_session_file(session_id)
+    if not session_file:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 如果提供了 working_dir，使用它；否则从会话文件中获取
+    working_dir = request.working_dir
+    if not working_dir:
+        # 从会话文件中读取工作目录
+        try:
+            with open(session_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        data = json.loads(line)
+                        if data.get("cwd"):
+                            working_dir = data.get("cwd")
+                            break
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            pass
+
+    # 构建消息格式（与 Claude Code 会话格式一致）
+    message_data = {
+        "type": request.role,
+        "uuid": str(uuid.uuid4()),
+        "timestamp": datetime.now().isoformat(),
+        "message": {
+            "role": request.role,
+            "content": request.content,
+        },
+    }
+
+    if working_dir:
+        message_data["cwd"] = working_dir
+
+    # 追加到会话文件
+    try:
+        with open(session_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(message_data, ensure_ascii=False) + "\n")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存消息失败: {str(e)}")
+
+    return {"success": True, "message": "消息已保存"}

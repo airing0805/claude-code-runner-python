@@ -399,7 +399,7 @@ agentMonitorStyle.textContent = `
 
     .agent-table th {
         font-weight: 600;
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #334155);
         font-size: 12px;
         color: var(--text-secondary, #666);
     }
@@ -477,7 +477,7 @@ agentMonitorStyle.textContent = `
 
     /* 代理详情对话框 */
     .agent-detail-content {
-        background: var(--card-bg, #fff);
+        background: var(--card-bg, #1e293b);
         border-radius: 8px;
         padding: 24px;
         width: 90%;
@@ -504,7 +504,7 @@ agentMonitorStyle.textContent = `
     .tool-tag {
         display: inline-block;
         padding: 4px 8px;
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #334155);
         border-radius: 4px;
         font-size: 12px;
         margin-right: 6px;
@@ -513,7 +513,7 @@ agentMonitorStyle.textContent = `
 
     .file-item {
         padding: 4px 8px;
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #334155);
         border-radius: 4px;
         font-size: 12px;
         margin-right: 6px;
@@ -567,7 +567,7 @@ agentMonitorStyle.textContent = `
     }
 
     .agent-stat-card {
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #334155);
         padding: 16px;
         border-radius: 8px;
         text-align: center;

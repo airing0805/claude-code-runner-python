@@ -78,6 +78,55 @@ data: {"type": "complete", "content": "任务完成", "metadata": {"session_id":
 | thinking | 思考过程 |
 | error | 错误信息 |
 | complete | 任务完成 |
+| ask_user_question | 用户问答，交互式问答，需要用户响应后继续执行 |
+
+---
+
+## 用户问答响应
+
+### POST /api/task/answer
+
+当任务执行过程中遇到需要用户确认或选择的问题时（SSE 推送 `ask_user_question` 类型消息），前端调用此 API 提交用户答案。
+
+**请求体**:
+
+```json
+{
+  "session_id": "session_xxx",
+  "question_id": "auth_strategy_01",
+  "answer": "oauth2"
+}
+```
+
+**多选答案格式**:
+
+```json
+{
+  "session_id": "session_xxx",
+  "question_id": "oauth_providers",
+  "answer": ["google", "github"]
+}
+```
+
+**响应**:
+
+```json
+{
+  "success": true,
+  "message": "答案已提交，任务继续执行"
+}
+```
+
+**错误响应**:
+
+| 错误类型 | HTTP 状态码 | 说明 |
+|----------|-------------|------|
+| session_not_found | 404 | 会话不存在 |
+| question_not_found | 404 | 问题不存在（已超时或已回答） |
+| invalid_answer | 400 | 答案格式无效 |
+| task_interrupted | 400 | 任务已被中断 |
+
+> **业务说明**: SSE 流式输出过程中，任务执行可能在任意时刻暂停并发送 `ask_user_question` 类型消息，此时需要前端展示交互式问答组件，等待用户选择后继续执行。具体数据结构和交互流程见 [消息类型-需求.md#2-用户问答消息-ask_user_question](../需求文档/消息类型-需求.md#2-用户问答消息-ask_user_question)。
 
 ---
 

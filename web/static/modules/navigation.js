@@ -54,9 +54,30 @@ const Navigation = {
             });
         }
 
+        const menuToggleClaudeDocs = document.getElementById('menu-toggle-claude-docs');
+        if (menuToggleClaudeDocs) {
+            menuToggleClaudeDocs.addEventListener('click', () => {
+                runner.navMenu.classList.toggle('open');
+            });
+        }
+
         const menuToggleAgentMonitor = document.getElementById('menu-toggle-agent-monitor');
         if (menuToggleAgentMonitor) {
             menuToggleAgentMonitor.addEventListener('click', () => {
+                runner.navMenu.classList.toggle('open');
+            });
+        }
+
+        const menuToggleMcpServers = document.getElementById('menu-toggle-mcp-servers');
+        if (menuToggleMcpServers) {
+            menuToggleMcpServers.addEventListener('click', () => {
+                runner.navMenu.classList.toggle('open');
+            });
+        }
+
+        const menuTogglePlugins = document.getElementById('menu-toggle-plugins');
+        if (menuTogglePlugins) {
+            menuTogglePlugins.addEventListener('click', () => {
                 runner.navMenu.classList.toggle('open');
             });
         }
@@ -108,11 +129,12 @@ const Navigation = {
             if (typeof ClaudeStatus !== 'undefined') {
                 ClaudeStatus.onShow();
             }
-            if (typeof MCPManager !== 'undefined') {
-                MCPManager.onShow();
-            }
-            if (typeof HooksManager !== 'undefined') {
-                HooksManager.onShow();
+        }
+
+        // 如果是 Claude 文档视图，加载文档数据
+        if (view === Views.CLAUDE_DOCS) {
+            if (typeof ClaudeStatus !== 'undefined') {
+                ClaudeStatus.onDocsShow();
             }
         }
 
@@ -127,6 +149,20 @@ const Navigation = {
         if (view === Views.SKILLS) {
             if (typeof SkillManager !== 'undefined') {
                 SkillManager.onShow();
+            }
+        }
+
+        // 如果是 MCP 服务器管理视图，加载 MCP 服务器数据
+        if (view === Views.MCP_SERVERS) {
+            if (typeof MCPManager !== 'undefined') {
+                MCPManager.onShow();
+            }
+        }
+
+        // 如果是插件管理视图，加载插件数据
+        if (view === Views.PLUGINS) {
+            if (typeof PluginManager !== 'undefined') {
+                PluginManager.onShow();
             }
         }
 

@@ -8,10 +8,12 @@ class ClaudeCodeRunner {
         // DOM 元素
         this.navMenu = document.getElementById('nav-menu');
         this.outputEl = document.getElementById('output');
-        this.runBtn = document.getElementById('run-btn');
+        this.sendBtn = document.getElementById('send-btn');
         this.stopBtn = document.getElementById('stop-btn');
         this.clearBtn = document.getElementById('clear-btn');
-        this.statsSection = document.getElementById('stats-section');
+        this.promptInput = document.getElementById('prompt');
+        this.permissionSelect = document.getElementById('permission-mode');
+        this.statsSection = document.getElementById('task-stats-floating');
         this.projectList = document.getElementById('project-list');
         this.sessionList = document.getElementById('session-list');
         this.historyProjects = document.getElementById('history-projects');
@@ -53,9 +55,19 @@ class ClaudeCodeRunner {
         Navigation.init(this);
 
         // 绑定任务执行事件
-        this.runBtn.addEventListener('click', () => Task.runTask(this));
+        this.sendBtn.addEventListener('click', () => Task.runTask(this));
         this.stopBtn.addEventListener('click', () => Task.stopTask(this));
         this.clearBtn.addEventListener('click', () => Task.clearOutput(this));
+
+        // 绑定 Enter 键发送事件
+        this.promptInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (!this.sendBtn.disabled) {
+                    Task.runTask(this);
+                }
+            }
+        });
 
         // 初始化工具多选组件
         ToolsMultiselect.init(this);
@@ -82,6 +94,21 @@ class ClaudeCodeRunner {
         // 初始化钩子管理模块
         if (typeof HooksManager !== 'undefined') {
             HooksManager.init();
+        }
+
+        // 初始化技能管理模块
+        if (typeof SkillManager !== 'undefined') {
+            SkillManager.init();
+        }
+
+        // 初始化 Agent 监控模块
+        if (typeof AgentMonitor !== 'undefined') {
+            AgentMonitor.init();
+        }
+
+        // 初始化插件管理模块
+        if (typeof PluginManager !== 'undefined') {
+            PluginManager.init();
         }
 
         // 快捷键

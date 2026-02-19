@@ -382,32 +382,34 @@ hooksStyle.textContent = `
     .hook-table td {
         padding: 12px;
         text-align: left;
-        border-bottom: 1px solid var(--border-color, #eee);
+        border-bottom: 1px solid var(--border-color, #334155);
     }
 
     .hook-table th {
         font-weight: 600;
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #1e293b);
         font-size: 12px;
-        color: var(--text-secondary, #666);
+        color: var(--text-secondary, #94a3b8);
     }
 
     .hook-name {
         font-weight: 500;
+        color: var(--text-primary, #f1f5f9);
     }
 
     .hook-type {
         font-family: monospace;
-        color: var(--text-secondary, #666);
+        color: var(--text-secondary, #94a3b8);
     }
 
     .hook-tools {
         font-size: 12px;
-        color: var(--text-secondary, #666);
+        color: var(--text-secondary, #94a3b8);
     }
 
     .hook-action {
         font-size: 12px;
+        color: var(--text-primary, #f1f5f9);
     }
 
     .hook-status {
@@ -419,13 +421,13 @@ hooksStyle.textContent = `
     }
 
     .status-enabled {
-        background: #d4edda;
-        color: #155724;
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
     }
 
     .status-disabled {
-        background: #f8d7da;
-        color: #721c24;
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
     }
 
     .hook-actions {
@@ -436,14 +438,15 @@ hooksStyle.textContent = `
     .hook-types-list {
         margin-bottom: 16px;
         padding: 12px;
-        background: var(--header-bg, #f5f5f5);
+        background: var(--card-bg, #1e293b);
         border-radius: 6px;
+        border: 1px solid var(--border-color, #334155);
     }
 
     .hook-types-list h4 {
         margin: 0 0 8px 0;
         font-size: 14px;
-        color: var(--text-primary, #333);
+        color: var(--text-primary, #f1f5f9);
     }
 
     .hook-types-list ul {
@@ -454,11 +457,37 @@ hooksStyle.textContent = `
     .hook-types-list li {
         margin: 4px 0;
         font-size: 12px;
-        color: var(--text-secondary, #666);
+        color: var(--text-secondary, #94a3b8);
     }
 
     .hook-types-list strong {
-        color: var(--text-primary, #333);
+        color: var(--accent-color, #38bdf8);
+    }
+
+    .hooks-actions-bar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .hook-list-container {
+        margin-top: 16px;
+    }
+
+    /* 表格行悬停效果 */
+    .hook-table tbody tr:hover {
+        background: var(--hover-bg, rgba(255, 255, 255, 0.05));
+    }
+
+    /* 空状态和加载状态 */
+    .empty-placeholder,
+    .loading-placeholder,
+    .error-placeholder {
+        padding: 24px;
+        text-align: center;
+        color: var(--text-secondary, #94a3b8);
+        background: var(--card-bg, #1e293b);
+        border-radius: 6px;
     }
 `;
 document.head.appendChild(hooksStyle);

@@ -20,16 +20,16 @@ const MCPManager = {
      * 绑定事件
      */
     bindEvents() {
-        // 添加服务器按钮
-        const addBtn = document.getElementById("add-mcp-server-btn");
-        if (addBtn) {
-            addBtn.addEventListener("click", () => this.showCreateDialog());
+        // 添加服务器按钮（MCP 服务器独立视图）
+        const addMenuBtn = document.getElementById("add-mcp-server-menu-btn");
+        if (addMenuBtn) {
+            addMenuBtn.addEventListener("click", () => this.showCreateDialog());
         }
 
-        // 刷新按钮
-        const refreshBtn = document.getElementById("refresh-mcp-btn");
-        if (refreshBtn) {
-            refreshBtn.addEventListener("click", () => this.loadServers());
+        // 刷新按钮（MCP 服务器独立视图）
+        const refreshServersBtn = document.getElementById("refresh-mcp-servers-btn");
+        if (refreshServersBtn) {
+            refreshServersBtn.addEventListener("click", () => this.loadServers());
         }
 
         // 关闭对话框
@@ -77,10 +77,18 @@ const MCPManager = {
      * 加载服务器列表
      */
     async loadServers() {
+        // 同时更新两个容器（Claude 状态视图和独立视图）
         const serverList = document.getElementById("mcp-server-list");
-        if (!serverList) return;
+        const serverListContainer = document.getElementById("mcp-server-list-container");
 
-        serverList.innerHTML = '<div class="loading-placeholder">加载中...</div>';
+        const showLoading = (container) => {
+            if (container) {
+                container.innerHTML = '<div class="loading-placeholder">加载中...</div>';
+            }
+        };
+
+        showLoading(serverList);
+        showLoading(serverListContainer);
 
         try {
             const response = await fetch("/api/mcp/servers");
@@ -90,7 +98,13 @@ const MCPManager = {
             this.renderServers();
         } catch (error) {
             console.error("加载 MCP 服务器列表失败:", error);
-            serverList.innerHTML = '<div class="error-placeholder">加载失败</div>';
+            const showError = (container) => {
+                if (container) {
+                    container.innerHTML = '<div class="error-placeholder">加载失败</div>';
+                }
+            };
+            showError(serverList);
+            showError(serverListContainer);
         }
     },
 
@@ -99,39 +113,49 @@ const MCPManager = {
      */
     renderServers() {
         const serverList = document.getElementById("mcp-server-list");
-        if (!serverList) return;
+        const serverListContainer = document.getElementById("mcp-server-list-container");
 
-        if (this.servers.length === 0) {
-            serverList.innerHTML = '<div class="empty-placeholder">暂无 MCP 服务器</div>';
-            return;
+        const getHtml = () => {
+            if (this.servers.length === 0) {
+                return '<div class="empty-placeholder">暂无 MCP 服务器</div>';
+            }
+
+            let html = '<table class="mcp-server-table">';
+            html += "<thead><tr>";
+            html += "<th>名称</th>";
+            html += "<th>类型</th>";
+            html += "<th>状态</th>";
+            html += "<th>操作</th>";
+            html += "</tr></thead>";
+            html += "<tbody>";
+
+            for (const server of this.servers) {
+                const statusClass = server.enabled ? "status-online" : "status-offline";
+                const statusText = server.enabled ? "已启用" : "已禁用";
+
+                html += "<tr>";
+                html += `<td class="server-name">${this.escapeHtml(server.name)}</td>`;
+                html += `<td class="server-type">${server.connection_type}</td>`;
+                html += `<td><span class="server-status ${statusClass}">${statusText}</span></td>`;
+                html += `<td class="server-actions">`;
+                html += `<button class="btn-icon" title="编辑" onclick="MCPManager.showEditDialog('${server.id}')">✏️</button>`;
+                html += `<button class="btn-icon" title="删除" onclick="MCPManager.deleteServer('${server.id}')">🗑️</button>`;
+                html += `</td>`;
+                html += "</tr>";
+            }
+
+            html += "</tbody></table>";
+            return html;
+        };
+
+        const html = getHtml();
+
+        if (serverList) {
+            serverList.innerHTML = html;
         }
-
-        let html = '<table class="mcp-server-table">';
-        html += "<thead><tr>";
-        html += "<th>名称</th>";
-        html += "<th>类型</th>";
-        html += "<th>状态</th>";
-        html += "<th>操作</th>";
-        html += "</tr></thead>";
-        html += "<tbody>";
-
-        for (const server of this.servers) {
-            const statusClass = server.enabled ? "status-online" : "status-offline";
-            const statusText = server.enabled ? "已启用" : "已禁用";
-
-            html += "<tr>";
-            html += `<td class="server-name">${this.escapeHtml(server.name)}</td>`;
-            html += `<td class="server-type">${server.connection_type}</td>`;
-            html += `<td><span class="server-status ${statusClass}">${statusText}</span></td>`;
-            html += `<td class="server-actions">`;
-            html += `<button class="btn-icon" title="编辑" onclick="MCPManager.showEditDialog('${server.id}')">✏️</button>`;
-            html += `<button class="btn-icon" title="删除" onclick="MCPManager.deleteServer('${server.id}')">🗑️</button>`;
-            html += `</td>`;
-            html += "</tr>";
+        if (serverListContainer) {
+            serverListContainer.innerHTML = html;
         }
-
-        html += "</tbody></table>";
-        serverList.innerHTML = html;
     },
 
     /**
@@ -349,14 +373,14 @@ mcpStyle.textContent = `
     .mcp-server-table td {
         padding: 12px;
         text-align: left;
-        border-bottom: 1px solid var(--border-color, #eee);
+        border-bottom: 1px solid var(--border-color, #334155);
     }
 
     .mcp-server-table th {
         font-weight: 600;
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #334155);
         font-size: 12px;
-        color: var(--text-secondary, #666);
+        color: var(--text-secondary, #94a3b8);
     }
 
     .server-name {
@@ -365,7 +389,7 @@ mcpStyle.textContent = `
 
     .server-type {
         font-family: monospace;
-        color: var(--text-secondary, #666);
+        color: var(--text-secondary, #94a3b8);
     }
 
     .server-status {
@@ -377,13 +401,13 @@ mcpStyle.textContent = `
     }
 
     .status-online {
-        background: #d4edda;
-        color: #155724;
+        background: rgba(40, 167, 69, 0.2);
+        color: #28a745;
     }
 
     .status-offline {
-        background: #f8d7da;
-        color: #721c24;
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
     }
 
     .server-actions {
@@ -401,7 +425,7 @@ mcpStyle.textContent = `
     }
 
     .btn-icon:hover {
-        background: var(--border-color, #eee);
+        background: var(--border-color, #334155);
     }
 
     /* 对话框样式 */
@@ -419,7 +443,7 @@ mcpStyle.textContent = `
     }
 
     .dialog-content {
-        background: var(--card-bg, #fff);
+        background: var(--card-bg, #1e293b);
         border-radius: 8px;
         padding: 24px;
         width: 90%;
@@ -446,7 +470,7 @@ mcpStyle.textContent = `
         border: none;
         font-size: 20px;
         cursor: pointer;
-        color: var(--text-secondary, #666);
+        color: var(--text-secondary, #94a3b8);
     }
 
     .form-group {
@@ -508,8 +532,8 @@ mcpStyle.textContent = `
 
     .btn-secondary {
         padding: 10px 20px;
-        background: var(--border-color, #eee);
-        color: var(--text-primary, #333);
+        background: var(--border-color, #334155);
+        color: var(--text-primary, #e2e8f0);
         border: none;
         border-radius: 6px;
         cursor: pointer;
@@ -522,7 +546,7 @@ mcpStyle.textContent = `
 
     .config-section {
         padding: 16px;
-        background: var(--header-bg, #f5f5f5);
+        background: var(--header-bg, #334155);
         border-radius: 6px;
         margin-top: 12px;
     }
