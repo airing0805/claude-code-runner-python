@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.routers import api_keys, auth, session, status, task
+from app.routers import api_keys, auth, claude, mcp, session, status, task
 
 # 加载环境变量
 load_dotenv()
@@ -52,6 +52,8 @@ app.include_router(task.router)
 app.include_router(session.router)
 app.include_router(status.router)
 app.include_router(api_keys.router)
+app.include_router(claude.router)
+app.include_router(mcp.router)
 
 
 # ============== 页面路由 ==============

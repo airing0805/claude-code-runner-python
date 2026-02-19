@@ -28,6 +28,10 @@
                     <span class="nav-icon">📋</span>
                     <span class="nav-text">示例任务</span>
                 </div>
+                <div class="nav-item" data-view="claude-status">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">Claude 状态</span>
+                </div>
             </div>
 
             <div class="nav-footer">
@@ -207,7 +211,184 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Claude 状态视图 -->
+            <div class="view-panel" id="view-claude-status">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-claude-status" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">⚙️ Claude 状态</div>
+                        <div class="page-subtitle">查看 Claude Code 运行状态和配置</div>
+                    </div>
+
+                    <div class="page-body claude-status-body">
+                        <!-- 版本信息区块 -->
+                        <div class="status-section" id="version-section">
+                            <div class="status-section-header">
+                                <h2>📊 版本信息</h2>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="status-grid">
+                                    <div class="status-item">
+                                        <span class="status-label">CLI 版本</span>
+                                        <span class="status-value" id="cli-version">-</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">SDK 版本</span>
+                                        <span class="status-value" id="sdk-version">-</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">操作系统</span>
+                                        <span class="status-value" id="os-info">-</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">Python 版本</span>
+                                        <span class="status-value" id="python-version">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 环境变量区块 -->
+                        <div class="status-section" id="env-section">
+                            <div class="status-section-header">
+                                <h2>🔧 环境变量</h2>
+                                <button class="btn btn-small" id="refresh-env-btn">🔄 刷新</button>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="env-list" id="env-list">
+                                    <div class="loading-placeholder">加载中...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 配置信息区块 -->
+                        <div class="status-section" id="config-section">
+                            <div class="status-section-header">
+                                <h2>📁 配置信息</h2>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="status-grid">
+                                    <div class="status-item status-item-full">
+                                        <span class="status-label">工作目录</span>
+                                        <span class="status-value" id="working-dir-config">-</span>
+                                    </div>
+                                    <div class="status-item">
+                                        <span class="status-label">权限模式</span>
+                                        <span class="status-value" id="permission-mode">-</span>
+                                    </div>
+                                    <div class="status-item status-item-full">
+                                        <span class="status-label">可用工具</span>
+                                        <span class="status-value" id="allowed-tools">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 工具使用统计区块 (v0.3.2) -->
+                        <div class="status-section" id="stats-section">
+                            <div class="status-section-header">
+                                <h2>📈 工具使用统计</h2>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- 权限模式说明区块 (v0.3.2) -->
+                        <div class="status-section" id="permission-modes-section">
+                            <div class="status-section-header">
+                                <h2>🔐 权限模式说明</h2>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- 可用工具列表区块 (v0.3.2) -->
+                        <div class="status-section" id="tools-list-section">
+                            <div class="status-section-header">
+                                <h2>🛠️ 可用工具列表</h2>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- MCP 服务器管理区块 (v0.3.4) -->
+                        <div class="status-section" id="mcp-section">
+                            <div class="status-section-header">
+                                <h2>🔌 MCP 服务器管理</h2>
+                                <div>
+                                    <button class="btn btn-small" id="refresh-mcp-btn">🔄 刷新</button>
+                                    <button class="btn btn-small" id="add-mcp-server-btn">➕ 添加服务器</button>
+                                </div>
+                            </div>
+                            <div class="status-section-content">
+                                <div class="mcp-server-list" id="mcp-server-list">
+                                    <div class="loading-placeholder">加载中...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
+    </div>
+
+    <!-- MCP 服务器对话框 -->
+    <div class="dialog-overlay" id="mcp-dialog">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2 class="dialog-title" id="mcp-dialog-title">添加 MCP 服务器</h2>
+                <button class="dialog-close" id="close-mcp-dialog">×</button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">服务器名称</label>
+                <input type="text" class="form-input" id="mcp-server-name" placeholder="例如：GitHub">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">连接类型</label>
+                <select class="form-input" id="mcp-connection-type">
+                    <option value="stdio">stdio (本地命令)</option>
+                    <option value="http">http/sse (远程服务)</option>
+                </select>
+            </div>
+
+            <!-- stdio 配置 -->
+            <div class="config-section" id="stdio-config">
+                <div class="form-group">
+                    <label class="form-label">命令</label>
+                    <input type="text" class="form-input" id="mcp-command" placeholder="例如：npx">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">参数 (空格分隔)</label>
+                    <input type="text" class="form-input" id="mcp-args" placeholder="例如：-y @modelcontextprotocol/server-github">
+                </div>
+            </div>
+
+            <!-- http 配置 -->
+            <div class="config-section" id="http-config" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">URL</label>
+                    <input type="text" class="form-input" id="mcp-url" placeholder="例如：http://localhost:3000">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" id="mcp-enabled" checked>
+                    <span>启用服务器</span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn-secondary" id="cancel-mcp-dialog-btn">取消</button>
+                <button class="btn-primary" id="save-mcp-server-btn">保存</button>
+            </div>
+        </div>
     </div>
 
     <script src="/static/constants.js"></script>
@@ -220,6 +401,8 @@
     <script src="/static/modules/messageRenderer.js"></script>
     <script src="/static/modules/history.js"></script>
     <script src="/static/modules/task.js"></script>
+    <script src="/static/modules/claudeStatus.js"></script>
+    <script src="/static/modules/mcpManager.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

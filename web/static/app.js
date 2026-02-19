@@ -69,6 +69,16 @@ class ClaudeCodeRunner {
         // 加载工作目录列表
         WorkingDir.loadWorkingDirs(this);
 
+        // 初始化 Claude 状态模块
+        if (typeof ClaudeStatus !== 'undefined') {
+            ClaudeStatus.init();
+        }
+
+        // 初始化 MCP 管理模块
+        if (typeof MCPManager !== 'undefined') {
+            MCPManager.init();
+        }
+
         // 快捷键
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') {
