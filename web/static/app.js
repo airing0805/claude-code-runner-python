@@ -34,6 +34,7 @@ class ClaudeCodeRunner {
         this.projects = [];
         this.sessions = [];
         this.workingDirs = [];
+        this.defaultWorkingDir = this.workingDirInput ? this.workingDirInput.value : '';
 
         // 标签页状态
         this.tabs = [];
@@ -77,6 +78,17 @@ class ClaudeCodeRunner {
 
         // 绑定新会话按钮
         this.newSessionBtn.addEventListener('click', () => Tabs.createNewSession(this));
+
+        // 绑定标签页点击事件（事件委托）
+        this.tabsBar.addEventListener('click', (e) => {
+            const tabItem = e.target.closest('.tab-item');
+            if (tabItem && !e.target.classList.contains('tab-close')) {
+                const tabId = tabItem.dataset.tab;
+                if (tabId) {
+                    Tabs.switchToTab(this, tabId);
+                }
+            }
+        });
 
         // 加载工作目录列表
         WorkingDir.loadWorkingDirs(this);

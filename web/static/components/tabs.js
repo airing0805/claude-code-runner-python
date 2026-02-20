@@ -154,11 +154,18 @@ const Tabs = {
             runner.resumeInput.title = '';
             document.getElementById('prompt').value = '';
             runner.currentSessionId = null;
+
+            // 重置继续会话复选框
+            document.getElementById('continue-conversation').checked = false;
+
             Session.setSessionEditable(runner, true);
 
-            // 恢复工作目录
+            // 恢复工作目录（如果有保存的）
             if (tabData && tabData.workingDir) {
                 WorkingDir.setWorkingDir(runner, tabData.workingDir);
+            } else if (runner.defaultWorkingDir) {
+                // 恢复默认工作目录
+                runner.workingDirInput.value = runner.defaultWorkingDir;
             }
 
             // 显示占位符
