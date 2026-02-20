@@ -1,7 +1,7 @@
 [project]
 name = "claude-code-runner"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.15"
+description = "基于 Claude Code SDK 的 Web 服务封装，通过 FastAPI 提供 REST API 和 Web 界面来调用 Claude Code 执行编程任务"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [

@@ -741,12 +741,15 @@ body {
     align-items: center;
     padding: 8px 16px 12px;
     gap: 12px;
+    min-width: 0;
 }
 
 .toolbar-left {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-shrink: 0;
+    min-width: 0;
 }
 
 .toolbar-right {
@@ -760,6 +763,7 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .permission-label {

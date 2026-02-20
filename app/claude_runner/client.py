@@ -205,6 +205,31 @@ class ClaudeCodeClient:
     async def _parse_question_data(self, tool_input: dict) -> Optional[AskUserQuestion]:
         """解析问答数据"""
         try:
+            # 检查是否有 questions 字段（某些版本 SDK 可能是这个字段名）
+            questions = tool_input.get("questions")
+            if questions:
+                # 如果是 questions 字段，尝试提取第一个问题
+                if isinstance(questions, list) and len(questions) > 0:
+                    q = questions[0]
+                    return AskUserQuestion(
+                        question_id=q.get("question_id", ""),
+                        question_text=q.get("question_text", q.get("question", "")),
+                        type=q.get("type", "multiple_choice"),
+                        header=q.get("header"),
+                        description=q.get("description"),
+                        options=[
+                            QuestionOption(
+                                id=opt.get("id", ""),
+                                label=opt.get("label", ""),
+                                description=opt.get("description"),
+                                default=opt.get("default", False),
+                            )
+                            for opt in (q.get("options") or [])
+                        ] if q.get("options") else None,
+                        required=q.get("required", True),
+                        follow_up_questions={},
+                    )
+
             # 解析选项
             options = None
             if tool_input.get("options"):
@@ -304,8 +329,8 @@ class ClaudeCodeClient:
 
                                 await self._track_tool_use(tool_name, tool_input)
 
-                                # 检查是否为 AskUserQuestion 工具调用
-                                if tool_name == "ask_user_question":
+                                # 检查是否为 AskUserQuestion 工具调用（大小写不敏感）
+                                if tool_name and tool_name.lower() == "ask_user_question":
                                     question_data = await self._parse_question_data(tool_input)
                                     stream_msg = StreamMessage(
                                         type=MessageType.ASK_USER_QUESTION,

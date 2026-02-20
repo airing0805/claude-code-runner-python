@@ -72,4 +72,4 @@ if __name__ == "__main__":
     # 确保端口可用
     ensure_port_available(8000)
 
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
