@@ -250,6 +250,19 @@ def parse_content_blocks(message_content: list) -> list[dict[str, Any]]:
     if not isinstance(message_content, list):
         return blocks
 
+    # 第一遍：收集 tool_use 的 ID 到名称的映射
+    tool_use_map: dict[str, str] = {}
+    for item in message_content:
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type")
+        if item_type == "tool_use":
+            tool_use_id = item.get("id", "")
+            tool_name = item.get("name", "")
+            if tool_use_id and tool_name:
+                tool_use_map[tool_use_id] = tool_name
+
+    # 第二遍：解析所有块
     for item in message_content:
         if not isinstance(item, dict):
             continue
@@ -281,9 +294,12 @@ def parse_content_blocks(message_content: list) -> list[dict[str, Any]]:
             })
 
         elif item_type == "tool_result":
+            tool_use_id = item.get("tool_use_id", "")
+            tool_name = tool_use_map.get(tool_use_id, "")
             blocks.append({
                 "type": "tool_result",
-                "tool_use_id": item.get("tool_use_id", ""),
+                "tool_use_id": tool_use_id,
+                "tool_name": tool_name,
                 "content": item.get("content", ""),
                 "is_error": item.get("is_error", False),
             })
