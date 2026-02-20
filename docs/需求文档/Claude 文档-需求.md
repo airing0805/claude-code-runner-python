@@ -27,7 +27,11 @@
 
 ### 3.3 内置命令说明
 
-- 5个内置命令：/commit、/commit-push-pr、/dedupe、/oncall-triage、/bug
+- CLI 启动命令（9个）：claude、claude "问题"、claude -c、claude --version、claude update、claude doctor、claude mcp、claude login、claude logout
+- 斜杠命令（24个）：/help、/config、/model、/memory、/init、/clear、/compact、/exit、/bug、/doctor、/usage、/stats、/permissions、/terminal-setup、/add-dir、/context、/cost、/agents、/bashes、/todos、/resume、/rewind、/export
+- 符号命令（4个）：!、/、@、&
+- 快捷键（8个）：Ctrl+C、Ctrl+D、Ctrl+L、Ctrl+R、Tab、↑/↓、Esc、Ctrl+Z
+- 项目文件（2个）：CLAUDE.md、.claude/settings.json
 - 每个命令包含：功能描述、使用方法
 
 ### 3.4 最佳实践指南
@@ -40,7 +44,7 @@
 
 - [x] 工具详解文档完整展示9个工具
 - [x] 代理类型说明包含9种代理
-- [x] 内置命令说明包含5个命令
+- [x] 内置命令说明包含 CLI 启动命令(9个)、斜杠命令(24个)、符号命令(4个)、快捷键(8个)、项目文件(2个)
 - [x] 最佳实践指南内容完整
 - [x] 文档内容准确无误
 - [x] 页面布局美观易读

@@ -131,6 +131,7 @@ class CommandDoc(BaseModel):
     description: str
     usage: str
     options: list[CommandOption]
+    category: str = "cli"  # cli(CLI启动命令), slash(斜杠命令), symbol(符号命令), shortcut(快捷键), file(项目文件)
 
 
 class CommandsDoc(BaseModel):

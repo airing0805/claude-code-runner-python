@@ -160,10 +160,16 @@ async def list_sessions(working_dir: str = "."):
 
 
 @router.get("/projects")
-async def list_projects():
-    """获取所有项目列表"""
+async def list_projects(page: int = 1, limit: int = 20):
+    """获取所有项目列表（分页）"""
     if not PROJECTS_DIR.exists():
-        return {"projects": []}
+        return {
+            "projects": [],
+            "total": 0,
+            "page": page,
+            "limit": limit,
+            "pages": 0
+        }
 
     projects = []
     for project_dir in PROJECTS_DIR.iterdir():
@@ -200,12 +206,25 @@ async def list_projects():
     # 按会话数量降序排序
     projects.sort(key=lambda x: x["session_count"], reverse=True)
 
-    return {"projects": projects}
+    # 分页
+    total = len(projects)
+    pages = (total + limit - 1) // limit if limit > 0 else 0
+    start = (page - 1) * limit
+    end = start + limit
+    paginated_projects = projects[start:end]
+
+    return {
+        "projects": paginated_projects,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": pages
+    }
 
 
 @router.get("/projects/{project_name}/sessions")
-async def list_project_sessions(project_name: str):
-    """获取指定项目的会话列表"""
+async def list_project_sessions(project_name: str, page: int = 1, limit: int = 20):
+    """获取指定项目的会话列表（分页）"""
     project_dir = PROJECTS_DIR / project_name
 
     if not project_dir.exists():
@@ -229,10 +248,21 @@ async def list_project_sessions(project_name: str):
     if project_path is None:
         project_path = decode_project_name(project_name)
 
+    # 分页
+    total = len(sessions)
+    pages = (total + limit - 1) // limit if limit > 0 else 0
+    start = (page - 1) * limit
+    end = start + limit
+    paginated_sessions = sessions[start:end]
+
     return {
         "project_name": project_name,
         "project_path": project_path,
-        "sessions": sessions
+        "sessions": paginated_sessions,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": pages
     }
 
 

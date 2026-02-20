@@ -1,9 +1,17 @@
 /**
  * 历史记录管理模块
- * 处理项目列表和会话历史的加载与显示
+ * 处理项目列表和会话历史的加载与显示（带分页）
  */
 
 const History = {
+    // 分页状态
+    projectsPage: 1,
+    projectsLimit: 20,
+    sessionsPage: 1,
+    sessionsLimit: 20,
+    projectsTotal: 0,
+    sessionsTotal: 0,
+
     /**
      * 显示项目列表
      * @param {Object} runner - ClaudeCodeRunner 实例
@@ -28,13 +36,22 @@ const History = {
     /**
      * 加载项目列表
      * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {number} page - 页码
      */
-    async loadProjects(runner) {
+    async loadProjects(runner, page = 1) {
+        this.projectsPage = page;
+        runner.projectList.innerHTML = '<div class="loading-placeholder">加载中...</div>';
+
         try {
-            const response = await fetch('/api/projects');
+            const response = await fetch(`/api/projects?page=${page}&limit=${this.projectsLimit}`);
             const data = await response.json();
+
             runner.projects = data.projects || [];
+            this.projectsTotal = data.total || 0;
+            this.projectsPage = data.page || 1;
+
             this.renderProjectList(runner);
+            this.renderProjectsPagination(runner);
 
             // 同时更新工作目录列表
             runner.workingDirs = runner.projects.map(p => p.path);
@@ -95,12 +112,51 @@ const History = {
     },
 
     /**
+     * 渲染项目分页控件
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     */
+    renderProjectsPagination(runner) {
+        const paginationEl = document.getElementById('projects-pagination');
+        if (!paginationEl) return;
+
+        const totalPages = Math.ceil(this.projectsTotal / this.projectsLimit);
+
+        // 始终显示分页信息（即使只有一页）
+        let html = `
+            <button class="pagination-btn" onclick="History.goToProjectsPage(${this.projectsPage - 1})" ${this.projectsPage <= 1 ? 'disabled' : ''}>
+                ‹ 上一页
+            </button>
+            <span class="pagination-info">${this.projectsPage} / ${totalPages} (${this.projectsTotal} 个项目)</span>
+            <button class="pagination-btn" onclick="History.goToProjectsPage(${this.projectsPage + 1})" ${this.projectsPage >= totalPages ? 'disabled' : ''}>
+                下一页 ›
+            </button>
+        `;
+
+        paginationEl.innerHTML = html;
+    },
+
+    /**
+     * 跳转到指定项目页
+     * @param {number} page - 页码
+     */
+    goToProjectsPage(page) {
+        // 获取 runner 实例
+        const runner = window.runner;
+        if (!runner) return;
+
+        const totalPages = Math.ceil(this.projectsTotal / this.projectsLimit);
+        if (page < 1 || page > totalPages) return;
+        this.loadProjects(runner, page);
+    },
+
+    /**
      * 选择项目
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} projectName - 项目名称
      */
     selectProject(runner, projectName) {
         runner.currentProject = projectName;
+        this.sessionsPage = 1; // 重置会话页码
         this.showSessionsList(runner);
         this.loadProjectSessions(runner, projectName);
     },
@@ -109,19 +165,24 @@ const History = {
      * 加载项目会话列表
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} projectName - 项目名称
+     * @param {number} page - 页码
      */
-    async loadProjectSessions(runner, projectName) {
-        // 清空缓存，确保每次都重新加载最新数据
-        runner.sessions = [];
+    async loadProjectSessions(runner, projectName, page = 1) {
+        this.sessionsPage = page;
         runner.sessionList.innerHTML = '<div class="loading-placeholder">加载中...</div>';
         document.getElementById('current-project-title').textContent = '加载中...';
 
         try {
-            const response = await fetch(`/api/projects/${encodeURIComponent(projectName)}/sessions`);
+            const response = await fetch(`/api/projects/${encodeURIComponent(projectName)}/sessions?page=${page}&limit=${this.sessionsLimit}`);
             const data = await response.json();
+
             runner.sessions = data.sessions || [];
+            this.sessionsTotal = data.total || 0;
+            this.sessionsPage = data.page || 1;
+
             document.getElementById('current-project-title').textContent = data.project_path || projectName;
             this.renderSessionList(runner);
+            this.renderSessionsPagination(runner);
         } catch (error) {
             runner.sessionList.innerHTML = `<div class="empty-placeholder">加载失败: ${error.message}</div>`;
         }
@@ -160,6 +221,46 @@ const History = {
                 this.continueSession(runner, item.dataset.id);
             });
         });
+    },
+
+    /**
+     * 渲染会话分页控件
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     */
+    renderSessionsPagination(runner) {
+        const paginationEl = document.getElementById('sessions-pagination');
+        if (!paginationEl) return;
+
+        const totalPages = Math.ceil(this.sessionsTotal / this.sessionsLimit);
+
+        // 始终显示分页信息（即使只有一页）
+        let html = `
+            <button class="pagination-btn" onclick="History.goToSessionsPage('${runner.currentProject}', ${this.sessionsPage - 1})" ${this.sessionsPage <= 1 ? 'disabled' : ''}>
+                ‹ 上一页
+            </button>
+            <span class="pagination-info">${this.sessionsPage} / ${totalPages} (${this.sessionsTotal} 个会话)</span>
+            <button class="pagination-btn" onclick="History.goToSessionsPage('${runner.currentProject}', ${this.sessionsPage + 1})" ${this.sessionsPage >= totalPages ? 'disabled' : ''}>
+                下一页 ›
+            </button>
+        `;
+
+        paginationEl.innerHTML = html;
+    },
+
+    /**
+     * 跳转到指定会话页
+     * @param {string} projectName - 项目名称
+     * @param {number} page - 页码
+     */
+    goToSessionsPage(projectName, page) {
+        const totalPages = Math.ceil(this.sessionsTotal / this.sessionsLimit);
+        if (page < 1 || page > totalPages) return;
+
+        // 获取 runner 实例
+        const runner = window.runner;
+        if (runner) {
+            this.loadProjectSessions(runner, projectName, page);
+        }
     },
 
     /**

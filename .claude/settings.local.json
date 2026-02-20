@@ -26,10 +26,12 @@
       "NotebookEdit(*)",
       "EnterPlanMode(*)",
       "ExitPlanMode(*)",
-      "mcp__pencil(*)",
       "WebSearch",
       "Bash(uv run python -c:*)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "mcp__github__search_code",
+      "mcp__github__search_repositories",
+      "mcp__github__get_file_contents"
     ]
   }
 }

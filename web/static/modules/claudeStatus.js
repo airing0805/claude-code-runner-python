@@ -463,44 +463,78 @@ const ClaudeStatus = {
             const response = await fetch("/api/claude/docs/commands");
             const data = await response.json();
 
-            let html = '<div class="docs-commands-list">';
+            // 按类别分组命令
+            const categories = {
+                cli: { title: "CLI 启动命令", icon: "💻", commands: [] },
+                slash: { title: "斜杠命令", icon: "⌨️", commands: [] },
+                symbol: { title: "符号命令", icon: "🔣", commands: [] },
+                shortcut: { title: "快捷键", icon: "⌘", commands: [] },
+                file: { title: "项目文件", icon: "📄", commands: [] },
+            };
+
             for (const cmd of data.commands) {
-                html += `
-                    <div class="docs-command-item">
-                        <div class="docs-command-header">
-                            <code class="docs-command-name">${cmd.name}</code>
-                            <span class="docs-command-usage">${cmd.usage}</span>
-                        </div>
-                        <div class="docs-command-body">
-                            <p>${cmd.description}</p>
-                            ${cmd.options && cmd.options.length > 0 ? `
-                                <div class="docs-command-options">
-                                    <h4>选项</h4>
-                                    <table class="docs-table">
-                                        <thead>
-                                            <tr>
-                                                <th>选项</th>
-                                                <th>说明</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${cmd.options.map(o => `
-                                                <tr>
-                                                    <td><code>${o.name}</code></td>
-                                                    <td>${o.description}</td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                `;
+                if (categories[cmd.category]) {
+                    categories[cmd.category].commands.push(cmd);
+                }
             }
+
+            let html = '<div class="docs-commands-container">';
+
+            for (const [key, cat] of Object.entries(categories)) {
+                if (cat.commands.length === 0) continue;
+
+                html += `
+                    <div class="docs-command-category">
+                        <div class="docs-category-header">
+                            <span class="docs-category-icon">${cat.icon}</span>
+                            <span class="docs-category-title">${cat.title}</span>
+                            <span class="docs-category-count">${cat.commands.length}</span>
+                        </div>
+                        <div class="docs-category-commands">
+                `;
+
+                for (const cmd of cat.commands) {
+                    html += `
+                        <div class="docs-command-item">
+                            <div class="docs-command-header">
+                                <code class="docs-command-name">${cmd.name}</code>
+                                <span class="docs-command-usage">${cmd.usage}</span>
+                            </div>
+                            <div class="docs-command-body">
+                                <p>${cmd.description}</p>
+                                ${cmd.options && cmd.options.length > 0 ? `
+                                    <div class="docs-command-options">
+                                        <h4>选项</h4>
+                                        <table class="docs-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>选项</th>
+                                                    <th>说明</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${cmd.options.map(o => `
+                                                    <tr>
+                                                        <td><code>${o.name}</code></td>
+                                                        <td>${o.description}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += '</div></div>';
+            }
+
             html += '</div>';
 
             container.innerHTML = html;
+            this.bindDocsAccordion();
         } catch (error) {
             console.error("加载命令文档失败:", error);
             container.innerHTML = '<div class="error-placeholder">加载失败</div>';
@@ -1119,7 +1153,7 @@ style.textContent = `
         padding: 2px 6px;
         background: var(--card-bg, #1e293b);
         border-radius: 4px;
-        color: var(--primary-color, #007bff);
+        color: #86efac;
     }
 
     .docs-code {
@@ -1164,7 +1198,7 @@ style.textContent = `
         font-weight: 600;
         font-family: monospace;
         font-size: 14px;
-        color: var(--primary-color, #007bff);
+        color: #fbbf24;
     }
 
     .docs-card-body {
@@ -1199,6 +1233,66 @@ style.textContent = `
         gap: 16px;
     }
 
+    /* 分类命令容器 */
+    .docs-commands-container {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .docs-command-category {
+        background: var(--header-bg, #334155);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .docs-category-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 18px;
+        background: linear-gradient(135deg, rgba(0, 123, 255, 0.15) 0%, rgba(0, 123, 255, 0.05) 100%);
+        border-bottom: 1px solid var(--border-color, #334155);
+    }
+
+    .docs-category-icon {
+        font-size: 18px;
+    }
+
+    .docs-category-title {
+        font-weight: 600;
+        font-size: 15px;
+        color: var(--text-primary, #e2e8f0);
+        flex: 1;
+    }
+
+    .docs-category-count {
+        font-size: 12px;
+        padding: 2px 10px;
+        background: var(--primary-color, #007bff);
+        color: #fff;
+        border-radius: 12px;
+        font-weight: 500;
+    }
+
+    .docs-category-commands {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+    }
+
+    .docs-command-item {
+        background: var(--card-bg, #1e293b);
+        border-radius: 8px;
+        overflow: hidden;
+        transition: all 0.2s ease;
+    }
+
+    .docs-command-item:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
     .docs-command-item {
         background: var(--header-bg, #334155);
         border-radius: 8px;
@@ -1218,7 +1312,7 @@ style.textContent = `
         font-weight: 600;
         font-family: monospace;
         font-size: 14px;
-        color: var(--primary-color, #007bff);
+        color: #fbbf24;
     }
 
     .docs-command-usage {
@@ -1293,7 +1387,7 @@ style.textContent = `
         padding: 3px 8px;
         background: var(--card-bg, #1e293b);
         border-radius: 4px;
-        color: var(--primary-color, #007bff);
+        color: #86efac;
     }
 
     .docs-practice-desc {
@@ -1347,7 +1441,7 @@ style.textContent = `
         font-family: monospace;
         font-size: 13px;
         font-weight: 600;
-        color: var(--primary-color, #007bff);
+        color: #86efac;
         min-width: 100px;
     }
 
