@@ -236,7 +236,7 @@ async def list_project_sessions(project_name: str):
     }
 
 
-def parse_content_blocks(message_content: list) -> list[dict[str, Any]]:
+def parse_content_blocks(message_content: list | str) -> list[dict[str, Any]]:
     """
     解析消息内容为内容块列表
 
@@ -245,8 +245,22 @@ def parse_content_blocks(message_content: list) -> list[dict[str, Any]]:
     - thinking: 思考过程
     - tool_use: 工具调用
     - tool_result: 工具返回结果
+
+    message_content 可以是：
+    - 数组: 复杂消息格式
+    - 字符串: 简单文本消息（如第一条用户消息）
     """
     blocks = []
+
+    # 处理字符串类型的 content（简单的文本消息）
+    if isinstance(message_content, str):
+        if message_content.strip():
+            blocks.append({
+                "type": "text",
+                "text": message_content,
+            })
+        return blocks
+
     if not isinstance(message_content, list):
         return blocks
 
