@@ -76,7 +76,7 @@
 
                     <!-- 标签页栏 -->
                     <div class="tabs-bar" id="tabs-bar">
-                        <button class="tab-item active" data-tab="new">
+                        <button class="tab-item active" data-tab="new" onclick="if(window.runner) Tabs.switchToTab(window.runner, 'new')">
                             <span class="tab-icon">➕</span>
                             <span class="tab-title">新任务</span>
                         </button>
