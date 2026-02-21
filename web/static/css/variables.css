@@ -1,0 +1,19 @@
+/* ============== CSS 变量 ============== */
+:root {
+    --primary-color: #7c3aed;
+    --primary-hover: #6d28d9;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --warning-color: #f59e0b;
+    --error-color: #ef4444;
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --header-bg: #334155;
+    --text-color: #e2e8f0;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #94a3b8;
+    --border-color: #334155;
+    --nav-width: 200px;
+    --nav-collapsed-width: 56px;
+}

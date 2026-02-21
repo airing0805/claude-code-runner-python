@@ -1,0 +1,316 @@
+/* ============== 响应式 ============== */
+@media (max-width: 768px) {
+    .nav-menu {
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        z-index: 1000;
+        transform: translateX(-100%);
+    }
+
+    .nav-menu.open {
+        transform: translateX(0);
+    }
+
+    .nav-menu.collapsed {
+        transform: translateX(-100%);
+    }
+
+    .menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    header {
+        padding: 20px 0;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    .container {
+        padding: 15px;
+    }
+
+    /* 会话布局响应式 */
+    .session-header {
+        padding: 8px 12px;
+    }
+
+    .session-info-bar {
+        padding: 8px 12px;
+        gap: 12px;
+    }
+
+    .info-input {
+        min-width: 60px;
+        font-size: 0.8rem;
+    }
+
+    .info-label {
+        display: none;
+    }
+
+    .session-input {
+        flex-direction: column;
+        padding: 8px 12px;
+    }
+
+    .session-input textarea {
+        width: 100%;
+    }
+
+    .input-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .input-actions .btn {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+
+    .stats-floating {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 8px 12px;
+    }
+
+    .stats-floating .stat-item {
+        font-size: 0.8rem;
+    }
+}
+
+/* ========================================
+   AskUserQuestion 对话框样式
+   ======================================== */
+
+.assistant-msg-ask_user_question {
+    border-color: #8b5cf6;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%);
+}
+
+.question-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+    margin-bottom: 12px;
+}
+
+.question-icon {
+    font-size: 1.2rem;
+}
+
+.question-title {
+    font-weight: 600;
+    color: #8b5cf6;
+    font-size: 0.95rem;
+}
+
+.question-content {
+    padding: 8px 0;
+}
+
+.question-text {
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+.question-description {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: rgba(139, 92, 246, 0.08);
+    border-radius: 6px;
+}
+
+.question-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.option-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.option-item:hover {
+    border-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.05);
+}
+
+.option-item.selected {
+    border-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.option-item input[type="radio"],
+.option-item input[type="checkbox"] {
+    margin-top: 3px;
+    accent-color: #8b5cf6;
+    cursor: pointer;
+}
+
+.option-label {
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+.option-description {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+/* 单选按钮样式 */
+.option-item.radio {
+    border-radius: 20px;
+}
+
+/* 复选框样式 */
+.option-item.checkbox {
+    border-radius: 8px;
+}
+
+/* 文本输入框样式 */
+.text-input-container {
+    margin-bottom: 16px;
+}
+
+.question-text-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-color);
+    font-size: 0.95rem;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+}
+
+.question-text-input:focus {
+    outline: none;
+    border-color: #8b5cf6;
+}
+
+.question-text-input::placeholder {
+    color: var(--text-muted);
+}
+
+/* 按钮样式 */
+.question-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(139, 92, 246, 0.2);
+    margin-top: 12px;
+}
+
+.question-actions .btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    font-size: 0.9rem;
+}
+
+.question-actions .btn-cancel {
+    background: var(--card-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+
+.question-actions .btn-cancel:hover {
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+.question-actions .btn-confirm {
+    background: #8b5cf6;
+    color: white;
+}
+
+.question-actions .btn-confirm:hover:not(:disabled) {
+    background: #7c3aed;
+}
+
+.question-actions .btn-confirm:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 追问问题样式 */
+.follow-up-questions-container {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px dashed rgba(139, 92, 246, 0.3);
+}
+
+.follow-up-question {
+    padding: 12px;
+    background: rgba(139, 92, 246, 0.05);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.follow-up-question:last-child {
+    margin-bottom: 0;
+}
+
+.follow-up-text {
+    font-weight: 500;
+    color: var(--text-color);
+    margin-bottom: 10px;
+}
+
+.follow-up-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.follow-up-question .option-item {
+    padding: 10px 12px;
+}
+
+.follow-up-question .question-text-input {
+    padding: 10px 12px;
+}
+
+/* 对话框禁用状态 */
+.assistant-msg-ask_user_question.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.assistant-msg-ask_user_question.answered {
+    border-color: #10b981;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.1) 100%);
+}
+
+.assistant-msg-ask_user_question.cancelled {
+    border-color: #ef4444;
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.1) 100%);
+}

@@ -1,0 +1,227 @@
+/* ========== 工具特定样式 ========== */
+
+/* Read 工具 - 代码编辑器风格 */
+.tool-result-read {
+    background: rgba(40, 44, 52, 0.9);
+    border-left-color: #61afef;
+}
+
+.tool-result-read .result-label {
+    color: #98c379;
+}
+
+.tool-result-read .code-block {
+    background: #282c34;
+    border-radius: 4px;
+    padding: 0;
+    overflow: hidden;
+}
+
+.tool-result-read .code-lines {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.tool-result-read .code-line {
+    display: flex;
+    padding: 0 8px;
+}
+
+.tool-result-read .code-line.line-odd {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.tool-result-read .code-line .line-number {
+    color: #636d83;
+    min-width: 40px;
+    text-align: right;
+    padding-right: 12px;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.tool-result-read .code-line .line-content {
+    color: #abb2bf;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+/* Write 工具 - 成功风格 */
+.tool-result-write {
+    background: rgba(16, 185, 129, 0.15);
+    border-left-color: #10b981;
+}
+
+.tool-result-write .result-label {
+    color: #10b981;
+}
+
+/* Edit 工具 - 编辑风格 */
+.tool-result-edit {
+    background: rgba(245, 158, 11, 0.15);
+    border-left-color: #f59e0b;
+}
+
+.tool-result-edit .result-label {
+    color: #f59e0b;
+}
+
+/* Bash 工具 - 终端风格 */
+.tool-result-bash {
+    background: rgba(0, 0, 0, 0.8);
+    border-left-color: #22c55e;
+}
+
+.tool-result-bash .result-label {
+    color: #22c55e;
+}
+
+.tool-result-bash .terminal-block {
+    background: #0d0d0d;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.tool-result-bash .terminal-prompt {
+    color: #22c55e;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tool-result-bash .prompt-symbol {
+    color: #22c55e;
+}
+
+.tool-result-bash .terminal-output {
+    color: #e5e5e5;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    margin: 0;
+    padding: 8px;
+    background: transparent;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* Glob 工具 - 文件列表风格 */
+.tool-result-glob {
+    background: rgba(139, 92, 246, 0.15);
+    border-left-color: #8b5cf6;
+}
+
+.tool-result-glob .result-label {
+    color: #8b5cf6;
+}
+
+.tool-result-glob .files-block {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.tool-result-glob .files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tool-result-glob .file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 2px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+}
+
+.tool-result-glob .file-item:hover {
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.tool-result-glob .file-icon {
+    flex-shrink: 0;
+}
+
+.tool-result-glob .file-path {
+    color: #a5b4fc;
+}
+
+/* Grep 工具 - 搜索结果风格 */
+.tool-result-grep {
+    background: rgba(236, 72, 153, 0.15);
+    border-left-color: #ec4899;
+}
+
+.tool-result-grep .result-label {
+    color: #ec4899;
+}
+
+.tool-result-grep .grep-block {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.tool-result-grep .grep-lines {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.tool-result-grep .grep-line {
+    display: flex;
+    padding: 2px 4px;
+    border-radius: 2px;
+}
+
+.tool-result-grep .grep-line:hover {
+    background: rgba(236, 72, 153, 0.1);
+}
+
+.tool-result-grep .grep-file {
+    color: #f9a8d4;
+    margin-right: 4px;
+}
+
+.tool-result-grep .grep-line-num {
+    color: #636d83;
+    margin-right: 8px;
+    min-width: 30px;
+}
+
+.tool-result-grep .grep-content {
+    color: #e5e5e5;
+}
+
+/* WebSearch/WebFetch 工具 - 网页风格 */
+.tool-result-web {
+    background: rgba(59, 130, 246, 0.15);
+    border-left-color: #3b82f6;
+}
+
+.tool-result-web .result-label {
+    color: #60a5fa;
+}
+
+/* Task 工具 - 子代理风格 */
+.tool-result-task {
+    background: rgba(168, 85, 247, 0.15);
+    border-left-color: #a855f7;
+}
+
+.tool-result-task .result-label {
+    color: #a855f7;
+}
+
+/* 默认工具结果样式 */
+.tool-result-default {
+    background: rgba(100, 116, 139, 0.15);
+    border-left-color: #64748b;
+}
