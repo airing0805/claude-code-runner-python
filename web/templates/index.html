@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Claude Code Runner</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
     <link rel="stylesheet" href="/static/style.css">
 
     <!-- v0.5.2: Markdown 渲染库 -->
@@ -774,11 +775,16 @@
     <script type="module" src="/static/components/tool-renderers-loader.js"></script>
 
     <!-- 业务模块（非模块） -->
+    <script src="/static/modules/history.js"></script>
     <script src="/static/modules/navigation.js"></script>
     <script src="/static/modules/workingDir.js"></script>
     <script src="/static/modules/session.js"></script>
-    <script src="/static/modules/messageRenderer.js"></script>
-    <script src="/static/modules/history.js"></script>
+    <script src="/static/modules/message-renderer/core.js"></script>
+    <script src="/static/modules/message-renderer/content.js"></script>
+    <script src="/static/modules/message-renderer/thinking.js"></script>
+    <script src="/static/modules/message-renderer/tools.js"></script>
+    <script src="/static/modules/message-renderer/tool-results.js"></script>
+    <script src="/static/modules/message-renderer/index.js"></script>
     <script src="/static/modules/task.js"></script>
     <!-- 拆分后的 Claude 状态模块 -->
     <script src="/static/modules/claude-status/claudeStatusCore.js"></script>

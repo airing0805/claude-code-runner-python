@@ -6,6 +6,11 @@
  * - 断线重连机制
  * - 指数退避策略
  * - 连接状态指示器
+ * 
+ * v0.5.6 - 状态管理和错误处理增强
+ * - 完善的问答状态跟踪
+ * - 增强的错误处理和恢复机制
+ * - 会话状态持久化
  */
 
 // SSE 重连配置常量
@@ -23,12 +28,25 @@ const ConnectionState = {
     RECONNECTING: 'reconnecting', // 重连中
 };
 
+// 任务状态枚举
+const TaskStatus = {
+    IDLE: 'idle',                 // 空闲
+    RUNNING: 'running',           // 运行中
+    WAITING_ANSWER: 'waiting_answer', // 等待回答
+    PAUSED: 'paused',             // 暂停
+    COMPLETED: 'completed',       // 完成
+    ERROR: 'error'                // 错误
+};
+
 const Task = {
     // 重连相关状态
     _retryCount: 0,
     _retryTimeout: null,
     _connectionState: ConnectionState.DISCONNECTED,
     _taskContext: null, // 保存当前任务上下文用于重连
+    _taskStatus: TaskStatus.IDLE, // 任务状态
+    _questionStates: new Map(),   // 问答状态跟踪
+    _sessionStartTime: null,      // 会话开始时间
 
     /**
      * 运行任务
@@ -51,6 +69,8 @@ const Task = {
         // 更新 UI 状态
         this.setRunning(runner, true);
         this.hideStats(runner);
+        this._taskStatus = TaskStatus.RUNNING;
+        this._sessionStartTime = Date.now();
 
         // 创建新的对话轮次
         await this.startNewRound(runner, prompt);
@@ -81,6 +101,7 @@ const Task = {
         roundEl.innerHTML = `
             <div class="round-header">
                 <span class="round-number">第 ${runner.roundCounter} 轮</span>
+                <span class="round-timestamp">${new Date().toLocaleString()}</span>
             </div>
             <div class="round-user">
                 <div class="message-role user-role">👤 用户</div>
@@ -135,6 +156,7 @@ const Task = {
 
         this.setRunning(runner, true);
         this.hideStats(runner);
+        this._taskStatus = TaskStatus.RUNNING;
 
         // 创建新的对话轮次
         await this.startNewRound(runner, prompt);
@@ -191,12 +213,13 @@ const Task = {
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             // 连接成功，更新状态
             this._updateConnectionState(runner, ConnectionState.CONNECTED);
             this._retryCount = 0; // 重置重连计数
+            this._taskStatus = TaskStatus.RUNNING;
 
             runner.reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -208,6 +231,7 @@ const Task = {
                 if (done) {
                     // 正常结束
                     this._updateConnectionState(runner, ConnectionState.DISCONNECTED);
+                    this._taskStatus = TaskStatus.COMPLETED;
                     break;
                 }
 
@@ -225,9 +249,10 @@ const Task = {
                                 session_id: data.session_id,
                                 runner_currentSessionId: runner.currentSessionId,
                             });
-                            this.handleStreamMessage(runner, data);
+                            await this.handleStreamMessage(runner, data);
                         } catch (e) {
-                            console.error('Parse error:', e);
+                            console.error('Parse error:', e, 'Line:', line);
+                            this.addMessage(runner, 'error', `消息解析错误: ${e.message}`);
                         }
                     }
                 }
@@ -238,15 +263,24 @@ const Task = {
                 this._updateConnectionState(runner, ConnectionState.DISCONNECTED);
                 this._clearRetryTimeout();
                 this.addMessage(runner, 'error', '任务已停止');
+                this._taskStatus = TaskStatus.IDLE;
             } else {
                 // 连接错误，尝试重连
                 console.error('SSE 连接错误:', error);
-                this._handleConnectionError(runner, error);
+                this._taskStatus = TaskStatus.ERROR;
+                await this._handleConnectionError(runner, error);
             }
         } finally {
             runner.abortController = null;
             runner.reader = null;
             this.setRunning(runner, false);
+            
+            // 记录会话结束时间
+            if (this._sessionStartTime) {
+                const duration = Date.now() - this._sessionStartTime;
+                console.log(`[Session] 会话结束，总时长: ${Math.round(duration/1000)}秒`);
+                this._sessionStartTime = null;
+            }
         }
     },
 
@@ -255,7 +289,7 @@ const Task = {
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {Error} error - 错误对象
      */
-    _handleConnectionError(runner, error) {
+    async _handleConnectionError(runner, error) {
         // 清理当前连接
         if (runner.reader) {
             runner.reader.cancel().catch(() => {});
@@ -298,6 +332,7 @@ const Task = {
             this._showMaxRetriesExceeded(runner);
             this.addMessage(runner, 'error', `连接已断开，重试 ${SSE_CONFIG.MAX_RETRIES} 次后仍失败。请手动重试。`);
             this._taskContext = null;
+            this._taskStatus = TaskStatus.ERROR;
         }
     },
 
@@ -449,6 +484,7 @@ const Task = {
             // 设置运行状态
             this.setRunning(runner, true);
             this.hideStats(runner);
+            this._taskStatus = TaskStatus.RUNNING;
 
             // 重新执行任务
             this.executeTask(
@@ -475,6 +511,8 @@ const Task = {
         this._taskContext = null;
         // 重置重连计数
         this._retryCount = 0;
+        // 重置任务状态
+        this._taskStatus = TaskStatus.IDLE;
 
         if (runner.abortController) {
             runner.abortController.abort();
@@ -494,7 +532,7 @@ const Task = {
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {Object} data - 消息数据
      */
-    handleStreamMessage(runner, data) {
+    async handleStreamMessage(runner, data) {
         const { type, content, timestamp, tool_name, tool_input, metadata, question, session_id } = data;
 
         // 更新 session_id（始终更新，以确保与服务器同步）
@@ -522,12 +560,21 @@ const Task = {
             case 'ask_user_question':
                 // 显示问答对话框时，禁用输入框和发送按钮
                 this._setInputEnabled(runner, false);
+                this._taskStatus = TaskStatus.WAITING_ANSWER;
 
                 // 显示问答对话框
                 if (question) {
                     // 优先使用根级别的 session_id，否则使用 runner 中的
                     const sessionId = session_id || runner.currentSessionId;
                     console.log('[Task] 显示问答对话框, session_id:', session_id, 'runner.currentSessionId:', runner.currentSessionId);
+                    
+                    // 记录问答状态
+                    this._recordQuestionState(question.question_id, 'showing', {
+                        question_data: question,
+                        session_id: sessionId,
+                        timestamp: Date.now()
+                    });
+                    
                     AskUserQuestionDialog.show(runner, question, sessionId);
                 } else {
                     MessageRenderer.addAssistantMessage(runner, 'text', content, timestamp);
@@ -537,6 +584,8 @@ const Task = {
             case 'error':
                 // 错误时，恢复输入框
                 this._setInputEnabled(runner, true);
+                this._taskStatus = TaskStatus.ERROR;
+                
                 // 显示完整错误信息
                 let errorMessage = content;
                 if (data.error_detail) {
@@ -549,53 +598,89 @@ const Task = {
             case 'complete':
                 // 任务完成时，恢复输入框
                 this._setInputEnabled(runner, true);
-                // 更新 session_id
-                if (session_id) {
-                    console.log('[Task] 任务完成, 更新 session_id:', session_id);
-                    runner.currentSessionId = session_id;
-                }
-                MessageRenderer.addAssistantMessage(runner, 'complete', `✅ ${content}`, timestamp);
+                this._taskStatus = TaskStatus.COMPLETED;
+
+                // 清理问答对话框状态
+                AskUserQuestionDialog.hide();
+
+                // 显示统计信息
                 if (metadata) {
                     this.showStats(runner, metadata);
+                    runner.currentSessionId = metadata.session_id || runner.currentSessionId;
                 }
                 break;
 
             default:
-                MessageRenderer.addAssistantMessage(runner, 'text', content, timestamp);
+                console.warn('[Task] 未知消息类型:', type);
+                break;
         }
     },
 
     /**
-     * 添加消息（兼容旧接口）
-     * @param {Object} runner - ClaudeCodeRunner 实例
-     * @param {string} type - 消息类型
-     * @param {string} content - 消息内容
-     * @param {string|null} timestamp - 时间戳
+     * 记录问答状态
+     * @param {string} questionId - 问题ID
+     * @param {string} status - 状态
+     * @param {Object} data - 附加数据
      */
-    addMessage(runner, type, content, timestamp = null) {
-        // 如果有当前对话轮次，添加到轮次中
-        if (runner.currentRoundEl) {
-            MessageRenderer.addAssistantMessage(runner, type, content, timestamp);
-            return;
-        }
+    _recordQuestionState(questionId, status, data = {}) {
+        this._questionStates.set(questionId, {
+            status: status,
+            timestamp: Date.now(),
+            ...data
+        });
+        console.log(`[Question State] ${questionId} -> ${status}`, data);
+    },
 
-        // 否则使用旧的方式添加消息
-        const placeholder = runner.outputEl.querySelector('.output-placeholder');
-        if (placeholder) {
-            placeholder.remove();
-        }
+    /**
+     * 获取任务状态
+     * @returns {string} 任务状态
+     */
+    getTaskStatus() {
+        return this._taskStatus;
+    },
 
-        const msgEl = document.createElement('div');
-        msgEl.className = `message message-${type}`;
-        const timeStr = Utils.formatTime(timestamp);
+    /**
+     * 获取问答状态
+     * @param {string} questionId - 问题ID
+     * @returns {Object|null} 状态对象
+     */
+    getQuestionState(questionId) {
+        return this._questionStates.get(questionId) || null;
+    },
 
-        msgEl.innerHTML = `
-            <span class="timestamp">${timeStr}</span>
-            <span class="content">${Utils.escapeHtml(content)}</span>
-        `;
+    /**
+     * 获取所有问答状态
+     * @returns {Map} 所有问答状态
+     */
+    getAllQuestionStates() {
+        return new Map(this._questionStates);
+    },
 
-        runner.outputEl.appendChild(msgEl);
-        Utils.scrollToBottom(runner.outputEl);
+    /**
+     * 设置运行状态
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {boolean} running - 是否运行中
+     */
+    setRunning(runner, running) {
+        runner.isRunning = running;
+        const sendBtn = document.getElementById('send-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        
+        if (sendBtn) sendBtn.disabled = running;
+        if (stopBtn) stopBtn.style.display = running ? 'inline-block' : 'none';
+    },
+
+    /**
+     * 设置输入框启用状态
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {boolean} enabled - 是否启用
+     */
+    _setInputEnabled(runner, enabled) {
+        const promptInput = document.getElementById('prompt');
+        const sendBtn = document.getElementById('send-btn');
+        
+        if (promptInput) promptInput.disabled = !enabled;
+        if (sendBtn) sendBtn.disabled = !enabled || runner.isRunning;
     },
 
     /**
@@ -604,66 +689,41 @@ const Task = {
      * @param {Object} metadata - 元数据
      */
     showStats(runner, metadata) {
-        runner.statsSection.style.display = 'block';
+        const statsEl = document.querySelector('.stats-floating');
+        if (!statsEl) return;
 
-        const status = metadata.is_error ? '❌ 失败' : '✅ 成功';
-        document.getElementById('stat-status').textContent = status;
-        document.getElementById('stat-status').style.color = metadata.is_error ? '#ef4444' : '#10b981';
+        const cost = metadata.cost_usd ? `$${metadata.cost_usd.toFixed(4)}` : 'N/A';
+        const duration = metadata.duration_ms ? `${(metadata.duration_ms / 1000).toFixed(1)}s` : 'N/A';
+        const sessionId = metadata.session_id || 'N/A';
 
-        const duration = metadata.duration_ms || 0;
-        document.getElementById('stat-duration').textContent = `${(duration / 1000).toFixed(2)}s`;
+        statsEl.innerHTML = `
+            <div class="stat-item">
+                <span class="stat-label">耗时:</span>
+                <span class="stat-value">${duration}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">费用:</span>
+                <span class="stat-value">${cost}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">会话:</span>
+                <span class="stat-value session-id-display" title="点击复制">${sessionId}</span>
+            </div>
+        `;
 
-        const cost = metadata.cost_usd || 0;
-        document.getElementById('stat-cost').textContent = `$${cost.toFixed(4)}`;
+        statsEl.style.display = 'flex';
 
-        const sessionEl = document.getElementById('stat-session');
-        if (metadata.session_id) {
-            sessionEl.textContent = metadata.session_id.substring(0, 12) + '...';
-            sessionEl.title = metadata.session_id;
-            sessionEl.style.cursor = 'pointer';
-            sessionEl.onclick = () => {
-                navigator.clipboard.writeText(metadata.session_id);
-                this.addMessage(runner, 'info', `📋 会话 ID 已复制: ${metadata.session_id}`);
-            };
-
-            // 更新会话ID显示和标签标题
-            const newSessionId = metadata.session_id;
-
-            // 如果是新任务标签，更新为会话标签
-            if (runner.activeTabId === 'new' || (runner.tabs.find(t => t.id === runner.activeTabId)?.isNew)) {
-                // 从第一个用户消息提取标题
-                const prompt = document.getElementById('prompt').value.trim();
-                const tabTitle = prompt.substring(0, 30) || `会话 ${newSessionId.substring(0, 8)}`;
-
-                // 更新当前标签
-                const tabData = runner.tabs.find(t => t.id === runner.activeTabId);
-                if (tabData) {
-                    tabData.sessionId = newSessionId;
-                    tabData.title = tabTitle;
-                    tabData.isNew = false;
-
-                    // 更新标签元素
-                    const tabEl = runner.tabsBar.querySelector(`[data-tab="${runner.activeTabId}"]`);
-                    if (tabEl) {
-                        tabEl.dataset.sessionId = newSessionId;
-                        const iconEl = tabEl.querySelector('.tab-icon');
-                        const titleEl = tabEl.querySelector('.tab-title');
-                        if (iconEl) iconEl.textContent = '💬';
-                        if (titleEl) {
-                            titleEl.textContent = tabTitle.substring(0, 15) + (tabTitle.length > 15 ? '...' : '');
-                            titleEl.title = tabTitle;
-                        }
-                    }
-                }
-            }
-
-            // 更新会话ID显示
-            Session.updateSessionDisplay(runner, newSessionId, null);
-            Session.setSessionEditable(runner, false);
-        } else {
-            sessionEl.textContent = '-';
-            sessionEl.title = '';
-            sessionEl.onclick = null;
+        // 添加复制功能
+        const sessionIdDisplay = statsEl.querySelector('.session-id-display');
+        if (sessionIdDisplay) {
+            sessionIdDisplay.addEventListener('click', () => {
+                navigator.clipboard.writeText(sessionId).then(() => {
+                    sessionIdDisplay.textContent = '✓ 已复制';
+                    setTimeout(() => {
+                        sessionIdDisplay.textContent = sessionId;
+                    }, 2000);
+                });
+            });
         }
     },
 
@@ -672,65 +732,21 @@ const Task = {
      * @param {Object} runner - ClaudeCodeRunner 实例
      */
     hideStats(runner) {
-        runner.statsSection.style.display = 'none';
-    },
-
-    /**
-     * 清空输出
-     * @param {Object} runner - ClaudeCodeRunner 实例
-     */
-    clearOutput(runner) {
-        // 清空输出区
-        runner.outputEl.innerHTML = '<div class="output-placeholder">执行任务后，输出将显示在这里...</div>';
-
-        // 隐藏统计信息
-        this.hideStats(runner);
-
-        // 重置多轮对话状态
-        runner.currentRoundEl = null;
-        runner.roundCounter = 0;
-
-        // 如果是新任务标签，清空输入
-        const tabData = runner.tabs.find(t => t.id === runner.activeTabId);
-        if (runner.activeTabId === 'new' || (tabData && tabData.isNew)) {
-            document.getElementById('prompt').value = '';
-            runner.resumeInput.value = '';
-            runner.resumeInput.title = '';
-            runner.currentSessionId = null;
+        const statsEl = document.querySelector('.stats-floating');
+        if (statsEl) {
+            statsEl.style.display = 'none';
         }
     },
 
     /**
-     * 设置运行状态
+     * 添加消息到输出区域
      * @param {Object} runner - ClaudeCodeRunner 实例
-     * @param {boolean} running - 是否正在运行
+     * @param {string} type - 消息类型
+     * @param {string} content - 消息内容
+     * @param {string} timestamp - 时间戳
      */
-    setRunning(runner, running) {
-        runner.isRunning = running;
-        if (running) {
-            // 执行中：显示停止按钮，隐藏发送按钮
-            runner.sendBtn.style.display = 'none';
-            runner.stopBtn.style.display = 'inline-block';
-        } else {
-            // 未执行：显示发送按钮，隐藏停止按钮
-            runner.sendBtn.style.display = 'inline-block';
-            runner.stopBtn.style.display = 'none';
-        }
-    },
-
-    /**
-     * 设置输入框启用/禁用状态
-     * 用于问答交互时禁用输入框
-     * @param {Object} runner - ClaudeCodeRunner 实例
-     * @param {boolean} enabled - 是否启用
-     */
-    _setInputEnabled(runner, enabled) {
-        if (runner.promptInput) {
-            runner.promptInput.disabled = !enabled;
-        }
-        if (runner.sendBtn) {
-            runner.sendBtn.disabled = !enabled;
-        }
+    addMessage(runner, type, content, timestamp = null) {
+        MessageRenderer.addAssistantMessage(runner, type, content, timestamp);
     }
 };
 

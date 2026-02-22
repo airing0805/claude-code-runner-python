@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AskUserQuestion 测试页面</title>
+    <link rel="stylesheet" href="web/static/css/responsive.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #2d2d2d;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #7c3aed;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #1f1f1f;
+            border-radius: 4px;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>AskUserQuestion 选项显示测试</h1>
+        
+        <div class="test-section">
+            <h2>测试按钮</h2>
+            <button onclick="testMultipleChoice()">测试多选题</button>
+            <button onclick="testCheckbox()">测试复选框</button>
+            <button onclick="testTextInput()">测试文本输入</button>
+            <button onclick="testBoolean()">测试布尔值</button>
+            <button onclick="clearOutput()">清空输出</button>
+        </div>
+
+        <div class="test-section">
+            <h2>输出区域</h2>
+            <div id="output"></div>
+        </div>
+    </div>
+
+    <!-- 引入必要的脚本 -->
+    <script>
+        // 模拟 Utils 对象
+        window.Utils = {
+            escapeHtml: function(text) {
+                if (!text) return '';
+                return text.toString()
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+            },
+            scrollToBottom: function(element) {
+                if (element) {
+                    element.scrollTop = element.scrollHeight;
+                }
+            }
+        };
+    </script>
+    
+    <script src="web/static/components/askUserQuestionDialog.js"></script>
+    
+    <script>
+        // 模拟 runner 对象
+        const mockRunner = {
+            outputEl: document.getElementById('output'),
+            isRunning: false
+        };
+
+        function log(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${message}</div>`;
+            Utils.scrollToBottom(output);
+        }
+
+        function testMultipleChoice() {
+            log('测试多选题选项显示...');
+            
+            const questionData = {
+                question_id: 'test_multiple_choice',
+                question_text: '请选择您喜欢的编程语言：',
+                header: '编程语言选择',
+                type: 'multiple_choice',
+                required: true,
+                options: [
+                    { id: 'python', label: 'Python', description: '简洁易学的编程语言' },
+                    { id: 'javascript', label: 'JavaScript', description: '前端开发必备语言' },
+                    { id: 'java', label: 'Java', description: '企业级应用开发' }
+                ]
+            };
+
+            try {
+                AskUserQuestionDialog.show(mockRunner, questionData, 'test-session-123');
+                log('✅ 多选题对话框已显示');
+            } catch (error) {
+                log(`❌ 显示多选题时出错: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        function testCheckbox() {
+            log('测试复选框选项显示...');
+            
+            const questionData = {
+                question_id: 'test_checkbox',
+                question_text: '请选择您感兴趣的技术领域：',
+                header: '技术兴趣',
+                type: 'checkbox',
+                required: false,
+                options: [
+                    { id: 'frontend', label: '前端开发', description: '网页和移动应用界面' },
+                    { id: 'backend', label: '后端开发', description: '服务器和数据库' },
+                    { id: 'ai', label: '人工智能', description: '机器学习和深度学习' },
+                    { id: 'mobile', label: '移动开发', description: 'iOS和Android应用' }
+                ]
+            };
+
+            try {
+                AskUserQuestionDialog.show(mockRunner, questionData, 'test-session-456');
+                log('✅ 复选框对话框已显示');
+            } catch (error) {
+                log(`❌ 显示复选框时出错: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        function testTextInput() {
+            log('测试文本输入显示...');
+            
+            const questionData = {
+                question_id: 'test_text',
+                question_text: '请描述您的项目需求：',
+                header: '项目需求',
+                type: 'text',
+                required: true,
+                max_length: 500
+            };
+
+            try {
+                AskUserQuestionDialog.show(mockRunner, questionData, 'test-session-789');
+                log('✅ 文本输入对话框已显示');
+            } catch (error) {
+                log(`❌ 显示文本输入时出错: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        function testBoolean() {
+            log('测试布尔值选项显示...');
+            
+            const questionData = {
+                question_id: 'test_boolean',
+                question_text: '您是否同意我们的服务条款？',
+                header: '服务条款',
+                type: 'boolean',
+                required: true
+            };
+
+            try {
+                AskUserQuestionDialog.show(mockRunner, questionData, 'test-session-101');
+                log('✅ 布尔值对话框已显示');
+            } catch (error) {
+                log(`❌ 显示布尔值时出错: ${error.message}`);
+                console.error(error);
+            }
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+            log('输出已清空');
+        }
+
+        // 页面加载完成后显示欢迎信息
+        window.addEventListener('load', function() {
+            log('AskUserQuestion 选项显示测试页面已加载');
+            log('点击上方按钮测试不同类型的选项显示');
+        });
+    </script>
+</body>
+</html>

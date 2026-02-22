@@ -90,6 +90,8 @@ class QuestionAnswerRequest(BaseModel):
     question_id: str
     answer: Union[str, list[str], bool, None]
     follow_up_answers: Optional[dict[str, Union[str, list[str], bool, None]]] = None
+    # 原始问题数据，用于构建 toolUseResult
+    raw_question_data: Optional[dict] = None
 
 
 class QuestionAnswerResponse(BaseModel):
@@ -208,13 +210,14 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
                 )
 
                 # 检查是否正在等待用户回答
+                # 只在客户端真正在等待答案时设置等待状态，避免重复显示对话框
                 if is_waiting:
-                    logger.info(f"[SSE] >>>>> 会话进入等待状态: session_id={session_id}")
-                    # 设置会话为等待状态
+                    # 只有当客户端真正在等待答案时才设置会话为等待状态
+                    logger.info(f"[SSE] >>>>> 会话进入等待状态: session_id={session_id}, reason=client_is_waiting={is_waiting}, msg_type={msg.type.value}")
                     await session_manager.set_waiting(session_id, True)
                     # 再次检查确认
                     session_after = await session_manager.get_session(session_id)
-                    logger.info(f"[SSE] >>>>> set_waiting(True) 后的 session.is_waiting={session_after.is_waiting if session_after else 'N/A'}")
+                    logger.info(f"[SSE] >>>>> set_waiting(True) 后的 session.is_waiting={session_after.is_waiting if session_after else 'N/A'}, client.is_waiting_answer={client.is_waiting_answer()}")
                 # 注意：不再在其他消息时自动设置 is_waiting=False
                 # 只有用户提交答案后才会清除等待状态
 
@@ -234,6 +237,10 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
                     session_check = await session_manager.get_session(session_id)
                     session_waiting = session_check.is_waiting if session_check else "N/A"
                     logger.info(f"[SSE] 发送问答消息: session_id={session_id}, question_id={msg.question.question_id}, question_text={msg.question.question_text[:50]}..., session.is_waiting={session_waiting}")
+
+                    # 获取原始问题数据（用于提交答案时构建 toolUseResult）
+                    raw_question_data = getattr(msg.question, 'raw_tool_input', None)
+
                     data["question"] = {
                         "question_id": msg.question.question_id,
                         "question_text": msg.question.question_text,
@@ -241,6 +248,7 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
                         "header": msg.question.header,
                         "description": msg.question.description,
                         "required": msg.question.required,
+                        "raw_question_data": raw_question_data,  # 原始问题数据
                         "options": [
                             {
                                 "id": opt.id,
@@ -272,6 +280,12 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
                             for parent_id, questions in msg.question.follow_up_questions.items()
                         } if msg.question.follow_up_questions else None,
                     }
+
+                # ========== 调试日志：发送的完整 SSE 消息 ==========
+                logger.info(f"[SSE] >>>>> 发送消息: session_id={session_id}, type={msg.type.value}, content_length={len(msg.content or '')}")
+                if msg.type.value == "ask_user_question" and msg.question:
+                    logger.info(f"[SSE] >>>>> 完整 question 数据: {json.dumps(data.get('question', {}), ensure_ascii=False, indent=2)}")
+                logger.info(f"[SSE] >>>>> 完整消息内容: {json.dumps(data, ensure_ascii=False, indent=2)[:2000]}")
 
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -359,14 +373,12 @@ async def submit_answer(answer: QuestionAnswerRequest):
     pending_qid = client.get_pending_question_id()
     logger.info(f"[Answer] 客户端状态: is_waiting_answer={is_waiting}, pending_question_id={pending_qid}")
 
-    # 验证 question_id 匹配
-    if not client.is_waiting_answer():
-        logger.warning(f"[Answer] ★★★ 验证失败 - 客户端不在等待回答状态 ★★★")
-        logger.warning(f"[Answer] session_id={answer.session_id}")
-        raise HTTPException(
-            status_code=400,
-            detail="客户端不在等待回答状态"
-        )
+    # 验证客户端状态（如果客户端不在等待状态，但会话在等待，也允许继续）
+    # 修复：放宽检查条件，允许在某些边界情况下提交答案
+    client_waiting = client.is_waiting_answer()
+    if not client_waiting and session.is_waiting:
+        logger.warning(f"[Answer] ★ 会话在等待状态，但客户端不在等待（可能是边界情况），允许继续")
+        # 仍然允许继续，因为会话状态可能是正确的
 
     # 验证 question_id 是否匹配
     pending_question_id = client.get_pending_question_id()
@@ -377,12 +389,13 @@ async def submit_answer(answer: QuestionAnswerRequest):
             detail=f"question_id 不匹配: 期望 {pending_question_id}, 收到 {answer.question_id}"
         )
 
-    # 提交答案
+    # 提交答案（带上原始问题数据，用于构建 toolUseResult）
     logger.info(f"[Answer] 提交答案: session_id={answer.session_id}")
     await client.submit_answer({
         "question_id": answer.question_id,
         "answer": answer.answer,
         "follow_up_answers": answer.follow_up_answers,
+        "raw_question_data": answer.raw_question_data,  # 前端传来的原始问题数据
     })
 
     # 更新会话状态
