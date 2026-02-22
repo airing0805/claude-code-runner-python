@@ -18,7 +18,7 @@ const WorkingDir = {
             runner.workingDirs = projects.map(p => p.path);
 
             // 添加默认工作目录（如果不在列表中）
-            const defaultDir = runner.workingDirInput.value;
+            const defaultDir = runner.workingDirInput ? runner.workingDirInput.value : '';
             if (defaultDir && !runner.workingDirs.includes(defaultDir)) {
                 runner.workingDirs.unshift(defaultDir);
             }
@@ -34,6 +34,7 @@ const WorkingDir = {
      * @param {Object} runner - ClaudeCodeRunner 实例
      */
     renderWorkingDirOptions(runner) {
+        if (!runner.workingDirInput || !runner.workingDirList) return;
         const currentValue = runner.workingDirInput.value;
         runner.workingDirList.innerHTML = '';
 

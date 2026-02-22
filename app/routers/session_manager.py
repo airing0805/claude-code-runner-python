@@ -4,10 +4,13 @@
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from app.claude_runner.client import ClaudeCodeClient
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -81,7 +84,17 @@ class SessionManager:
         """设置等待状态"""
         async with self._lock:
             if session_id in self._sessions:
+                old_value = self._sessions[session_id].is_waiting
                 self._sessions[session_id].is_waiting = waiting
+                if old_value != waiting:
+                    logger.info(
+                        f"[SessionManager] set_waiting: session_id={session_id}, "
+                        f"is_waiting: {old_value} -> {waiting}"
+                    )
+            else:
+                logger.warning(
+                    f"[SessionManager] set_waiting: session_id={session_id} not found"
+                )
 
     async def cleanup_old_sessions(self, max_age_seconds: float = 14400) -> int:
         """清理过期会话"""

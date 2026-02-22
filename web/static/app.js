@@ -60,6 +60,12 @@ class ClaudeCodeRunner {
         this.stopBtn.addEventListener('click', () => Task.stopTask(this));
         this.clearBtn.addEventListener('click', () => Task.clearOutput(this));
 
+        // v0.5.5 - 绑定连接状态指示器事件
+        const reconnectBtn = document.querySelector('.connection-reconnect-btn');
+        if (reconnectBtn) {
+            reconnectBtn.addEventListener('click', () => Task.manualReconnect(this));
+        }
+
         // 绑定 Enter 键发送事件
         this.promptInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

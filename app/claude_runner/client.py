@@ -13,6 +13,7 @@ from claude_code_sdk import (
     ClaudeSDKClient,
     AssistantMessage,
     ResultMessage,
+    ToolResultBlock,
 )
 
 # 权限模式类型
@@ -140,6 +141,47 @@ class ClaudeCodeClient:
             if file_path and file_path not in self._files_changed:
                 self._files_changed.append(file_path)
 
+    async def _send_tool_result_via_query(
+        self,
+        client: "ClaudeSDKClient",
+        tool_id: str,
+        content: str,
+    ) -> None:
+        """
+        通过 query 方法发送工具结果响应
+
+        Claude SDK 没有 send_tool_result 方法，需要通过 query 发送
+        包含工具结果字典的用户消息来响应工具调用
+
+        Args:
+            client: ClaudeSDKClient 实例
+            tool_id: 工具调用 ID
+            content: 工具结果内容
+        """
+        # 构建工具结果字典（不是 ToolResultBlock 对象）
+        tool_result_dict = {
+            "type": "tool_result",
+            "tool_use_id": tool_id,
+            "content": content,
+            "is_error": False,
+        }
+
+        # SDK 的 query 方法期望 AsyncIterable 或字符串，将消息包装为异步迭代器
+        message = {
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [tool_result_dict],
+            },
+            "parent_tool_use_id": tool_id,
+        }
+
+        async def message_generator():
+            yield message
+
+        # 通过 query 发送包含工具结果的用户消息
+        await client.query(message_generator())
+
     async def wait_for_answer(
         self,
         question_id: str,
@@ -148,6 +190,8 @@ class ClaudeCodeClient:
         """
         等待用户回答问题
 
+        注意：等待状态已在调用此方法前设置，此处只需等待事件触发
+
         Args:
             question_id: 问题 ID，用于验证
             timeout: 超时时间（秒），None 表示无限等待
@@ -155,11 +199,6 @@ class ClaudeCodeClient:
         Returns:
             用户答案 dict，包含 question_id 和 answer
         """
-        self._answer_event = asyncio.Event()
-        self._is_waiting_answer = True
-        self._pending_answer = None
-        self._pending_question_id = question_id
-
         try:
             # 等待答案或超时
             if timeout:
@@ -329,14 +368,22 @@ class ClaudeCodeClient:
 
                                 await self._track_tool_use(tool_name, tool_input)
 
-                                # 检查是否为 AskUserQuestion 工具调用（大小写不敏感）
-                                if tool_name and tool_name.lower() == "ask_user_question":
+                                # 检查是否为 AskUserQuestion 工具调用（支持多种名称格式）
+                                tool_name_lower = tool_name.lower() if tool_name else ""
+                                if tool_name_lower in ("ask_user_question", "askuserquestion", "askuser"):
                                     question_data = await self._parse_question_data(tool_input)
                                     stream_msg = StreamMessage(
                                         type=MessageType.ASK_USER_QUESTION,
                                         content=tool_input.get("question_text", "请回答问题"),
                                         question=question_data,
                                     )
+
+                                    # 先设置等待状态，再 yield 消息
+                                    # 这样 task.py 中检查 is_waiting_answer() 时已经是 True
+                                    self._answer_event = asyncio.Event()
+                                    self._is_waiting_answer = True
+                                    self._pending_answer = None
+                                    self._pending_question_id = question_data.question_id if question_data else ""
 
                                     # yield 消息后等待用户回答
                                     if on_message:
@@ -363,14 +410,16 @@ class ClaudeCodeClient:
 
                                         tool_result_content = json.dumps(tool_result)
 
-                                        # 通过工具结果响应
-                                        await client.send_tool_result(
+                                        # 通过 query 方法发送工具结果响应
+                                        await self._send_tool_result_via_query(
+                                            client=client,
                                             tool_id=block.id,
                                             content=tool_result_content,
                                         )
                                     else:
                                         # 超时或取消，发送空响应
-                                        await client.send_tool_result(
+                                        await self._send_tool_result_via_query(
+                                            client=client,
                                             tool_id=block.id,
                                             content=json.dumps({"answer": None}),
                                         )
@@ -408,6 +457,10 @@ class ClaudeCodeClient:
                         yield stream_msg
 
         except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"[ClaudeCodeClient] run_stream 发生错误: {e}")
+            print(f"[ClaudeCodeClient] 错误堆栈:\n{error_trace}")
             error_msg = StreamMessage(
                 type=MessageType.ERROR,
                 content=f"执行错误: {str(e)}",

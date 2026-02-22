@@ -3,10 +3,13 @@
 import asyncio
 import hashlib
 import json
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -136,8 +139,29 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
 
     当遇到需要用户回答的问题时，会暂停并等待用户通过 /answer 接口提交答案
     """
-    # 生成唯一会话 ID
-    session_id = str(uuid.uuid4())
+    # ========== 调试日志：入口 ==========
+    import time
+    request_start_time = time.time()
+    logger.info(f"[SSE] ==================== 新请求开始 ====================")
+    logger.info(f"[SSE] 请求详情: resume={task.resume}, working_dir={task.working_dir}, prompt长度={len(task.prompt) if task.prompt else 0}")
+    logger.info(f"[SSE] 当前所有会话数: {len(session_manager._sessions)}")
+    logger.info(f"[SSE] 当前所有会话IDs: {list(session_manager._sessions.keys())}")
+
+    # 如果提供了 resume 参数，尝试恢复已有会话；否则生成新的会话 ID
+    if task.resume:
+        # 尝试恢复已有会话
+        existing_session = await session_manager.get_session(task.resume)
+        if existing_session:
+            session_id = task.resume
+            logger.info(f"[SSE] 恢复已有会话: session_id={session_id}, is_waiting={existing_session.is_waiting}")
+        else:
+            # 会话不存在，创建新的
+            session_id = str(uuid.uuid4())
+            logger.info(f"[SSE] resume 参数提供的会话不存在，创建新会话: session_id={session_id}")
+    else:
+        # 生成新的会话 ID
+        session_id = str(uuid.uuid4())
+        logger.info(f"[SSE] 无 resume 参数，创建新会话: session_id={session_id}")
 
     # 确定工作目录
     cwd = task.working_dir or working_dir
@@ -155,6 +179,7 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
     client.set_session_id(session_id)
 
     # 注册会话到管理器
+    logger.info(f"[SSE] 创建会话: session_id={session_id}")
     await session_manager.create_session(session_id, client)
 
     # 保存用户消息到会话文件
@@ -168,10 +193,30 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
         try:
             # 流式接收消息
             async for msg in client.run_stream(task.prompt):
+                is_waiting = client.is_waiting_answer()
+                session = await session_manager.get_session(session_id)
+                session_is_waiting = session.is_waiting if session else False
+                pending_qid = client.get_pending_question_id()
+
+                # ========== 调试日志：每次消息处理 ==========
+                logger.info(
+                    f"[SSE] ★★★ 消息处理: session_id={session_id}, "
+                    f"client.is_waiting_answer()={is_waiting}, "
+                    f"session.is_waiting={session_is_waiting}, "
+                    f"pending_question_id={pending_qid}, "
+                    f"msg.type={msg.type.value}"
+                )
+
                 # 检查是否正在等待用户回答
-                if client.is_waiting_answer():
+                if is_waiting:
+                    logger.info(f"[SSE] >>>>> 会话进入等待状态: session_id={session_id}")
                     # 设置会话为等待状态
                     await session_manager.set_waiting(session_id, True)
+                    # 再次检查确认
+                    session_after = await session_manager.get_session(session_id)
+                    logger.info(f"[SSE] >>>>> set_waiting(True) 后的 session.is_waiting={session_after.is_waiting if session_after else 'N/A'}")
+                # 注意：不再在其他消息时自动设置 is_waiting=False
+                # 只有用户提交答案后才会清除等待状态
 
                 data = {
                     "type": msg.type.value,
@@ -185,6 +230,10 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
 
                 # 添加 question 数据
                 if msg.question:
+                    # 检查会话状态
+                    session_check = await session_manager.get_session(session_id)
+                    session_waiting = session_check.is_waiting if session_check else "N/A"
+                    logger.info(f"[SSE] 发送问答消息: session_id={session_id}, question_id={msg.question.question_id}, question_text={msg.question.question_text[:50]}..., session.is_waiting={session_waiting}")
                     data["question"] = {
                         "question_id": msg.question.question_id,
                         "question_text": msg.question.question_text,
@@ -226,20 +275,22 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
 
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
-                # 当不再等待答案时，更新会话状态
-                if not client.is_waiting_answer():
-                    await session_manager.set_waiting(session_id, False)
-
             # 任务完成，清理会话
+            logger.info(f"[SSE] 任务完成，删除会话: session_id={session_id}")
             await session_manager.remove_session(session_id)
 
         except Exception as e:
             # 发生错误时清理会话
+            import traceback
+            error_trace = traceback.format_exc()
+            logger.error(f"[SSE] 发生错误，删除会话: session_id={session_id}, error={e}")
+            logger.error(f"[SSE] 错误堆栈:\n{error_trace}")
             await session_manager.remove_session(session_id)
             error_data = {
                 "type": "error",
                 "content": f"执行错误: {str(e)}",
                 "session_id": session_id,
+                "error_detail": error_trace,  # 添加详细错误信息
             }
             yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
         finally:
@@ -263,26 +314,55 @@ async def submit_answer(answer: QuestionAnswerRequest):
 
     用户回答问答问题后调用此接口继续任务执行
     """
+    import time
+    logger.info(f"[Answer] ★★★★★ 收到答案提交 ★★★★★")
+    logger.info(f"[Answer] 提交的数据: session_id={answer.session_id}, question_id={answer.question_id}, answer={answer.answer}")
+    logger.info(f"[Answer] 当前所有会话数: {len(session_manager._sessions)}")
+    logger.info(f"[Answer] 当前所有会话IDs: {list(session_manager._sessions.keys())}")
+
     # 获取会话
     session = await session_manager.get_session(answer.session_id)
 
+    # 打印完整的会话状态信息用于调试
+    if session:
+        session_age = time.time() - session.created_at
+        logger.info(
+            f"[Answer] ★ 会话状态详情: session_id={answer.session_id}, "
+            f"is_waiting={session.is_waiting}, "
+            f"created_at={session.created_at}, "
+            f"age_seconds={session_age:.2f}"
+        )
+    else:
+        logger.warning(f"[Answer] ★ 会话不存在: {answer.session_id}")
+
     if not session:
+        logger.warning(f"[Answer] 会话不存在: {answer.session_id}")
         raise HTTPException(
             status_code=404,
             detail=f"会话不存在或已过期: {answer.session_id}"
         )
 
     if not session.is_waiting:
+        logger.warning(f"[Answer] ★★★ 验证失败 - 会话不在等待状态 ★★★")
+        logger.warning(f"[Answer] session_id={answer.session_id}, is_waiting={session.is_waiting}")
+        # 打印所有会话状态供参考
+        for sid, s in session_manager._sessions.items():
+            logger.warning(f"[Answer] 参考 - 其他会话: session_id={sid}, is_waiting={s.is_waiting}")
         raise HTTPException(
             status_code=400,
-            detail="当前会话不在等待回答状态"
+            detail=f"当前会话不在等待回答状态 (session_id={answer.session_id})"
         )
 
     # 获取客户端
     client = session.client
+    is_waiting = client.is_waiting_answer()
+    pending_qid = client.get_pending_question_id()
+    logger.info(f"[Answer] 客户端状态: is_waiting_answer={is_waiting}, pending_question_id={pending_qid}")
 
     # 验证 question_id 匹配
     if not client.is_waiting_answer():
+        logger.warning(f"[Answer] ★★★ 验证失败 - 客户端不在等待回答状态 ★★★")
+        logger.warning(f"[Answer] session_id={answer.session_id}")
         raise HTTPException(
             status_code=400,
             detail="客户端不在等待回答状态"
@@ -291,12 +371,14 @@ async def submit_answer(answer: QuestionAnswerRequest):
     # 验证 question_id 是否匹配
     pending_question_id = client.get_pending_question_id()
     if pending_question_id and pending_question_id != answer.question_id:
+        logger.warning(f"[Answer] question_id 不匹配: 期望={pending_question_id}, 收到={answer.question_id}")
         raise HTTPException(
             status_code=400,
             detail=f"question_id 不匹配: 期望 {pending_question_id}, 收到 {answer.question_id}"
         )
 
     # 提交答案
+    logger.info(f"[Answer] 提交答案: session_id={answer.session_id}")
     await client.submit_answer({
         "question_id": answer.question_id,
         "answer": answer.answer,
@@ -305,6 +387,7 @@ async def submit_answer(answer: QuestionAnswerRequest):
 
     # 更新会话状态
     await session_manager.set_waiting(answer.session_id, False)
+    logger.info(f"[Answer] 答案已提交，任务继续执行: session_id={answer.session_id}")
 
     return QuestionAnswerResponse(
         success=True,

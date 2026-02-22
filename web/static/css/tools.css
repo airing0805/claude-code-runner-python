@@ -225,3 +225,941 @@
     background: rgba(100, 116, 139, 0.15);
     border-left-color: #64748b;
 }
+
+/* ========== v0.5.3: 工具渲染器通用样式 ========== */
+
+.tool-renderer {
+    margin-top: 0.5rem;
+}
+
+/* 通用卡片样式 */
+.tool-renderer > div {
+    background: rgba(24, 24, 27, 0.7);
+    border: 1px solid rgba(63, 63, 70, 0.5);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+/* 通用头部样式 */
+.tool-renderer .tool-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(63, 63, 70, 0.5);
+    background: rgba(39, 39, 42, 0.3);
+}
+
+.tool-renderer .tool-icon {
+    font-size: 0.875rem;
+}
+
+.tool-renderer .tool-title {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* 通用内容样式 */
+.tool-renderer .tool-content {
+    overflow-x: auto;
+}
+
+/* Diff 样式 */
+.diff-line-add {
+    padding: 0.125rem 0.75rem;
+    background: rgba(16, 185, 129, 0.1);
+    color: #6ee7b7;
+    border-left: 2px solid #10b981;
+}
+
+.diff-line-remove {
+    padding: 0.125rem 0.75rem;
+    background: rgba(244, 54, 104, 0.1);
+    color: #fda4af;
+    border-left: 2px solid #f43668;
+}
+
+.diff-header {
+    padding: 0.25rem 0.75rem;
+    background: rgba(59, 130, 246, 0.1);
+    color: #93c5fd;
+    border-top: 1px solid rgba(59, 130, 246, 0.3);
+    border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* 任务进度条动画 */
+@keyframes progress-bar {
+    from { width: 0%; }
+    to { width: 100%; }
+}
+
+/* 旋转动画 (用于 in_progress 状态) */
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+    animation: spin-slow 2s linear infinite;
+}
+
+/* Agent 颜色样式 */
+.agent-explore { color: #22d3ee; }
+.agent-explore-bg { background: rgba(34, 211, 238, 0.1); border-color: rgba(34, 211, 238, 0.2); }
+
+.agent-plan { color: #a78bfa; }
+.agent-plan-bg { background: rgba(167, 139, 250, 0.1); border-color: rgba(167, 139, 250, 0.2); }
+
+.agent-guide { color: #fbbf24; }
+.agent-guide-bg { background: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.2); }
+
+.agent-general { color: #34d399; }
+.agent-general-bg { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.2); }
+
+/* 选项卡片样式 */
+.option-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.375rem;
+    background: rgba(39, 39, 42, 0.4);
+    border: 1px solid rgba(63, 63, 70, 0.3);
+}
+
+.option-card:hover {
+    background: rgba(63, 63, 70, 0.3);
+}
+
+/* 复制按钮在工具渲染器中的样式 */
+.tool-renderer .copy-btn {
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.15s;
+}
+
+.tool-renderer .copy-btn:hover {
+    background: rgba(63, 63, 70, 0.5);
+}
+
+/* ========== v0.5.3.3: Edit/Write 渲染器样式 ========== */
+
+/* Edit 工具 - 预览区域 */
+.edit-preview-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.edit-preview-old,
+.edit-preview-new {
+    border-bottom: 1px solid rgba(63, 63, 70, 0.3);
+}
+
+.edit-preview-old:last-child,
+.edit-preview-new:last-child {
+    border-bottom: none;
+}
+
+/* Write 工具 - 代码预览 */
+.write-preview {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.write-preview .font-mono > div {
+    border-bottom: 1px solid rgba(63, 63, 70, 0.15);
+}
+
+.write-preview .font-mono > div:last-child {
+    border-bottom: none;
+}
+
+/* Diff 行样式增强 */
+.diff-line-add,
+.diff-line-remove {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* 文件路径可点击样式（预留） */
+.tool-title.clickable {
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.tool-title.clickable:hover {
+    color: #22d3ee;
+}
+
+/* 行号样式增强 */
+.tool-renderer .line-number {
+    user-select: none;
+    min-width: 2.5rem;
+    text-align: right;
+    padding-right: 0.75rem;
+    color: #52525b;
+}
+
+/* ========== v0.5.3.2: FileContentRenderer 样式 ========== */
+
+/* 文件内容容器 */
+.file-content-wrapper {
+    max-height: 24rem; /* max-h-96 */
+    transition: max-height 0.3s ease-out;
+}
+
+.file-content-wrapper[data-expanded="true"] {
+    max-height: none;
+}
+
+/* 展开更多/收起按钮区域 */
+.file-content-toggle {
+    background: rgba(39, 39, 42, 0.3);
+}
+
+.file-content-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.file-content-toggle-btn:hover {
+    background: rgba(34, 211, 238, 0.1);
+}
+
+.file-content-toggle-btn .toggle-icon {
+    font-size: 0.625rem;
+    transition: transform 0.2s;
+}
+
+.file-content-toggle-btn:hover .toggle-icon {
+    transform: translateY(1px);
+}
+
+/* Read 工具卡片样式增强 */
+.read-tool-card {
+    position: relative;
+}
+
+.read-tool-card .read-params-section {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+/* 行号表格增强 */
+.file-content-table tbody tr {
+    transition: background-color 0.1s;
+}
+
+.file-content-table tbody tr:hover {
+    background: rgba(39, 39, 42, 0.5);
+}
+
+/* 代码行内容 */
+.file-content-table td {
+    vertical-align: top;
+}
+
+/* 语法高亮预留样式（配合 highlight.js 使用） */
+.file-content-table .hljs-keyword,
+.file-content-table .hljs-selector-tag {
+    color: #c678dd;
+}
+
+.file-content-table .hljs-string,
+.file-content-table .hljs-attr {
+    color: #98c379;
+}
+
+.file-content-table .hljs-number,
+.file-content-table .hljs-literal {
+    color: #d19a66;
+}
+
+.file-content-table .hljs-comment {
+    color: #5c6370;
+    font-style: italic;
+}
+
+.file-content-table .hljs-function {
+    color: #61afef;
+}
+
+.file-content-table .hljs-variable,
+.file-content-table .hljs-params {
+    color: #e06c75;
+}
+
+.file-content-table .hljs-built_in {
+    color: #e6c07b;
+}
+
+/* ========== v0.5.3.5: Todo/Task/AskQuestion 渲染器样式 ========== */
+
+/* Todo Markdown 内联样式 */
+.todo-markdown {
+    font-size: inherit;
+    line-height: inherit;
+}
+
+.todo-markdown .markdown-p {
+    margin: 0;
+    display: inline;
+}
+
+.todo-markdown .markdown-code-inline {
+    background: rgba(63, 63, 70, 0.5);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.todo-markdown .markdown-link {
+    color: #22d3ee;
+    text-decoration: underline;
+}
+
+.todo-markdown .markdown-strong {
+    font-weight: 600;
+}
+
+/* Task 工具样式增强 */
+.tool-renderer .task-prompt-wrapper {
+    background: rgba(39, 39, 42, 0.4);
+    border: 1px solid rgba(63, 63, 70, 0.3);
+}
+
+/* AskQuestion 选项预览样式 */
+.option-markdown-preview {
+    font-size: 0.75rem;
+    max-height: 12rem;
+    overflow-y: auto;
+}
+
+.option-markdown-preview .markdown-p {
+    font-size: 0.75rem;
+}
+
+.option-markdown-preview .markdown-code-block {
+    font-size: 0.7rem;
+}
+
+.option-markdown-preview .markdown-pre {
+    padding: 0.5rem;
+    margin: 0;
+}
+
+/* 进度条样式增强（Todo 渲染器） */
+.tool-renderer .progress-bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tool-renderer .progress-text {
+    font-size: 0.75rem;
+    color: #71717a;
+}
+
+.tool-renderer .progress-bar-outer {
+    width: 4rem;
+    height: 0.375rem;
+    background: #3f3f46;
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.tool-renderer .progress-bar-inner {
+    height: 100%;
+    background: #8b5cf6;
+    transition: width 0.3s ease;
+}
+
+/* Agent 类型标签样式 */
+.agent-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.625rem;
+    color: #71717a;
+    background: rgba(63, 63, 70, 0.5);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+}
+
+.agent-tag svg {
+    width: 0.625rem;
+    height: 0.625rem;
+}
+
+/* 选项卡片悬停效果 */
+.option-card-wrapper {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.option-card-wrapper:hover {
+    background: rgba(63, 63, 70, 0.4);
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+/* 问题卡片样式 */
+.question-card {
+    background: rgba(24, 24, 27, 0.7);
+    border: 1px solid rgba(63, 63, 70, 0.5);
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.question-card .question-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(63, 63, 70, 0.5);
+    background: rgba(39, 39, 42, 0.3);
+}
+
+.question-card .question-icon {
+    color: #a78bfa;
+    font-size: 0.875rem;
+}
+
+.question-card .question-title {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #d4d4d8;
+}
+
+.question-card .question-body {
+    padding: 0.75rem;
+}
+
+.question-card .question-text {
+    font-size: 0.875rem;
+    color: #e4e4e7;
+    margin-bottom: 0.75rem;
+}
+
+/* ========== v0.5.3.6: 集成样式增强 ========== */
+
+/* 消息渲染器与工具渲染器的衔接样式 */
+.assistant-msg-tool_use .tool-renderer,
+.assistant-msg-tool_result .tool-renderer {
+    margin-top: 0;
+}
+
+/* 工具使用消息的整体样式 */
+.assistant-msg-tool_use {
+    border-left: 3px solid rgba(34, 211, 238, 0.3);
+    background: rgba(24, 24, 27, 0.4);
+}
+
+/* 工具结果消息的整体样式 */
+.assistant-msg-tool_result {
+    border-left: 3px solid rgba(139, 92, 246, 0.3);
+    background: rgba(24, 24, 27, 0.3);
+}
+
+/* 时间戳在工具消息中的样式 */
+.assistant-msg-tool_use > .timestamp,
+.assistant-msg-tool_result > .timestamp {
+    display: block;
+    font-size: 0.7rem;
+    color: #52525b;
+    margin-bottom: 0.25rem;
+}
+
+/* 默认工具图标样式 */
+.tool-header .tool-icon {
+    font-size: 0.875rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 默认工具名称样式 */
+.tool-header .tool-name {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #a1a1aa;
+}
+
+/* 默认工具输入样式 */
+.tool-input {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+    margin-top: 0.25rem;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.75rem;
+}
+
+.tool-input pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #a1a1aa;
+}
+
+/* 结果截断提示样式 */
+.result-truncated {
+    color: #71717a;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    background: rgba(63, 63, 70, 0.2);
+    border-top: 1px solid rgba(63, 63, 70, 0.3);
+    text-align: center;
+}
+
+/* 错误结果样式 */
+.assistant-msg-error {
+    border-left-color: rgba(244, 63, 104, 0.5) !important;
+    background: rgba(244, 63, 104, 0.1) !important;
+}
+
+.assistant-msg-error .result-label {
+    color: #f43f5e;
+}
+
+/* 工具渲染器加载动画 */
+.tool-renderer-loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    color: #71717a;
+    font-size: 0.75rem;
+}
+
+.tool-renderer-loading::before {
+    content: '⏳';
+    animation: spin-slow 2s linear infinite;
+}
+
+/* Tailwind 风格的工具类（用于渲染器） */
+.text-sky-400 { color: #38bdf8; }
+.text-cyan-400 { color: #22d3ee; }
+.text-teal-400 { color: #2dd4bf; }
+.text-green-400 { color: #4ade80; }
+.text-emerald-400 { color: #34d399; }
+.text-amber-400 { color: #fbbf24; }
+.text-rose-400 { color: #fb7185; }
+.text-violet-400 { color: #a78bfa; }
+.text-zinc-300 { color: #d4d4d8; }
+.text-zinc-400 { color: #a1a1aa; }
+.text-zinc-500 { color: #71717a; }
+.text-zinc-600 { color: #52525b; }
+
+.bg-zinc-800\/30 { background: rgba(39, 39, 42, 0.3); }
+.bg-zinc-900\/70 { background: rgba(24, 24, 27, 0.7); }
+.bg-cyan-500\/10 { background: rgba(6, 182, 212, 0.1); }
+.bg-amber-500\/10 { background: rgba(245, 158, 11, 0.1); }
+.bg-rose-950\/20 { background: rgba(76, 5, 26, 0.2); }
+
+.border-zinc-700\/50 { border-color: rgba(63, 63, 70, 0.5); }
+.border-rose-900\/30 { border-color: rgba(136, 19, 55, 0.3); }
+
+.rounded-lg { border-radius: 0.5rem; }
+.rounded { border-radius: 0.25rem; }
+
+.p-1 { padding: 0.25rem; }
+.p-3 { padding: 0.75rem; }
+.px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
+.px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.py-0\.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+.m-0 { margin: 0; }
+.ml-1 { margin-left: 0.25rem; }
+.ml-auto { margin-left: auto; }
+.mr-2 { margin-right: 0.5rem; }
+
+.w-full { width: 100%; }
+.w-10 { width: 2.5rem; }
+
+.max-h-60 { max-height: 15rem; }
+.max-h-80 { max-height: 20rem; }
+
+.flex { display: flex; }
+.flex-shrink-0 { flex-shrink: 0; }
+.flex-1 { flex: 1; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.justify-between { justify-content: space-between; }
+
+.gap-1 { gap: 0.25rem; }
+.gap-2 { gap: 0.5rem; }
+
+.overflow-x-auto { overflow-x: auto; }
+.overflow-y-auto { overflow-y: auto; }
+
+.text-xs { font-size: 0.75rem; }
+.text-\[10px\] { font-size: 0.625rem; }
+.font-mono { font-family: 'Consolas', 'Monaco', 'Courier New', monospace; }
+.font-medium { font-weight: 500; }
+
+.whitespace-pre { white-space: pre; }
+.whitespace-pre-wrap { white-space: pre-wrap; }
+.break-all { word-break: break-all; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.cursor-pointer { cursor: pointer; }
+.transition-colors { transition: color 0.15s ease; }
+.transition-opacity { transition: opacity 0.15s ease; }
+
+.hover\:text-cyan-400:hover { color: #22d3ee; }
+.hover\:bg-zinc-700\/50:hover { background: rgba(63, 63, 70, 0.5); }
+.hover\:bg-zinc-800\/30:hover { background: rgba(39, 39, 42, 0.3); }
+
+.opacity-0 { opacity: 0; }
+.group:hover .group-hover\:opacity-100 { opacity: 1; }
+
+.divide-y > * + * { border-top: 1px solid; }
+.divide-zinc-800\/50 > * + * { border-top-color: rgba(39, 39, 42, 0.5); }
+
+.sticky { position: sticky; }
+.left-0 { left: 0; }
+
+.select-none { user-select: none; }
+.border-r { border-right-width: 1px; }
+.border-t { border-top-width: 1px; }
+.border-b { border-bottom-width: 1px; }
+
+/* ========== v0.5.4: 消息渲染增强样式 ========== */
+
+/* 消息淡入动画 */
+@keyframes message-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 新消息淡入效果 */
+.message-fade-in {
+    animation: message-fade-in 0.3s ease-out;
+}
+
+/* 工具按钮样式 */
+.tool-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    background: rgba(100, 116, 139, 0.1);
+    color: #94a3b8;
+}
+
+.tool-button:hover {
+    background: rgba(100, 116, 139, 0.2);
+}
+
+/* 工具按钮 - 输入类型 */
+.tool-button-input {
+    background: rgba(51, 65, 85, 0.3);
+    border-color: rgba(51, 65, 85, 0.4);
+    color: #cbd5e1;
+}
+
+.tool-button-input:hover {
+    background: rgba(51, 65, 85, 0.5);
+}
+
+/* 工具按钮 - 结果类型（成功） */
+.tool-button-result {
+    background: rgba(20, 184, 166, 0.1);
+    border-color: rgba(20, 184, 166, 0.2);
+    color: #5eead4;
+}
+
+.tool-button-result:hover {
+    background: rgba(20, 184, 166, 0.2);
+}
+
+/* 工具按钮 - 结果类型（错误） */
+.tool-button-error {
+    background: rgba(244, 63, 94, 0.1);
+    border-color: rgba(244, 63, 94, 0.2);
+    color: #fda4af;
+}
+
+.tool-button-error:hover {
+    background: rgba(244, 63, 94, 0.2);
+}
+
+/* 工具按钮 - 思考块 */
+.tool-button-thinking {
+    background: rgba(251, 191, 36, 0.1);
+    border-color: rgba(251, 191, 36, 0.2);
+    color: #fcd34d;
+}
+
+.tool-button-thinking:hover {
+    background: rgba(251, 191, 36, 0.2);
+}
+
+/* 工具按钮图标 */
+.tool-button-icon {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+/* 工具按钮预览文本 */
+.tool-button-preview {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 400;
+    opacity: 0.7;
+}
+
+/* 工具按钮展开箭头 */
+.tool-button-toggle {
+    font-size: 10px;
+    opacity: 0.5;
+    transition: transform 0.2s ease;
+    margin-left: 2px;
+}
+
+.tool-button.expanded .tool-button-toggle {
+    transform: rotate(90deg);
+}
+
+/* 工具内容区 */
+.tool-content-expanded {
+    margin-top: 8px;
+    animation: message-fade-in 0.2s ease-out;
+}
+
+/* 工具颜色类 */
+.tool-color-cyan { --tool-color: #22d3ee; --tool-bg: rgba(34, 211, 238, 0.1); --tool-border: rgba(34, 211, 238, 0.2); }
+.tool-color-green { --tool-color: #4ade80; --tool-bg: rgba(74, 222, 128, 0.1); --tool-border: rgba(74, 222, 128, 0.2); }
+.tool-color-violet { --tool-color: #a78bfa; --tool-bg: rgba(167, 139, 250, 0.1); --tool-border: rgba(167, 139, 250, 0.2); }
+.tool-color-amber { --tool-color: #fbbf24; --tool-bg: rgba(251, 191, 36, 0.1); --tool-border: rgba(251, 191, 36, 0.2); }
+.tool-color-sky { --tool-color: #38bdf8; --tool-bg: rgba(56, 189, 248, 0.1); --tool-border: rgba(56, 189, 248, 0.2); }
+.tool-color-rose { --tool-color: #fb7185; --tool-bg: rgba(251, 113, 133, 0.1); --tool-border: rgba(251, 113, 133, 0.2); }
+.tool-color-default { --tool-color: #94a3b8; --tool-bg: rgba(148, 163, 184, 0.1); --tool-border: rgba(148, 163, 184, 0.2); }
+
+/* 内容截断相关样式 */
+.content-collapsible {
+    position: relative;
+}
+
+.content-collapsible.collapsed {
+    max-height: 24rem; /* 约 30 行 */
+    overflow: hidden;
+}
+
+.content-collapsible.expanded {
+    max-height: none;
+}
+
+.content-collapsible.collapsed::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: linear-gradient(transparent, rgba(24, 24, 27, 0.9));
+    pointer-events: none;
+}
+
+/* 展开更多按钮 */
+.content-expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: rgba(39, 39, 42, 0.8);
+    border: 1px solid rgba(63, 63, 70, 0.5);
+    border-radius: 4px;
+    color: #a1a1aa;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    margin-top: 8px;
+}
+
+.content-expand-btn:hover {
+    background: rgba(63, 63, 70, 0.6);
+    color: #d4d4d8;
+}
+
+.content-expand-btn .expand-icon {
+    font-size: 10px;
+    transition: transform 0.2s ease;
+}
+
+.content-expand-btn.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+/* 截断提示文本 */
+.content-truncated-hint {
+    font-size: 11px;
+    color: #71717a;
+    padding: 4px 8px;
+    background: rgba(39, 39, 42, 0.5);
+    border-radius: 4px;
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 思考块样式增强 */
+.thinking-block {
+    margin: 4px 0;
+}
+
+.thinking-block-content {
+    font-size: 12px;
+    color: #a1a1aa;
+    background: rgba(9, 9, 11, 0.8);
+    border: 1px solid rgba(63, 63, 70, 0.5);
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    max-height: 20rem;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
+/* ========== v0.5.7: Diff 可视化样式 ========== */
+
+/* Diff 内容容器 */
+.diff-content-wrapper {
+    position: relative;
+}
+
+.diff-content-wrapper[data-expanded="true"] {
+    max-height: none;
+}
+
+/* Diff 行基础样式 */
+.diff-line {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.75rem;
+    line-height: 1.4;
+}
+
+/* Diff 行号列 */
+.diff-line-numbers {
+    min-width: 5rem;
+    background: rgba(24, 24, 27, 0.5);
+}
+
+.diff-old-num,
+.diff-new-num {
+    font-size: 0.625rem;
+    line-height: 1.4;
+}
+
+/* Diff hunk header 样式 */
+.diff-hunk-header {
+    background: rgba(14, 165, 233, 0.1);
+}
+
+.diff-header-content {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.7rem;
+}
+
+/* Diff 添加行样式 */
+.diff-line-add {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.diff-line-add:hover {
+    background: rgba(16, 185, 129, 0.15);
+}
+
+/* Diff 删除行样式 */
+.diff-line-remove {
+    background: rgba(244, 63, 94, 0.1);
+}
+
+.diff-line-remove:hover {
+    background: rgba(244, 63, 94, 0.15);
+}
+
+/* Diff 上下文行样式 */
+.diff-line-context {
+    background: transparent;
+}
+
+.diff-line-context:hover {
+    background: rgba(63, 63, 70, 0.2);
+}
+
+/* Diff 展开按钮 */
+.diff-expand-btn {
+    background: rgba(39, 39, 42, 0.5);
+    cursor: pointer;
+}
+
+.diff-expand-btn:hover {
+    background: rgba(63, 63, 70, 0.5);
+}
+
+.diff-expand-btn .expand-icon {
+    font-size: 0.625rem;
+    transition: transform 0.2s ease;
+}
+
+/* Diff 折叠提示 */
+.diff-collapse-hint {
+    font-style: italic;
+}
+
+/* Diff 内容区最大高度 */
+.diff-content-wrapper {
+    max-height: 20rem;
+}
+
+.diff-content-wrapper[data-expanded="true"] {
+    max-height: 40rem;
+    overflow-y: auto;
+}
+
+/* Diff 行内容样式 */
+.diff-line-content {
+    white-space: pre;
+    overflow-x: auto;
+}
+
+/* Diff 符号样式 (+/-) */
+.diff-line-content .select-none {
+    font-weight: bold;
+}
+
+/* Diff 响应式 */
+@media (max-width: 640px) {
+    .diff-line-numbers {
+        min-width: 4rem;
+    }
+
+    .diff-old-num,
+    .diff-new-num {
+        min-width: 1.5rem;
+        font-size: 0.5rem;
+    }
+}

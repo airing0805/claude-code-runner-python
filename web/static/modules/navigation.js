@@ -116,7 +116,8 @@ const Navigation = {
         // 如果是历史记录视图，重置并加载项目列表
         if (view === Views.HISTORY) {
             // 直接设置显示状态，不调用 showProjectsList（避免重复加载）
-            runner.historyProjects.style.display = 'block';
+            // 注意：使用 'flex' 而不是 'block'，因为 .history-section 使用 flex 布局
+            runner.historyProjects.style.display = 'flex';
             runner.historySessions.style.display = 'none';
             runner.currentProject = null;
             // 重新加载项目列表

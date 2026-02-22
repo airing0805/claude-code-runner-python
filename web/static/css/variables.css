@@ -1,19 +1,131 @@
 /* ============== CSS 变量 ============== */
+/* v0.5.1 - CSS 设计系统完善 */
+
 :root {
-    --primary-color: #7c3aed;
-    --primary-hover: #6d28d9;
-    --success-color: #10b981;
-    --danger-color: #ef4444;
-    --warning-color: #f59e0b;
-    --error-color: #ef4444;
-    --bg-color: #0f172a;
-    --card-bg: #1e293b;
-    --header-bg: #334155;
-    --text-color: #e2e8f0;
-    --text-primary: #e2e8f0;
-    --text-secondary: #94a3b8;
-    --text-muted: #94a3b8;
-    --border-color: #334155;
+    /* ============== 灰度色阶 (Tailwind zinc) ============== */
+    --zinc-50: #fafafa;
+    --zinc-100: #f4f4f5;
+    --zinc-200: #e4e4e7;
+    --zinc-300: #d4d4d8;
+    --zinc-400: #a1a1aa;
+    --zinc-500: #71717a;
+    --zinc-600: #52525b;
+    --zinc-700: #3f3f46;
+    --zinc-800: #27272a;
+    --zinc-900: #18181b;
+    --zinc-950: #09090b;
+
+    /* ============== 强调色 - Cyan (主色调) ============== */
+    --cyan-50: #ecfeff;
+    --cyan-100: #cffafe;
+    --cyan-200: #a5f3fc;
+    --cyan-300: #67e8f9;
+    --cyan-400: #22d3ee;
+    --cyan-500: #06b6d4;
+    --cyan-600: #0891b2;
+    --cyan-700: #0e7490;
+    --cyan-800: #155e75;
+    --cyan-900: #164e63;
+    --cyan-950: #083344;
+
+    /* ============== 强调色 - Violet (特殊元素) ============== */
+    --violet-50: #f5f3ff;
+    --violet-100: #ede9fe;
+    --violet-200: #ddd6fe;
+    --violet-300: #c4b5fd;
+    --violet-400: #a78bfa;
+    --violet-500: #8b5cf6;
+    --violet-600: #7c3aed;
+    --violet-700: #6d28d9;
+    --violet-800: #5b21b6;
+    --violet-900: #4c1d95;
+    --violet-950: #2e1065;
+
+    /* ============== 强调色 - Amber (警告/进行中) ============== */
+    --amber-50: #fffbeb;
+    --amber-100: #fef3c7;
+    --amber-200: #fde68a;
+    --amber-300: #fcd34d;
+    --amber-400: #fbbf24;
+    --amber-500: #f59e0b;
+    --amber-600: #d97706;
+    --amber-700: #b45309;
+    --amber-800: #92400e;
+    --amber-900: #78350f;
+    --amber-950: #451a03;
+
+    /* ============== 强调色 - Emerald (成功/完成) ============== */
+    --emerald-50: #ecfdf5;
+    --emerald-100: #d1fae5;
+    --emerald-200: #a7f3d0;
+    --emerald-300: #6ee7b7;
+    --emerald-400: #34d399;
+    --emerald-500: #10b981;
+    --emerald-600: #059669;
+    --emerald-700: #047857;
+    --emerald-800: #065f46;
+    --emerald-900: #064e3b;
+    --emerald-950: #022c22;
+
+    /* ============== 强调色 - Rose (错误) ============== */
+    --rose-50: #fff1f2;
+    --rose-100: #ffe4e6;
+    --rose-200: #fecdd3;
+    --rose-300: #fda4af;
+    --rose-400: #fb7185;
+    --rose-500: #f43f5e;
+    --rose-600: #e11d48;
+    --rose-700: #be123c;
+    --rose-800: #9f1239;
+    --rose-900: #881337;
+    --rose-950: #4c0519;
+
+    /* ============== 强调色 - Sky (文件/链接) ============== */
+    --sky-50: #f0f9ff;
+    --sky-100: #e0f2fe;
+    --sky-200: #bae6fd;
+    --sky-300: #7dd3fc;
+    --sky-400: #38bdf8;
+    --sky-500: #0ea5e9;
+    --sky-600: #0284c7;
+    --sky-700: #0369a1;
+    --sky-800: #075985;
+    --sky-900: #0c4a6e;
+    --sky-950: #082f49;
+
+    /* ============== 阴影变量 ============== */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+    /* ============== 圆角变量 ============== */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+
+    /* ============== 过渡变量 ============== */
+    --transition-fast: 150ms ease;
+    --transition-normal: 200ms ease;
+    --transition-slow: 300ms ease;
+
+    /* ============== 遗留变量 (保持兼容性) ============== */
+    --primary-color: var(--violet-600);
+    --primary-hover: var(--violet-700);
+    --success-color: var(--emerald-500);
+    --danger-color: var(--rose-500);
+    --warning-color: var(--amber-500);
+    --error-color: var(--rose-500);
+    --bg-color: var(--zinc-900);
+    --card-bg: var(--zinc-800);
+    --header-bg: var(--zinc-700);
+    --text-color: var(--zinc-100);
+    --text-primary: var(--zinc-100);
+    --text-secondary: var(--zinc-400);
+    --text-muted: var(--zinc-500);
+    --border-color: var(--zinc-700);
     --nav-width: 200px;
     --nav-collapsed-width: 56px;
 }

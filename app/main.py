@@ -1,6 +1,7 @@
 """FastAPI 主应用 - 提供 Web 界面和 API"""
 
 import os
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,6 +12,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.routers import api_keys, agents, auth, claude, mcp, session, skills, status, task
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 
 # 加载环境变量
 load_dotenv()

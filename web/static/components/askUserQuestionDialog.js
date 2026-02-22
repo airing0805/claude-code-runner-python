@@ -312,6 +312,18 @@ const AskUserQuestionDialog = {
         });
 
         // 发送答案到服务器
+        // ========== 前端调试日志 ==========
+        console.log('[Answer] ★★★★★ 提交答案 ★★★★★');
+        console.log('[Answer] ★ this._sessionId:', this._sessionId);
+        console.log('[Answer] ★ questionData:', questionData);
+        console.log('[Answer] ★ runner.currentSessionId:', this._runner.currentSessionId);
+        console.log('[Answer] ★ 提交的数据:', {
+            session_id: this._sessionId,
+            question_id: questionData.question_id,
+            answer: answer,
+            follow_up_answers: followUpAnswers,
+        });
+
         try {
             const response = await fetch('/api/task/answer', {
                 method: 'POST',
@@ -325,8 +337,10 @@ const AskUserQuestionDialog = {
             });
 
             const result = await response.json();
+            console.log('[Answer] 响应:', result);
 
             if (result.success) {
+                console.log('[Answer] 提交成功');
                 // 禁用对话框，显示已回答状态
                 this._disableDialog(container);
                 container.classList.add('answered');
@@ -337,10 +351,11 @@ const AskUserQuestionDialog = {
                     confirmBtn.textContent = '处理中...';
                 }
             } else {
+                console.error('[Answer] 提交失败:', result.message);
                 alert('提交失败: ' + result.message);
             }
         } catch (error) {
-            console.error('提交答案失败:', error);
+            console.error('[Answer] 提交答案失败:', error);
             alert('提交失败，请重试');
         }
     },
