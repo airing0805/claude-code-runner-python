@@ -11,6 +11,31 @@
 
 Claude Code Runner 是基于 [Claude Code SDK](https://docs.anthropic.com/en/docs/claude-code/overview) 的 Web 服务封装，通过 FastAPI 提供 REST API 和友好的 Web 界面来调用 Claude Code 执行编程任务。
 
+## 🌍 多平台代码同步
+
+本项目代码同时托管在 GitHub 和 Gitee 平台，确保访问的便利性：
+
+- **GitHub**: `https://github.com/airing0805/claude-code-runner-python.git`
+- **Gitee**: `https://gitee.com/andy0805/claude-code-runner-python.git`
+
+详细的多远程仓库推送配置和使用方法请参考 [Git多远程仓库推送指南](Git多远程仓库推送.md)。
+
+### 快速推送脚本
+
+项目提供了便捷的推送脚本：
+- Linux/Mac: `scripts/multi-push.sh`
+- Windows: `scripts/multi-push.bat`
+
+使用方法：
+```bash
+# Linux/Mac
+chmod +x scripts/multi-push.sh
+./scripts/multi-push.sh
+
+# Windows
+scripts\multi-push.bat
+```
+
 ## 为什么使用 Claude Code Runner？
 
 Claude Code 是一个强大的 AI 编程助手，但原生的 CLI 方式在使用上有一定门槛。Claude Code Runner 将 Claude Code 的能力以 Web API 和可视化界面的形式开放出来，让团队可以更灵活地集成和使用 AI 编程能力。
@@ -438,7 +463,7 @@ uv run pytest tests/test_runner.py::TestClaudeCodeClient -v
 
 ### Q: 如何在 Docker 中运行？
 
-```dockerfile
+``dockerfile
 FROM python:3.14-slim
 WORKDIR /app
 COPY . .
@@ -453,7 +478,7 @@ CMD ["python", "-m", "app.main"]
 
 Nginx 配置示例：
 
-```nginx
+``nginx
 server {
     listen 80;
     server_name your-domain.com;
