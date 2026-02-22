@@ -12,3 +12,9 @@ wheels/
 # Environment variables
 .env
 .env.local
+
+# Git 多远程仓库配置文档（本地参考）
+docs/Git多远程仓库推送.md
+
+# 策划文档（本地参考）
+策划/
