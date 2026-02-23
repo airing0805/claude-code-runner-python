@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-Claude Code Runner 是 Claude Code SDK 的 Web 服务封装，通过 FastAPI 提供 REST API 和 Web 界面来调用 Claude Code 执行编程任务。支持同步响应和 SSE 流式输出两种模式。
+Claude Code Runner 是 Claude Agent SDK 的 Web 服务封装，通过 FastAPI 提供 REST API 和 Web 界面来调用 Claude Agent 执行编程任务。支持同步响应和 SSE 流式输出两种模式。
 
 ## 常用命令
 
@@ -34,8 +34,8 @@ uv run pytest tests/test_runner.py::TestClaudeCodeClient -v
 ## 环境配置
 
 复制 `.env.example` 到 `.env` 并配置：
-- `ANTHROPIC_API_KEY` - Claude Code SDK 所需的 API 密钥
-- `WORKING_DIR` - Claude Code 执行任务的工作目录
+- `ANTHROPIC_API_KEY` - Claude Agent SDK 所需的 API 密钥
+- `WORKING_DIR` - Claude Agent 执行任务的工作目录
 - `HOST` / `PORT` - 服务器配置（默认：127.0.0.1:8000）
 
 ## 架构
@@ -62,7 +62,7 @@ web/                        # 前端文件
 ### 核心组件
 
 **ClaudeCodeClient** (`app/claude_runner/client.py`)：
-- 封装 claude-code-sdk 的 `ClaudeSDKClient`
+- 封装 claude-agent-sdk 的 `ClaudeSDKClient`
 - 两种执行模式：`run()`（同步）和 `run_stream()`（异步迭代器）
 - 跟踪执行过程中的工具使用和文件变更
 - 支持权限模式：`default`、`acceptEdits`、`plan`、`bypassPermissions`
@@ -101,7 +101,7 @@ TaskResult:
 
 ## 依赖
 
-- `claude-code-sdk>=0.0.25` - Anthropic 官方 SDK
+- `claude-agent-sdk>=0.1.0` - Anthropic 官方 SDK
 - `fastapi>=0.129.0` + `uvicorn>=0.41.0` - Web 框架
 - `jinja2>=3.1.6` - 模板引擎
 - `python-dotenv>=1.2.1` - 环境变量管理

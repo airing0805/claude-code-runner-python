@@ -27,18 +27,22 @@ const MessageRendererCore = {
      * @param {Array} messages - 消息数组
      */
     displayHistoryMessages(runner, messages) {
+        console.log('[displayHistoryMessages] 开始渲染历史消息:', messages.length, '条消息');
+        console.log('[displayHistoryMessages] 消息详情:', messages);
+
         // 清空输出区并显示历史消息
         runner.outputEl.innerHTML = '';
         runner.currentRoundEl = null;
         runner.roundCounter = 0;
 
-        if (messages.length === 0) {
+        if (!messages || messages.length === 0) {
             runner.outputEl.innerHTML = '<div class="output-placeholder">暂无历史消息</div>';
             return;
         }
 
         // 按轮次分组消息
         const rounds = this._groupByRounds(messages);
+        console.log('[displayHistoryMessages] 分组后轮次数组:', rounds);
 
         rounds.forEach((round, index) => {
             const roundEl = this._createRoundElement(runner, round, index + 1);
@@ -47,6 +51,7 @@ const MessageRendererCore = {
 
         // 更新轮次计数器
         runner.roundCounter = rounds.length;
+        console.log('[displayHistoryMessages] 渲染完成，共', rounds.length, '轮');
 
         // 滚动到底部
         Utils.scrollToBottom(runner.outputEl);
@@ -63,15 +68,18 @@ const MessageRendererCore = {
         let currentRound = null;
 
         messages.forEach(msg => {
+            // 处理用户消息
             if (msg.role === 'user') {
                 // 1. permissionMode 存在 = 新会话（最可靠）
                 if (msg.permissionMode) {
                     currentRound = { user: msg, assistant: [] };
                     rounds.push(currentRound);
                 }
-                // 2. 检查是否为 tool_result（继续当前对话）
+                // 2. 检查是否为工具结果（包含 tool_result 内容块）
+                // 只有当用户消息实际上包含工具结果内容时才继续当前对话
                 else if (Utils.isToolResult(msg)) {
                     if (currentRound) {
+                        // 将工具结果添加到当前轮次的助手消息中
                         currentRound.assistant.push(msg);
                     } else {
                         // 没有当前轮次，作为新轮次处理
@@ -84,8 +92,23 @@ const MessageRendererCore = {
                     currentRound = { user: msg, assistant: [] };
                     rounds.push(currentRound);
                 }
-            } else if (currentRound && msg.role === 'assistant') {
-                currentRound.assistant.push(msg);
+            }
+            // 处理助手消息
+            else if (msg.role === 'assistant') {
+                if (currentRound) {
+                    currentRound.assistant.push(msg);
+                } else {
+                    // 没有当前轮次（这种情况不应该发生），创建新轮次
+                    currentRound = { user: { role: 'user', content: [] }, assistant: [msg] };
+                    rounds.push(currentRound);
+                }
+            }
+            // 处理其他类型的消息（如工具结果，role 可能是 'tool' 或其他）
+            else {
+                if (currentRound) {
+                    // 添加到当前轮次的助手消息中
+                    currentRound.assistant.push(msg);
+                }
             }
         });
 
@@ -100,14 +123,19 @@ const MessageRendererCore = {
      * @returns {HTMLElement} 轮次 DOM 元素
      */
     _createRoundElement(runner, round, roundNumber) {
+        console.log('[_createRoundElement] 创建轮次', roundNumber, ':', round);
+
         const roundEl = document.createElement('div');
         roundEl.className = 'conversation-round message-fade-in';
         roundEl.id = `round-${roundNumber}`;
 
         // 渲染用户消息
         const userContent = MessageRendererContent._renderUserContent(round.user);
+        console.log('[_createRoundElement] 用户内容渲染结果:', userContent);
+
         // 渲染 AI 响应
         const assistantContent = MessageRendererContent._renderAssistantMessages(round.assistant);
+        console.log('[_createRoundElement] 助手内容渲染结果:', assistantContent);
 
         roundEl.innerHTML = `
             <div class="round-header">

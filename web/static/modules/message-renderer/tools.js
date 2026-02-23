@@ -205,7 +205,12 @@ const MessageRendererTools = {
         const isError = block.is_error;
         const rawToolName = block.tool_name || '';
         const toolName = this._normalizeToolName(rawToolName);
-        const content = block.content || '';
+        let content = block.content || '';
+
+        // 确保 content 是字符串（处理非字符串类型的情况）
+        if (typeof content !== 'string') {
+            content = String(content);
+        }
 
         // v0.5.4: 检查内容是否为空
         const hasContent = content && content.trim().length > 0;

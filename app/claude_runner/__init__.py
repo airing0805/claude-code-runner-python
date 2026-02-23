@@ -1,4 +1,4 @@
-"""Claude Code Runner - 通过 Web API 调用 Claude Code 执行任务"""
+"""Claude Agent Runner - 通过 Web API 调用 Claude Agent 执行任务"""
 
 from .client import ClaudeCodeClient, TaskResult
 

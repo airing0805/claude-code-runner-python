@@ -394,6 +394,8 @@ async def get_session_messages(session_id: str):
                                 "content": content_blocks,
                                 "timestamp": data.get("timestamp"),
                                 "uuid": data.get("uuid"),
+                                # 添加 permissionMode 用于前端识别新会话轮次
+                                "permissionMode": data.get("permissionMode"),
                             })
 
                     elif msg_type == "assistant":

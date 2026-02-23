@@ -10,20 +10,30 @@ const MessageRendererContent = {
      * @returns {string} 渲染后的 HTML
      */
     _renderUserContent(message) {
+        console.log('[_renderUserContent] 渲染用户消息:', message);
+
         if (!message.content || message.content.length === 0) {
+            console.log('[_renderUserContent] 无内容，返回占位符');
             return '<span class="empty-content">(无内容)</span>';
         }
 
-        return message.content.map(block => {
+        console.log('[_renderUserContent] 内容块数量:', message.content.length);
+
+        const result = message.content.map(block => {
+            console.log('[_renderUserContent] 处理内容块:', block.type, block);
             switch (block.type) {
                 case 'text':
                     return Utils.escapeHtml(block.text || '');
                 case 'tool_result':
                     return MessageRendererTools._renderToolResultBlock(block);
                 default:
+                    console.warn('[_renderUserContent] 未知内容块类型:', block.type);
                     return '';
             }
         }).join('');
+
+        console.log('[_renderUserContent] 渲染结果长度:', result.length);
+        return result;
     },
 
     /**
@@ -32,20 +42,30 @@ const MessageRendererContent = {
      * @returns {string} 渲染后的 HTML
      */
     _renderAssistantMessages(messages) {
+        console.log('[_renderAssistantMessages] 渲染助手消息:', messages.length, '条');
+
         if (!messages || messages.length === 0) {
+            console.log('[_renderAssistantMessages] 无消息，返回空字符串');
             return '';
         }
 
         // 合并所有消息的内容块
         const allBlocks = messages.flatMap(msg => {
             const blocks = msg.content || [];
+            console.log('[_renderAssistantMessages] 消息内容块数量:', blocks.length);
             // 为每个块添加时间戳
             return blocks.map(block => ({ ...block, timestamp: msg.timestamp }));
         });
 
-        return allBlocks.map(block => {
+        console.log('[_renderAssistantMessages] 总内容块数量:', allBlocks.length);
+
+        const result = allBlocks.map(block => {
+            console.log('[_renderAssistantMessages] 处理内容块:', block.type, block);
             return this._renderContentBlock(block, false);
         }).join('');
+
+        console.log('[_renderAssistantMessages] 渲染结果长度:', result.length);
+        return result;
     },
 
     /**

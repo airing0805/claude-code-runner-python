@@ -1,4 +1,4 @@
-"""Claude Code SDK 客户端封装 - 支持流式输出"""
+"""Claude Agent SDK 客户端封装 - 支持流式输出"""
 
 import asyncio
 import json
@@ -10,8 +10,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, AsyncIterator, Callable, Literal, Optional
 
-from claude_code_sdk import (
-    ClaudeCodeOptions,
+from claude_agent_sdk import (
+    ClaudeAgentOptions,
     ClaudeSDKClient,
     AssistantMessage,
     ResultMessage,
@@ -182,7 +182,7 @@ class ConcurrencyManager:
 
 class ClaudeCodeClient:
     """
-    Claude Code 客户端封装
+    Claude Agent 客户端封装
 
     支持流式输出，可用于 Web SSE 或 WebSocket
     支持用户问答的暂停和恢复
@@ -220,9 +220,9 @@ class ClaudeCodeClient:
         self._concurrency_manager = ConcurrencyManager()
         self._session_timeout = 3600  # 会话超时时间（秒）
 
-    def _create_options(self) -> ClaudeCodeOptions:
+    def _create_options(self) -> ClaudeAgentOptions:
         """创建 SDK 配置"""
-        return ClaudeCodeOptions(
+        return ClaudeAgentOptions(
             permission_mode=self.permission_mode,
             cwd=self.working_dir,
             continue_conversation=self.continue_conversation,

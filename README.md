@@ -2,14 +2,14 @@
 
 <div align="center">
 
-[![Python](https://img.shields.io/badge/Python-3.14+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.129+-00.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.2.15-orange.svg)](https://github.com/your-repo/claude-code-runner/releases)
+[![Version](https://img.shields.io/badge/Version-0.6.0-orange.svg)](https://github.com/your-repo/claude-code-runner/releases)
 
 </div>
 
-Claude Code Runner 是基于 [Claude Code SDK](https://docs.anthropic.com/en/docs/claude-code/overview) 的 Web 服务封装，通过 FastAPI 提供 REST API 和友好的 Web 界面来调用 Claude Code 执行编程任务。
+Claude Code Runner 是基于 [Claude Agent SDK](https://docs.anthropic.com/en/docs/agent-sdk/python) 的 Web 服务封装，通过 FastAPI 提供 REST API 和友好的 Web 界面来调用 Claude Agent 执行编程任务。
 
 ## 🌍 多平台代码同步
 
@@ -139,7 +139,7 @@ Claude Code 本身就是一个强大的通用 AI 助手，配合技能系统可�
 
 ### 环境要求
 
-- Python 3.14+
+- Python 3.10+
 - Anthropic API Key
 
 ### 1. 安装
@@ -371,7 +371,7 @@ claude-code-runner/
 
 ## 技术栈
 
-- **Python 3.14+** - 核心语言
+- **Python 3.10+** - 核心语言
 - **FastAPI** - Web 框架
 - **Claude Code SDK** - Anthropic 官方 SDK
 - **Uvicorn** - ASGI 服务器
@@ -446,7 +446,7 @@ uv run pytest tests/test_runner.py::TestClaudeCodeClient -v
 ### Q: 如何在 Docker 中运行？
 
 ``dockerfile
-FROM python:3.14-slim
+FROM python:3.10-slim
 WORKDIR /app
 COPY . .
 RUN pip install -e .
