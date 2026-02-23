@@ -43,7 +43,13 @@ class MCPManager:
             with open(self.CONFIG_PATH, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 servers_data = data.get("servers", [])
-                return [MCPServer(**server) for server in servers_data]
+                # 为缺少 created_at 的旧数据补充默认值
+                servers = []
+                for server_data in servers_data:
+                    if "created_at" not in server_data:
+                        server_data["created_at"] = datetime.now(timezone.utc).isoformat()
+                    servers.append(MCPServer(**server_data))
+                return servers
         except (json.JSONDecodeError, IOError):
             return self._load_from_claude_config()
 

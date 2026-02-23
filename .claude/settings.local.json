@@ -29,10 +29,12 @@
       "WebSearch",
       "Bash(uv run python -c:*)",
       "WebFetch(domain:docs.anthropic.com)",
-      "mcp__github__search_code",
-      "mcp__github__search_repositories",
-      "mcp__github__get_file_contents",
-      "mcp__brave-search__brave_web_search"
+      "mcp__github__*",
+      "mcp__filesystem__*",
+      "mcp__memory__*",
+      "mcp__sequential-thinking__*",
+      "mcp__4_5v_mcp__*",
+      "mcp__web_reader__*"
     ]
   }
 }
