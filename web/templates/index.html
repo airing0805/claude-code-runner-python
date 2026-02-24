@@ -711,11 +711,7 @@
             <div class="form-group">
                 <label class="form-label">钩子类型</label>
                 <select class="form-input" id="hook-type">
-                    <option value="PreToolUse">PreToolUse - 工具执行前</option>
-                    <option value="PostToolUse">PostToolUse - 工具执行后</option>
-                    <option value="Stop">Stop - 会话结束时</option>
-                    <option value="SessionStart">SessionStart - 会话开始时</option>
-                    <option value="Notification">Notification - 通知事件</option>
+                    <!-- 钩子类型将通过JavaScript动态填充 -->
                 </select>
             </div>
 
@@ -750,57 +746,3 @@
                 <button class="btn-secondary" id="cancel-hook-dialog-btn">取消</button>
                 <button class="btn-primary" id="save-hook-btn">保存</button>
             </div>
-        </div>
-    </div>
-
-    <!-- 常量和工具函数（非模块） -->
-    <script src="/static/constants.js"></script>
-    <script src="/static/utils.js"></script>
-
-    <!-- v0.5.2: 可复用组件（非模块，挂载到 window） -->
-    <script src="/static/components/copyButton.js"></script>
-    <script src="/static/components/collapsiblePanel.js"></script>
-    <script src="/static/components/scrollToBottom.js"></script>
-    <script src="/static/components/markdownRenderer.js"></script>
-
-    <!-- v0.5.6: 虚拟滚动（非模块） -->
-    <script src="/static/components/virtualList.js"></script>
-
-    <!-- 其他组件（非模块） -->
-    <script src="/static/components/toolsMultiselect.js"></script>
-    <script src="/static/components/tabs.js"></script>
-    <script src="/static/components/askUserQuestionDialog.js"></script>
-
-    <!-- v0.5.3: 工具渲染器（ES 模块动态加载） -->
-    <script type="module" src="/static/components/tool-renderers-loader.js"></script>
-
-    <!-- 业务模块（非模块） -->
-    <script src="/static/modules/history.js"></script>
-    <script src="/static/modules/navigation.js"></script>
-    <script src="/static/modules/workingDir.js"></script>
-    <script src="/static/modules/session.js"></script>
-    <script src="/static/modules/message-renderer/core.js"></script>
-    <script src="/static/modules/message-renderer/content.js"></script>
-    <script src="/static/modules/message-renderer/thinking.js"></script>
-    <script src="/static/modules/message-renderer/tools.js"></script>
-    <script src="/static/modules/message-renderer/tool-results.js"></script>
-    <script src="/static/modules/message-renderer/index.js"></script>
-    <script src="/static/modules/task.js"></script>
-    <!-- 拆分后的 Claude 状态模块 -->
-    <script src="/static/modules/claude-status/claudeStatusCore.js"></script>
-    <script src="/static/modules/claude-status/claudeDocs.js"></script>
-    <script src="/static/modules/claude-status/claudeUI.js"></script>
-    <script src="/static/modules/claude-status/claudeStatusMain.js"></script>
-    <script src="/static/modules/mcpManager.js"></script>
-    <script src="/static/modules/pluginManager.js"></script>
-    <script src="/static/modules/skillManager.js"></script>
-    <script src="/static/modules/hooksManager.js"></script>
-    <script src="/static/modules/agentMonitor.js"></script>
-
-    <!-- 主应用（非模块） -->
-    <script src="/static/app.js"></script>
-
-    <!-- v0.5.3.6: 集成测试脚本（开发环境使用） -->
-    <script src="/static/tests/toolRenderersTest.js"></script>
-</body>
-</html>

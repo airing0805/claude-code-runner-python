@@ -167,6 +167,13 @@ const Navigation = {
             }
         }
 
+        // 如果是钩子配置视图，加载钩子数据
+        if (view === Views.HOOKS_CONFIG) {
+            if (typeof HooksManager !== 'undefined') {
+                HooksManager.onShow();
+            }
+        }
+
         // 移动端收起菜单
         if (window.innerWidth <= 768) {
             runner.navMenu.classList.remove('open');

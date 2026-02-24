@@ -26,7 +26,8 @@ const Views = {
     AGENT_MONITOR: 'agent-monitor',
     SKILLS: 'skills',
     MCP_SERVERS: 'mcp-servers',
-    PLUGINS: 'plugins'
+    PLUGINS: 'plugins',
+    HOOKS_CONFIG: 'hooks-config'
 };
 
 // 消息类型常量

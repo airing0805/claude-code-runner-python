@@ -196,11 +196,14 @@ const HooksManager = {
         document.getElementById("hook-dialog-title").textContent = "添加钩子";
         document.getElementById("hook-id").value = "";
         document.getElementById("hook-name").value = "";
-        document.getElementById("hook-type").value = "PreToolUse";
         document.getElementById("hook-tools").value = "";
         document.getElementById("hook-action").value = "allow";
         document.getElementById("hook-notification").checked = false;
         document.getElementById("hook-enabled").checked = true;
+        
+        // 动态填充钩子类型下拉菜单
+        this.populateHookTypesSelect();
+        
         document.getElementById("hook-dialog").style.display = "flex";
     },
 
@@ -218,12 +221,90 @@ const HooksManager = {
         document.getElementById("hook-dialog-title").textContent = "编辑钩子";
         document.getElementById("hook-id").value = hook.id;
         document.getElementById("hook-name").value = hook.name;
-        document.getElementById("hook-type").value = hook.type;
         document.getElementById("hook-tools").value = hook.config.tools ? hook.config.tools.join(", ") : "";
         document.getElementById("hook-action").value = hook.config.action;
         document.getElementById("hook-notification").checked = hook.config.notification;
         document.getElementById("hook-enabled").checked = hook.enabled;
+        
+        // 动态填充钩子类型下拉菜单
+        this.populateHookTypesSelect();
+        // 设置当前选中的值
+        document.getElementById("hook-type").value = hook.type;
+        
         document.getElementById("hook-dialog").style.display = "flex";
+    },
+
+    /**
+     * 动态填充钩子类型下拉菜单
+     */
+    populateHookTypesSelect() {
+        const selectElement = document.getElementById("hook-type");
+        if (!selectElement) return;
+
+        // 清空现有选项
+        selectElement.innerHTML = "";
+
+        // 如果已经有钩子类型数据，直接使用
+        if (this.hookTypes && this.hookTypes.length > 0) {
+            this.hookTypes.forEach(hookType => {
+                const option = document.createElement("option");
+                option.value = hookType.name;
+                option.textContent = `${hookType.name} - ${hookType.description}`;
+                selectElement.appendChild(option);
+            });
+            // 设置默认选中第一个选项
+            if (selectElement.options.length > 0) {
+                selectElement.selectedIndex = 0;
+            }
+        } else {
+            // 如果没有数据，从API加载
+            this.loadHookTypesForSelect();
+        }
+    },
+
+    /**
+     * 从API加载钩子类型并填充下拉菜单
+     */
+    async loadHookTypesForSelect() {
+        try {
+            const response = await fetch("/api/claude/hooks/types");
+            const data = await response.json();
+            
+            this.hookTypes = data.hook_types || [];
+            
+            // 填充下拉菜单
+            const selectElement = document.getElementById("hook-type");
+            if (!selectElement) return;
+            
+            selectElement.innerHTML = "";
+            this.hookTypes.forEach(hookType => {
+                const option = document.createElement("option");
+                option.value = hookType.name;
+                option.textContent = `${hookType.name} - ${hookType.description}`;
+                selectElement.appendChild(option);
+            });
+        } catch (error) {
+            console.error("加载钩子类型失败:", error);
+            // 如果加载失败，使用默认选项
+            const defaultOptions = [
+                { value: "PreToolUse", text: "PreToolUse - 工具执行前触发" },
+                { value: "PostToolUse", text: "PostToolUse - 工具执行后触发" },
+                { value: "Stop", text: "Stop - 会话结束时触发" },
+                { value: "SessionStart", text: "SessionStart - 会话开始时触发" },
+                { value: "Notification", text: "Notification - 通知事件触发" }
+            ];
+            
+            const selectElement = document.getElementById("hook-type");
+            if (selectElement) {
+                selectElement.innerHTML = "";
+                defaultOptions.forEach(optionData => {
+                    const option = document.createElement("option");
+                    option.value = optionData.value;
+                    option.textContent = optionData.text;
+                    selectElement.appendChild(option);
+                });
+            }
+        }
     },
 
     /**
