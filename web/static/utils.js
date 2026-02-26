@@ -95,6 +95,52 @@ const Utils = {
         if (!text) return '';
         if (text.length <= maxLength) return text;
         return text.substring(0, maxLength) + '...\n[内容已截断]';
+    },
+
+    /**
+     * 防抖函数
+     * @param {Function} func - 要防抖的函数
+     * @param {number} wait - 等待时间（毫秒）
+     * @returns {Function} 防抖后的函数
+     */
+    debounce(func, wait = 300) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
+    /**
+     * 显示通知提示
+     * @param {string} message - 通知消息
+     * @param {string} type - 通知类型 (success, error, warning, info)
+     */
+    showNotification(message, type = 'info') {
+        // 创建通知元素
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+
+        // 添加到页面
+        let container = document.getElementById('notification-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'notification-container';
+            container.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999;';
+            document.body.appendChild(container);
+        }
+
+        container.appendChild(notification);
+
+        // 3秒后自动移除
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
     }
 };
 

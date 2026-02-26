@@ -27,7 +27,8 @@ const Views = {
     SKILLS: 'skills',
     MCP_SERVERS: 'mcp-servers',
     PLUGINS: 'plugins',
-    HOOKS_CONFIG: 'hooks-config'
+    HOOKS_CONFIG: 'hooks-config',
+    SCHEDULER: 'scheduler'  // v0.6.4: 任务调度视图
 };
 
 // 消息类型常量

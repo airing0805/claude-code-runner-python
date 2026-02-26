@@ -1466,3 +1466,599 @@
 .session-list-container::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
+
+/* ============== v0.6.4 任务调度样式 ============== */
+
+/* 调度器状态栏 */
+.scheduler-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--zinc-900) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--zinc-700) 50%, transparent);
+    border-radius: var(--radius-lg);
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.scheduler-status-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.scheduler-status-icon {
+    font-size: 1.2rem;
+}
+
+.scheduler-status-icon.running {
+    color: #4CAF50;
+}
+
+.scheduler-status-icon.stopped {
+    color: var(--text-muted);
+}
+
+.scheduler-status-text {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.scheduler-stats {
+    display: flex;
+    gap: 24px;
+}
+
+.scheduler-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.scheduler-stat .stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.scheduler-stat .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.scheduler-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* 标签页导航 */
+.scheduler-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: color-mix(in srgb, var(--zinc-900) 50%, transparent);
+    border-radius: var(--radius-lg);
+    margin-bottom: 16px;
+}
+
+.scheduler-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.scheduler-tab:hover {
+    background: color-mix(in srgb, var(--zinc-700) 30%, transparent);
+    color: var(--text-primary);
+}
+
+.scheduler-tab.active {
+    background: var(--primary-color);
+    color: white;
+}
+
+.scheduler-tab .tab-icon {
+    font-size: 1rem;
+}
+
+.scheduler-tab .tab-text {
+    font-size: 0.875rem;
+}
+
+/* 内容区域 */
+.scheduler-content {
+    min-height: 400px;
+}
+
+.scheduler-tab-pane {
+    display: none;
+}
+
+.scheduler-tab-pane.active {
+    display: block;
+}
+
+/* 操作栏 */
+.scheduler-actions-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+/* 任务列表 */
+.scheduler-list {
+    background: color-mix(in srgb, var(--zinc-900) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--zinc-700) 50%, transparent);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.scheduler-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.scheduler-table th,
+.scheduler-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid color-mix(in srgb, var(--zinc-700) 30%, transparent);
+}
+
+.scheduler-table th {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    background: color-mix(in srgb, var(--zinc-800) 30%, transparent);
+}
+
+.scheduler-table td {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+.scheduler-table tr:last-child td {
+    border-bottom: none;
+}
+
+.scheduler-table tr:hover td {
+    background: color-mix(in srgb, var(--zinc-800) 20%, transparent);
+}
+
+.scheduler-table .task-prompt {
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scheduler-table .actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+/* 状态标签 */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge.enabled {
+    background: color-mix(in srgb, #4CAF50 20%, transparent);
+    color: #4CAF50;
+}
+
+.status-badge.disabled {
+    background: color-mix(in srgb, var(--zinc-600) 20%, transparent);
+    color: var(--text-muted);
+}
+
+/* 状态图标 */
+.status-icon {
+    font-size: 1rem;
+}
+
+.status-icon.running {
+    color: #2196F3;
+}
+
+.status-icon.completed {
+    color: #4CAF50;
+}
+
+.status-icon.failed {
+    color: #F44336;
+}
+
+.status-icon.pending {
+    color: #FF9800;
+}
+
+.status-icon.cancelled {
+    color: #9E9E9E;
+}
+
+/* 空状态 */
+.empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.error-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+    color: #F44336;
+    font-size: 0.875rem;
+}
+
+/* 分页控件 */
+.pagination-bar {
+    margin-top: 16px;
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.pagination-btn {
+    padding: 6px 12px;
+    background: color-mix(in srgb, var(--zinc-800) 50%, transparent);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.pagination-btn:hover:not(:disabled) {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pagination-info {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+/* Cron 输入组 */
+.cron-input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.cron-input-group .form-input {
+    flex: 1;
+}
+
+.cron-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--zinc-800) 30%, transparent);
+    border-radius: var(--radius);
+}
+
+.cron-preview-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.cron-preview-value {
+    font-size: 0.875rem;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+.cron-error {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: color-mix(in srgb, #F44336 10%, transparent);
+    border-radius: var(--radius);
+    color: #F44336;
+    font-size: 0.875rem;
+}
+
+/* Cron 帮助对话框 */
+.cron-help-content {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.cron-help-intro {
+    margin-bottom: 16px;
+    color: var(--text-muted);
+}
+
+.cron-format-section {
+    margin-bottom: 20px;
+}
+
+.cron-format-section h3 {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.cron-format {
+    display: block;
+    padding: 12px;
+    background: color-mix(in srgb, var(--zinc-800) 50%, transparent);
+    border-radius: var(--radius);
+    font-family: monospace;
+    font-size: 1rem;
+    text-align: center;
+    letter-spacing: 2px;
+}
+
+.cron-field-desc {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.cron-examples-section h3 {
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.cron-examples-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cron-example-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: color-mix(in srgb, var(--zinc-800) 30%, transparent);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.cron-example-item:hover {
+    background: color-mix(in srgb, var(--zinc-700) 30%, transparent);
+}
+
+.cron-example-expr {
+    font-family: monospace;
+    font-size: 0.875rem;
+    color: var(--primary-color);
+    min-width: 100px;
+}
+
+.cron-example-desc {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+/* 任务详情对话框 */
+.dialog-content-large {
+    max-width: 700px;
+}
+
+.task-detail-content {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.detail-section {
+    margin-bottom: 16px;
+}
+
+.detail-section-title {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.detail-section-content {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    word-break: break-word;
+}
+
+.detail-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.collapse-icon {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: transform var(--transition-normal);
+}
+
+.collapsible-content {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.collapsible-content.collapsed {
+    max-height: 0;
+    overflow: hidden;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.task-output-pre {
+    font-family: monospace;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: color-mix(in srgb, var(--zinc-900) 50%, transparent);
+    padding: 12px;
+    border-radius: var(--radius);
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.error-title {
+    color: #F44336 !important;
+}
+
+.error-content {
+    background: color-mix(in srgb, #F44336 10%, transparent);
+    padding: 12px;
+    border-radius: var(--radius);
+    color: #F44336;
+}
+
+.error-text {
+    color: #F44336;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 工具标签 */
+.tool-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background: color-mix(in srgb, var(--primary-color) 20%, transparent);
+    color: var(--primary-color);
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    margin-right: 4px;
+}
+
+/* 文件项 */
+.file-item {
+    padding: 4px 0;
+    font-family: monospace;
+    font-size: 0.8rem;
+}
+
+/* 响应式 - 768-1024px 紧凑表格 */
+@media (max-width: 1024px) and (min-width: 769px) {
+    .scheduler-table th,
+    .scheduler-table td {
+        padding: 8px 12px;
+    }
+
+    .scheduler-table .task-prompt {
+        max-width: 250px;
+    }
+
+    .scheduler-status-bar {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .scheduler-stats {
+        gap: 16px;
+    }
+}
+
+/* 响应式 - < 768px 卡片式列表 */
+@media (max-width: 768px) {
+    .scheduler-status-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .scheduler-stats {
+        justify-content: center;
+    }
+
+    .scheduler-actions {
+        justify-content: center;
+    }
+
+    .scheduler-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .scheduler-tab .tab-text {
+        display: none;
+    }
+
+    .scheduler-table {
+        display: block;
+    }
+
+    .scheduler-table thead {
+        display: none;
+    }
+
+    .scheduler-table tbody {
+        display: block;
+    }
+
+    .scheduler-table tr {
+        display: block;
+        margin-bottom: 12px;
+        border: 1px solid color-mix(in srgb, var(--zinc-700) 50%, transparent);
+        border-radius: var(--radius);
+    }
+
+    .scheduler-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid color-mix(in srgb, var(--zinc-700) 30%, transparent);
+    }
+
+    .scheduler-table td:last-child {
+        border-bottom: none;
+    }
+
+    .scheduler-table td::before {
+        content: attr(data-label);
+        font-weight: 500;
+        color: var(--text-muted);
+    }
+
+    .scheduler-table .task-prompt {
+        max-width: none;
+    }
+
+    .scheduler-table .actions {
+        justify-content: flex-end;
+    }
+}

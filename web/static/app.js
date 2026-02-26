@@ -129,6 +129,11 @@ class ClaudeCodeRunner {
             PluginManager.init();
         }
 
+        // 初始化任务调度模块
+        if (typeof Scheduler !== 'undefined') {
+            Scheduler.init();
+        }
+
         // 快捷键
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') {

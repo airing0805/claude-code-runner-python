@@ -63,6 +63,10 @@
                     <span class="nav-icon">⚓</span>
                     <span class="nav-text">钩子配置</span>
                 </div>
+                <div class="nav-item" data-view="scheduler">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-text">任务调度</span>
+                </div>
             </div>
 
             <div class="nav-footer">
@@ -566,6 +570,115 @@
                     </div>
                 </div>
             </div>
+
+            <!-- 任务调度视图 (v0.6.4) -->
+            <div class="view-panel" id="view-scheduler">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-scheduler" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">📋 任务调度</div>
+                        <div class="page-subtitle">管理任务队列和定时任务</div>
+                    </div>
+
+                    <!-- 调度器状态栏 -->
+                    <div class="scheduler-status-bar" id="scheduler-status-bar">
+                        <div class="scheduler-status-left">
+                            <span class="scheduler-status-icon" id="scheduler-status-icon">⏸</span>
+                            <span class="scheduler-status-text" id="scheduler-status-text">已停止</span>
+                        </div>
+                        <div class="scheduler-stats">
+                            <span class="scheduler-stat">
+                                <span class="stat-value" id="scheduler-queue-count">0</span>
+                                <span class="stat-label">队列</span>
+                            </span>
+                            <span class="scheduler-stat">
+                                <span class="stat-value" id="scheduler-scheduled-count">0</span>
+                                <span class="stat-label">定时</span>
+                            </span>
+                            <span class="scheduler-stat">
+                                <span class="stat-value" id="scheduler-running-count">0</span>
+                                <span class="stat-label">运行</span>
+                            </span>
+                        </div>
+                        <div class="scheduler-actions">
+                            <button class="btn btn-small" id="scheduler-start-btn" title="启动调度器">▶ 启动</button>
+                            <button class="btn btn-small" id="scheduler-stop-btn" style="display:none" title="停止调度器">⏹ 停止</button>
+                            <button class="btn btn-small" id="scheduler-refresh-btn" title="刷新数据">🔄 刷新</button>
+                        </div>
+                    </div>
+
+                    <!-- 标签页导航 -->
+                    <div class="scheduler-tabs" id="scheduler-tabs">
+                        <button class="scheduler-tab active" data-tab="queue">
+                            <span class="tab-icon">📥</span>
+                            <span class="tab-text">任务队列</span>
+                        </button>
+                        <button class="scheduler-tab" data-tab="scheduled">
+                            <span class="tab-icon">⏰</span>
+                            <span class="tab-text">定时任务</span>
+                        </button>
+                        <button class="scheduler-tab" data-tab="running">
+                            <span class="tab-icon">🔄</span>
+                            <span class="tab-text">运行中</span>
+                        </button>
+                        <button class="scheduler-tab" data-tab="completed">
+                            <span class="tab-icon">✅</span>
+                            <span class="tab-text">已完成</span>
+                        </button>
+                        <button class="scheduler-tab" data-tab="failed">
+                            <span class="tab-icon">❌</span>
+                            <span class="tab-text">失败</span>
+                        </button>
+                    </div>
+
+                    <!-- 内容区域 -->
+                    <div class="scheduler-content" id="scheduler-content">
+                        <!-- 任务队列标签页 -->
+                        <div class="scheduler-tab-pane active" id="scheduler-tab-queue">
+                            <div class="scheduler-actions-bar">
+                                <button class="btn btn-primary" id="scheduler-add-task-btn">➕ 添加任务</button>
+                                <button class="btn btn-secondary" id="scheduler-clear-queue-btn">🗑 清空队列</button>
+                            </div>
+                            <div class="scheduler-list" id="scheduler-queue-list">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- 定时任务标签页 -->
+                        <div class="scheduler-tab-pane" id="scheduler-tab-scheduled">
+                            <div class="scheduler-actions-bar">
+                                <button class="btn btn-primary" id="scheduler-add-scheduled-btn">➕ 添加定时任务</button>
+                            </div>
+                            <div class="scheduler-list" id="scheduler-scheduled-list">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- 运行中标签页 -->
+                        <div class="scheduler-tab-pane" id="scheduler-tab-running">
+                            <div class="scheduler-list" id="scheduler-running-list">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                        </div>
+
+                        <!-- 已完成标签页 -->
+                        <div class="scheduler-tab-pane" id="scheduler-tab-completed">
+                            <div class="scheduler-list" id="scheduler-completed-list">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                            <div class="pagination-bar" id="completed-pagination"></div>
+                        </div>
+
+                        <!-- 失败标签页 -->
+                        <div class="scheduler-tab-pane" id="scheduler-tab-failed">
+                            <div class="scheduler-list" id="scheduler-failed-list">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                            <div class="pagination-bar" id="failed-pagination"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -746,3 +859,266 @@
                 <button class="btn-secondary" id="cancel-hook-dialog-btn">取消</button>
                 <button class="btn-primary" id="save-hook-btn">保存</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 添加任务对话框 (v0.6.4) -->
+    <div class="dialog-overlay" id="add-task-dialog">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2 class="dialog-title">添加任务到队列</h2>
+                <button class="dialog-close" id="close-add-task-dialog">×</button>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">任务描述 <span class="required">*</span></label>
+                <textarea class="form-input" id="task-prompt" rows="4" placeholder="描述你希望 Claude Code 执行的任务..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">工作目录</label>
+                <input type="text" class="form-input" id="task-working-dir" placeholder="留空使用默认目录">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">超时时间（秒）</label>
+                <input type="number" class="form-input" id="task-timeout" value="600" min="60" max="3600">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">工具权限</label>
+                <div class="tools-multiselect" id="task-tools-multiselect">
+                    <div class="tools-select-btn" id="task-tools-select-btn">
+                        <span class="selected-text">选择工具...</span>
+                        <span class="selected-count" style="display: none;">0</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="tools-dropdown" id="task-tools-dropdown"></div>
+                </div>
+                <input type="hidden" id="task-tools" value="Read,Write,Edit,Bash,Glob,Grep">
+            </div>
+
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" id="task-auto-approve">
+                    <span>自动批准工具操作</span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn-secondary" id="cancel-add-task-btn">取消</button>
+                <button class="btn-primary" id="confirm-add-task-btn">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加定时任务对话框 (v0.6.4) -->
+    <div class="dialog-overlay" id="add-scheduled-dialog">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2 class="dialog-title" id="scheduled-dialog-title">添加定时任务</h2>
+                <button class="dialog-close" id="close-add-scheduled-dialog">×</button>
+            </div>
+
+            <input type="hidden" id="scheduled-task-id">
+
+            <div class="form-group">
+                <label class="form-label">任务名称 <span class="required">*</span></label>
+                <input type="text" class="form-input" id="scheduled-name" placeholder="例如：每日代码审查" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Cron 表达式 <span class="required">*</span></label>
+                <div class="cron-input-group">
+                    <input type="text" class="form-input" id="scheduled-cron" placeholder="0 9 * * *" required>
+                    <button class="btn btn-small" id="cron-help-btn" title="查看 Cron 表达式帮助">?</button>
+                </div>
+                <div class="cron-preview" id="cron-preview">
+                    <span class="cron-preview-label">下次执行：</span>
+                    <span class="cron-preview-value" id="cron-next-run">-</span>
+                </div>
+                <div class="cron-error" id="cron-error" style="display:none;"></div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">任务描述 <span class="required">*</span></label>
+                <textarea class="form-input" id="scheduled-prompt" rows="4" placeholder="描述你希望 Claude Code 执行的任务..." required></textarea>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">工作目录</label>
+                <input type="text" class="form-input" id="scheduled-working-dir" placeholder="留空使用默认目录">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">超时时间（秒）</label>
+                <input type="number" class="form-input" id="scheduled-timeout" value="600" min="60" max="3600">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">工具权限</label>
+                <div class="tools-multiselect" id="scheduled-tools-multiselect">
+                    <div class="tools-select-btn" id="scheduled-tools-select-btn">
+                        <span class="selected-text">选择工具...</span>
+                        <span class="selected-count" style="display: none;">0</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="tools-dropdown" id="scheduled-tools-dropdown"></div>
+                </div>
+                <input type="hidden" id="scheduled-tools" value="Read,Write,Edit,Bash,Glob,Grep">
+            </div>
+
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" id="scheduled-auto-approve">
+                    <span>自动批准工具操作</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label class="form-checkbox">
+                    <input type="checkbox" id="scheduled-enabled" checked>
+                    <span>启用定时任务</span>
+                </label>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn-secondary" id="cancel-add-scheduled-btn">取消</button>
+                <button class="btn-primary" id="confirm-add-scheduled-btn">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 任务详情对话框 (v0.6.4) -->
+    <div class="dialog-overlay" id="task-detail-dialog">
+        <div class="dialog-content dialog-content-large">
+            <div class="dialog-header">
+                <h2 class="dialog-title">任务详情</h2>
+                <button class="dialog-close" id="close-task-detail-dialog">×</button>
+            </div>
+
+            <div class="task-detail-content">
+                <div class="detail-section">
+                    <div class="detail-section-title">任务描述</div>
+                    <div class="detail-section-content" id="detail-task-prompt">-</div>
+                </div>
+
+                <div class="status-grid">
+                    <div class="status-item">
+                        <span class="status-label">状态</span>
+                        <span class="status-value" id="detail-task-status">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">开始时间</span>
+                        <span class="status-value" id="detail-task-started">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">结束时间</span>
+                        <span class="status-value" id="detail-task-ended">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">耗时</span>
+                        <span class="status-value" id="detail-task-duration">-</span>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">工作目录</div>
+                    <div class="detail-section-content" id="detail-task-working-dir">-</div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">工具使用</div>
+                    <div class="detail-section-content" id="detail-task-tools">
+                        <span class="empty-text">无</span>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">文件变更</div>
+                    <div class="detail-section-content" id="detail-task-files">
+                        <span class="empty-text">无</span>
+                    </div>
+                </div>
+
+                <div class="detail-section collapsible">
+                    <div class="detail-section-header" id="detail-output-toggle">
+                        <div class="detail-section-title">输出日志</div>
+                        <span class="collapse-icon">▼</span>
+                    </div>
+                    <div class="detail-section-content collapsible-content" id="detail-task-output">
+                        <span class="empty-text">暂无日志</span>
+                    </div>
+                </div>
+
+                <div class="detail-section" id="detail-error-section" style="display:none;">
+                    <div class="detail-section-title error-title">错误信息</div>
+                    <div class="detail-section-content error-content" id="detail-task-error">-</div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn-secondary" id="copy-task-log-btn">📋 复制日志</button>
+                <button class="btn-primary" id="close-detail-btn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cron 帮助对话框 (v0.6.4) -->
+    <div class="dialog-overlay" id="cron-help-dialog">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2 class="dialog-title">Cron 表达式帮助</h2>
+                <button class="dialog-close" id="close-cron-help-dialog">×</button>
+            </div>
+
+            <div class="cron-help-content">
+                <p class="cron-help-intro">Cron 表达式用于定义定时任务的执行时间。</p>
+
+                <div class="cron-format-section">
+                    <h3>格式说明</h3>
+                    <code class="cron-format">分 时 日 月 周</code>
+                    <div class="cron-field-desc">
+                        <span>分 (0-59)</span>
+                        <span>时 (0-23)</span>
+                        <span>日 (1-31)</span>
+                        <span>月 (1-12)</span>
+                        <span>周 (0-6, 0=周日)</span>
+                    </div>
+                </div>
+
+                <div class="cron-examples-section">
+                    <h3>常用示例</h3>
+                    <div class="cron-examples-list" id="cron-examples-list">
+                        <!-- 示例将由 JavaScript 动态生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn-primary" id="close-cron-help-btn">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 脚本加载 -->
+    <script src="/static/constants.js"></script>
+    <script src="/static/utils.js"></script>
+    <script src="/static/components/tabs.js"></script>
+    <script src="/static/components/toolsMultiselect.js"></script>
+    <script src="/static/modules/navigation.js"></script>
+    <script src="/static/modules/task.js"></script>
+    <script src="/static/modules/session.js"></script>
+    <script src="/static/modules/history.js"></script>
+    <script src="/static/modules/workingDir.js"></script>
+    <script src="/static/modules/agentMonitor.js"></script>
+    <script src="/static/modules/skillManager.js"></script>
+    <script src="/static/modules/mcpManager.js"></script>
+    <script src="/static/modules/pluginManager.js"></script>
+    <script src="/static/modules/hooksManager.js"></script>
+    <script src="/static/modules/claude-status/claudeStatusMain.js"></script>
+    <script src="/static/modules/message-renderer/index.js"></script>
+    <script src="/static/modules/scheduler.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

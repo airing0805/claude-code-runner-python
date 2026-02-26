@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.routers import api_keys, agents, auth, claude, mcp, session, skills, status, task
+from app.routers import api_keys, agents, auth, claude, mcp, scheduler, session, skills, status, task
 
 # 配置日志
 logging.basicConfig(
@@ -63,6 +63,7 @@ app.include_router(claude.router)
 app.include_router(mcp.router)
 app.include_router(agents.router)
 app.include_router(skills.router)
+app.include_router(scheduler.router)
 
 
 # ============== 页面路由 ==============

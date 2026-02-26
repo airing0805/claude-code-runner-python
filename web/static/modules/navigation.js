@@ -82,6 +82,14 @@ const Navigation = {
             });
         }
 
+        // v0.6.4: 任务调度视图移动端菜单切换
+        const menuToggleScheduler = document.getElementById('menu-toggle-scheduler');
+        if (menuToggleScheduler) {
+            menuToggleScheduler.addEventListener('click', () => {
+                runner.navMenu.classList.toggle('open');
+            });
+        }
+
         // 返回项目列表
         const backToProjects = document.getElementById('back-to-projects');
         if (backToProjects) {
@@ -171,6 +179,13 @@ const Navigation = {
         if (view === Views.HOOKS_CONFIG) {
             if (typeof HooksManager !== 'undefined') {
                 HooksManager.onShow();
+            }
+        }
+
+        // 如果是任务调度视图，加载调度数据
+        if (view === Views.SCHEDULER) {
+            if (typeof Scheduler !== 'undefined') {
+                Scheduler.onShow();
             }
         }
 
