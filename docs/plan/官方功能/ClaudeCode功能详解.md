@@ -1,6 +1,6 @@
 # Claude Code 功能详解
 
-本文档详细记录 Claude Code（Anthropic 官方 Claude Code SDK）提供的核心功能。
+本文档详细记录 Claude Code（Anthropic 官方 Claude Code）提供的核心功能。
 
 ## 主要章节
 

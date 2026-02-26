@@ -373,7 +373,7 @@ claude-code-runner/
 
 - **Python 3.10+** - 核心语言
 - **FastAPI** - Web 框架
-- **Claude Code SDK** - Anthropic 官方 SDK
+- **Claude Code** - Anthropic 官方工具
 - **Uvicorn** - ASGI 服务器
 - **Jinja2** - 模板引擎
 - **Pydantic** - 数据验证
@@ -503,6 +503,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 致谢
 
-- [Anthropic](https://www.anthropic.com/) - Claude Code SDK
+- [Anthropic](https://www.anthropic.com/) - Claude Code
 - [FastAPI](https://fastapi.tiangolo.com/) - Web 框架
 - 所有贡献者和用户

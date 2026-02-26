@@ -1,0 +1,52 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": []
+      },
+      {
+        "matcher": "Edit",
+        "hooks": []
+      },
+      {
+        "matcher": "Bash",
+        "hooks": []
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": []
+      },
+      {
+        "matcher": "Edit",
+        "hooks": []
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": []
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": []
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": []
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": []
+      }
+    ]
+  }
+}
