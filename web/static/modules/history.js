@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 历史记录管理模块
  * 处理项目列表和会话历史的加载与显示
  * v0.5.6: 增加虚拟滚动和懒加载支持
@@ -193,8 +193,13 @@ const History = {
         const time = session.timestamp ? Utils.formatDateTime(session.timestamp) : '未知时间';
 
         item.innerHTML = `
-            <div class="session-title">${Utils.escapeHtml(session.title)}</div>
-            <div class="session-meta">${time} · ${session.message_count || 0} 条消息</div>
+            <div class="session-content">
+                <div class="session-title">${Utils.escapeHtml(session.title)}</div>
+                <div class="session-meta">
+                    <span class="session-time">${time}</span>
+                    <span>${session.message_count || 0} 条消息</span>
+                </div>
+            </div>
             <div class="session-actions">
                 <button class="btn btn-primary btn-continue">继续此会话</button>
             </div>
@@ -588,3 +593,4 @@ const History = {
 
 // 导出到全局命名空间
 window.History = History;
+

@@ -70,6 +70,8 @@ body {
 .nav-items {
     flex: 1;
     padding: 8px;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .nav-item {

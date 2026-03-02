@@ -928,7 +928,6 @@
 .session-title {
     font-size: 0.9rem;
     color: var(--text-color);
-    margin-bottom: 6px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -937,10 +936,21 @@
 .session-meta {
     font-size: 0.75rem;
     color: var(--text-muted);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+/* 日期时间字段 - 固定宽度确保对齐 */
+.session-time {
+    min-width: 140px;
+    flex-shrink: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: 0.5px;
 }
 
 .session-actions {
-    margin-top: 8px;
+    margin-left: auto;
 }
 
 .btn-continue {
@@ -1398,7 +1408,16 @@
 }
 
 /* 虚拟滚动时的列表项优化 */
-.project-item.virtual-list-item,
+.project-item.virtual-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.2s;
+    background: transparent;
+}
+
 .session-item.virtual-list-item {
     display: flex;
     justify-content: space-between;
@@ -1407,6 +1426,14 @@
     border-bottom: 1px solid var(--border-color);
     transition: background 0.2s;
     background: transparent;
+}
+
+/* 虚拟列表项内容区（左侧） */
+.session-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
 }
 
 .project-item.virtual-list-item:hover,

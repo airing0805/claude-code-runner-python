@@ -1,5 +1,6 @@
 """会话历史相关 API"""
 
+import hashlib
 import json
 import uuid
 from datetime import datetime
@@ -14,6 +15,85 @@ router = APIRouter(prefix="/api", tags=["session"])
 # 路径配置
 CLAUDE_DIR = Path.home() / ".claude"
 PROJECTS_DIR = CLAUDE_DIR / "projects"
+METADATA_FILE = ".metadata.json"
+
+
+class MetadataCache:
+    """会话元数据缓存"""
+
+    def __init__(self, project_dir: Path):
+        self.project_dir = project_dir
+        self.cache_file = project_dir / METADATA_FILE
+        self._cache: dict[str, Any] = {}
+        self._loaded = False
+
+    def _load(self) -> None:
+        """加载缓存文件"""
+        if self._loaded:
+            return
+        if self.cache_file.exists():
+            try:
+                with open(self.cache_file, "r", encoding="utf-8") as f:
+                    self._cache = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                self._cache = {}
+        self._loaded = True
+
+    def _save(self) -> None:
+        """保存缓存文件"""
+        try:
+            with open(self.cache_file, "w", encoding="utf-8") as f:
+                json.dump(self._cache, f, ensure_ascii=False, indent=2)
+        except IOError:
+            pass
+
+    def get(self, session_file: Path) -> dict[str, Any] | None:
+        """获取缓存的元数据（如果文件未修改）"""
+        self._load()
+        cache_key = session_file.name
+
+        if cache_key not in self._cache:
+            return None
+
+        cached = self._cache[cache_key]
+        cached_mtime = cached.get("mtime")
+
+        # 检查文件修改时间
+        if not session_file.exists():
+            return None
+
+        file_mtime = session_file.stat().st_mtime
+        if cached_mtime != file_mtime:
+            return None
+
+        # 返回缓存的元数据（不包含 mtime 字段）
+        metadata = cached.copy()
+        metadata.pop("mtime", None)
+        return metadata
+
+    def set(self, session_file: Path, metadata: dict[str, Any]) -> None:
+        """设置缓存"""
+        self._load()
+        cache_key = session_file.name
+
+        # 获取文件修改时间
+        mtime = 0.0
+        if session_file.exists():
+            mtime = session_file.stat().st_mtime
+
+        self._cache[cache_key] = {
+            "mtime": mtime,
+            **metadata,
+        }
+        self._save()
+
+    def invalidate(self, session_file: Path) -> None:
+        """使缓存失效"""
+        self._load()
+        cache_key = session_file.name
+        if cache_key in self._cache:
+            del self._cache[cache_key]
+            self._save()
 
 
 def decode_project_name(encoded_name: str) -> str:
@@ -41,8 +121,23 @@ def get_sessions_dir(working_dir: str) -> Path:
     return CLAUDE_DIR / "projects" / project_hash
 
 
-def parse_session_metadata(filepath: Path) -> dict[str, Any]:
-    """解析会话文件获取元数据"""
+def parse_session_metadata(
+    filepath: Path,
+    cache: MetadataCache | None = None,
+) -> dict[str, Any]:
+    """
+    解析会话文件获取元数据
+
+    Args:
+        filepath: 会话文件路径
+        cache: 可选的元数据缓存实例
+    """
+    # 尝试从缓存获取
+    if cache:
+        cached = cache.get(filepath)
+        if cached is not None:
+            return cached
+
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             first_user_msg = None
@@ -100,7 +195,7 @@ def parse_session_metadata(filepath: Path) -> dict[str, Any]:
                 except json.JSONDecodeError:
                     continue
 
-        return {
+        metadata = {
             "id": session_id or filepath.stem,
             "title": first_user_msg or "无标题",
             "timestamp": timestamp,
@@ -109,8 +204,14 @@ def parse_session_metadata(filepath: Path) -> dict[str, Any]:
             "tools": sorted(list(tools_used)),
             "cwd": cwd,  # 返回工作目录
         }
+
+        # 更新缓存
+        if cache:
+            cache.set(filepath, metadata)
+
+        return metadata
     except Exception as e:
-        return {
+        error_metadata = {
             "id": filepath.stem,
             "title": f"解析错误: {str(e)[:30]}",
             "timestamp": None,
@@ -119,6 +220,7 @@ def parse_session_metadata(filepath: Path) -> dict[str, Any]:
             "tools": [],
             "cwd": None,
         }
+        return error_metadata
 
 
 def find_session_file(session_id: str) -> Optional[Path]:
@@ -142,15 +244,19 @@ def find_session_file(session_id: str) -> Optional[Path]:
 
 @router.get("/sessions")
 async def list_sessions(working_dir: str = "."):
-    """获取历史会话列表（使用当前项目）"""
+    """获取历史会话列表（使用当前项目，使用缓存）"""
     sessions_dir = get_sessions_dir(working_dir)
 
     if not sessions_dir.exists():
         return {"sessions": []}
 
+    # 创建缓存实例
+    cache = MetadataCache(sessions_dir)
+
     sessions = []
     for filepath in sessions_dir.glob("*.jsonl"):
-        metadata = parse_session_metadata(filepath)
+        # 使用缓存解析元数据
+        metadata = parse_session_metadata(filepath, cache=cache)
         sessions.append(metadata)
 
     # 按时间戳降序排序
@@ -161,7 +267,7 @@ async def list_sessions(working_dir: str = "."):
 
 @router.get("/projects")
 async def list_projects(page: int = 1, limit: int = 20):
-    """获取所有项目列表（分页）"""
+    """获取所有项目列表（分页，使用缓存）"""
     if not PROJECTS_DIR.exists():
         return {
             "projects": [],
@@ -176,6 +282,9 @@ async def list_projects(page: int = 1, limit: int = 20):
         if not project_dir.is_dir():
             continue
 
+        # 创建缓存实例
+        cache = MetadataCache(project_dir)
+
         # 统计会话数量和工具使用情况
         session_files = list(project_dir.glob("*.jsonl"))
         session_count = len(session_files)
@@ -185,7 +294,8 @@ async def list_projects(page: int = 1, limit: int = 20):
         real_path: str | None = None
 
         for session_file in session_files:
-            metadata = parse_session_metadata(session_file)
+            # 使用缓存解析元数据
+            metadata = parse_session_metadata(session_file, cache=cache)
             tools = metadata.get("tools", [])
             all_tools.update(tools)
 
@@ -224,17 +334,21 @@ async def list_projects(page: int = 1, limit: int = 20):
 
 @router.get("/projects/{project_name}/sessions")
 async def list_project_sessions(project_name: str, page: int = 1, limit: int = 20):
-    """获取指定项目的会话列表（分页）"""
+    """获取指定项目的会话列表（分页，使用缓存）"""
     project_dir = PROJECTS_DIR / project_name
 
     if not project_dir.exists():
         raise HTTPException(status_code=404, detail="项目不存在")
 
+    # 创建缓存实例
+    cache = MetadataCache(project_dir)
+
     sessions = []
     project_path: str | None = None
 
     for filepath in project_dir.glob("*.jsonl"):
-        metadata = parse_session_metadata(filepath)
+        # 使用缓存解析元数据
+        metadata = parse_session_metadata(filepath, cache=cache)
         sessions.append(metadata)
 
         # 从会话文件中获取真实工作目录
