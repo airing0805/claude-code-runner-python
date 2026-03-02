@@ -152,7 +152,7 @@ async def _send_tool_result_via_query(
 ## 参考资料
 
 - `docs/samples/多轮对话AskUserQuestion会话记录格式.jsonl` - CLI 记录格式（仅供参考）
-- SDK 源码：`claude_code_sdk/client.py` 中的 `query` 方法
+- SDK 源码：`claude_agent_sdk/client.py` 中的 `query` 方法
 
 ## 更新历史
 

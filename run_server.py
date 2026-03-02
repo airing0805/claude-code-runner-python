@@ -1,4 +1,5 @@
 """启动脚本"""
+import logging
 import os
 import signal
 import socket
@@ -6,6 +7,15 @@ import site
 import subprocess
 import sys
 from pathlib import Path
+
+# 配置日志输出到控制台
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
+logger = logging.getLogger(__name__)
 
 
 def is_port_in_use(port: int) -> bool:
@@ -40,24 +50,24 @@ def kill_process_on_port(port: int) -> bool:
                             ["taskkill", "/F", "/PID", str(pid)],
                             capture_output=True,
                         )
-                        print(f"已关闭占用端口 {port} 的进程 (PID: {pid})")
+                        logger.info(f"已关闭占用端口 {port} 的进程 (PID: {pid})")
                         return True
         return False
     except Exception as e:
-        print(f"关闭端口 {port} 进程时出错: {e}")
+        logger.error(f"关闭端口 {port} 进程时出错: {e}")
         return False
 
 
 def ensure_port_available(port: int) -> None:
     """确保端口可用，如果被占用则关闭占用进程"""
     if is_port_in_use(port):
-        print(f"端口 {port} 已被占用，正在关闭...")
+        logger.info(f"端口 {port} 已被占用，正在关闭...")
         if kill_process_on_port(port):
             # 等待端口释放
             import time
             time.sleep(1)
             if is_port_in_use(port):
-                print(f"警告: 端口 {port} 仍然被占用")
+                logger.warning(f"端口 {port} 仍然被占用")
 
 
 # 添加 venv site-packages
@@ -72,4 +82,14 @@ if __name__ == "__main__":
     # 确保端口可用
     ensure_port_available(8000)
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    logger.info("启动 Claude Code Runner 服务...")
+    logger.info("监听地址: 0.0.0.0:8000")
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+        log_config=None,  # 使用自定义日志配置
+        access_log=True,  # 启用访问日志
+    )

@@ -281,6 +281,12 @@ const Scheduler = {
         const selectedText = btn.querySelector('.selected-text');
         const selectedCount = btn.querySelector('.selected-count');
 
+        // 空值检查
+        if (!selectedText || !selectedCount) {
+            console.warn('工具选择按钮结构不完整', { btn, selectedText, selectedCount });
+            return;
+        }
+
         if (count === 0) {
             selectedText.textContent = '选择工具...';
             selectedCount.style.display = 'none';

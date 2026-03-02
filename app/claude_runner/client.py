@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import time
 import uuid
@@ -18,6 +19,9 @@ from claude_agent_sdk import (
     UserMessage,
     ToolResultBlock,
 )
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 # 权限模式类型
 PermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
@@ -168,17 +172,21 @@ class ConcurrencyManager:
     
     async def release_question_slot(self, question_id: str):
         """释放问答执行槽位"""
+        next_to_acquire = None
         async with self.lock:
             if question_id in self.active_questions:
                 del self.active_questions[question_id]
-                
-            # 处理队列中的等待项
+
+            # 处理队列中的等待项（先取出，在锁外处理以避免死锁）
             if not self.question_queue.empty():
                 try:
-                    next_item = self.question_queue.get_nowait()
-                    await self.acquire_question_slot(next_item[0], next_item[1])
+                    next_to_acquire = self.question_queue.get_nowait()
                 except asyncio.QueueEmpty:
                     pass
+
+        # 在锁外处理队列项，避免死锁
+        if next_to_acquire:
+            await self.acquire_question_slot(next_to_acquire[0], next_to_acquire[1])
 
 class ClaudeCodeClient:
     """
@@ -313,35 +321,31 @@ class ClaudeCodeClient:
                 "answers": answers_dict,
             }
 
-        # 使用 SDK 内部格式（使用 parent_tool_use_id 字段）
-        # 参考 SDK 的 query 方法实现
+        # 使用正确的消息格式（参考 UserMessage 的参数）
+        # query 方法接受 dict[str, Any]，对应 UserMessage 的参数
         message = {
-            "type": "user",
-            "message": {
-                "role": "user",
-                "content": [tool_result_dict],
-            },
-            "parent_tool_use_id": tool_id,  # 使用 SDK 内部字段名
+            "content": [tool_result_dict],
+            "parent_tool_use_id": tool_id,
         }
 
-        # 添加 toolUseResult（如果有的话）
+        # 添加 tool_use_result（如果有）
         if tool_use_result:
-            message["toolUseResult"] = tool_use_result
+            message["tool_use_result"] = tool_use_result
 
         # ========== 调试日志：打印完整的消息结构 ==========
-        print(f"[SDK Debug] ★★★ 完整消息结构: {json.dumps(message, ensure_ascii=False)}")
-        print(f"[SDK Debug] ★★★ SDK 格式: {{'type': 'user', 'message': {{'role': 'user', 'content': [{{'type': 'tool_result', 'content': '...', 'tool_use_id': 'xxx'}}]}}, 'parent_tool_use_id': 'xxx'}}")
+        logger.debug(f"完整消息结构: {json.dumps(message, ensure_ascii=False)}")
+        logger.debug("SDK 格式: {'type': 'user', 'message': {'role': 'user', 'content': [{'type': 'tool_result', 'content': '...', 'tool_use_id': 'xxx'}]}, 'parent_tool_use_id': 'xxx'}")
 
         async def message_generator():
             yield message
 
         # 通过 query 发送包含工具结果的用户消息
-        print(f"[Client] ★★★ 发送工具结果: tool_id={tool_id}, content={content}")
+        logger.debug(f"发送工具结果: tool_id={tool_id}, content={content}")
         try:
             await client.query(message_generator())
-            print(f"[Client] ★★★ 工具结果发送成功")
+            logger.debug("工具结果发送成功")
         except Exception as e:
-            print(f"[Client] ★★★ 工具结果发送失败: {e}")
+            logger.error(f"工具结果发送失败: {e}")
 
     async def _update_question_state(self, question_id: str, status: QuestionStatus, metadata: dict = None):
         """更新问题状态"""
@@ -350,9 +354,9 @@ class ClaudeCodeClient:
             'updated_at': time.time(),
             'metadata': metadata or {}
         }
-        
+
         # 记录状态变更日志
-        print(f"[Question State] {question_id} -> {status.value}")
+        logger.info(f"Question State: {question_id} -> {status.value}")
 
     async def wait_for_answer(
         self,
@@ -422,24 +426,25 @@ class ClaudeCodeClient:
         question_id = answer.get('question_id')
         user_answer = answer.get('answer')
         
-        # 输入验证
-        if not self._input_validator.sanitize_user_input(str(user_answer)):
-            print(f"[Validation Error] Invalid answer for question {question_id}")
+        # 输入验证：清理后检查是否为空
+        sanitized = self._input_validator.sanitize_user_input(str(user_answer))
+        if not sanitized or not sanitized.strip():
+            logger.warning(f"Invalid answer for question {question_id} (empty after sanitization)")
             return False
-            
+
         # 检查会话有效性
         if not self._session_id:
-            print("[Session Error] No active session")
+            logger.warning("No active session")
             return False
-            
+
         # 检查问题状态
         if question_id not in self._question_states:
-            print(f"[State Error] Question {question_id} not found")
+            logger.warning(f"Question {question_id} not found")
             return False
-            
+
         current_state = self._question_states[question_id]['status']
         if current_state != QuestionStatus.SHOWING.value:
-            print(f"[State Error] Question {question_id} is in wrong state: {current_state}")
+            logger.warning(f"Question {question_id} is in wrong state: {current_state}")
             return False
 
         if self._answer_event and not self._answer_event.is_set():
@@ -450,7 +455,7 @@ class ClaudeCodeClient:
             })
 
             # ========== 调试日志：提交答案内容 ==========
-            print(f"[Answer Debug] ★★★ submit_answer 收到的答案: {answer}")
+            logger.debug(f"submit_answer 收到的答案: {answer}")
 
             self._pending_answer = answer
             self._answer_event.set()
@@ -461,8 +466,8 @@ class ClaudeCodeClient:
         """解析问答数据"""
         try:
             # 添加调试日志，查看 SDK 原始数据
-            print(f"[Debug] _parse_question_data called with tool_input keys: {tool_input.keys()}")
-            print(f"[Debug] tool_input: {tool_input}")
+            logger.debug(f"_parse_question_data called with tool_input keys: {tool_input.keys()}")
+            logger.debug(f"tool_input: {tool_input}")
 
             # 检查是否有 questions 字段（某些版本 SDK 可能是这个字段名）
             questions = tool_input.get("questions")
@@ -485,7 +490,7 @@ class ClaudeCodeClient:
 
                     # 如果没有选项，提供默认选项
                     if not options:
-                        print(f"[Warning] No options in questions field for question '{q.get('question_text', '')}', adding default options")
+                        logger.warning(f"No options in questions field for question '{q.get('question_text', '')}', adding default options")
                         options = [
                             QuestionOption(id="option_1", label="选项1", description="默认选项1"),
                             QuestionOption(id="option_2", label="选项2", description="默认选项2"),
@@ -523,7 +528,7 @@ class ClaudeCodeClient:
                     ]
             else:
                 # ⚠️ 临时修复：当没有选项时，提供默认选项
-                print(f"[Warning] No options provided for question '{tool_input.get('question_text', '')}', adding default options")
+                logger.warning(f"No options provided for question '{tool_input.get('question_text', '')}', adding default options")
                 options = [
                     QuestionOption(id="option_1", label="选项1", description="默认选项1"),
                     QuestionOption(id="option_2", label="选项2", description="默认选项2"),
@@ -571,7 +576,7 @@ class ClaudeCodeClient:
                 raw_tool_input=tool_input,  # 保存原始 tool_input
             )
         except Exception as e:
-            print(f"[Parse Error] Failed to parse question data: {e}")
+            logger.error(f"Failed to parse question data: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -610,15 +615,15 @@ class ClaudeCodeClient:
                 # 流式接收响应
                 async for message in client.receive_response():
                     # ========== 调试日志：打印 SDK 返回的原始消息 ==========
-                    print(f"[SDK Raw] ★★★ 收到 SDK 消息类型: {type(message)}")
+                    logger.debug(f"收到 SDK 消息类型: {type(message)}")
                     if hasattr(message, 'content'):
-                        print(f"[SDK Raw] ★★★ 消息内容: {message.content}")
+                        logger.debug(f"消息内容: {message.content}")
 
                     stream_msg = None
 
                     if isinstance(message, AssistantMessage):
                         for block in message.content:
-                            print(f"[SDK Raw] ★★★ Block 类型: {type(block)}, 内容: {block}")
+                            logger.debug(f"Block 类型: {type(block)}, 内容: {block}")
                             # 文本内容
                             if hasattr(block, "text") and block.text:
                                 stream_msg = StreamMessage(
@@ -671,7 +676,7 @@ class ClaudeCodeClient:
                                     self._pending_question_id = question_data.question_id
 
                                     # 添加调试日志，确认状态设置正确
-                                    print(f"[Client] ★ 设置等待状态: _is_waiting_answer={self._is_waiting_answer}, _pending_question_id={self._pending_question_id}")
+                                    logger.debug(f"设置等待状态: _is_waiting_answer={self._is_waiting_answer}, _pending_question_id={self._pending_question_id}")
 
                                     # 先 yield 消息，让前端显示对话框
                                     stream_msg = StreamMessage(
@@ -707,8 +712,8 @@ class ClaudeCodeClient:
                                         tool_result_content = tool_result_text
 
                                         # ========== 调试日志：打印发送给 SDK 的内容 ==========
-                                        print(f"[SDK Debug] ★★★ 发送给 SDK 的 tool_result: {tool_result_content}")
-                                        print(f"[SDK Debug] ★★★ answer 对象完整内容: {answer}")
+                                        logger.debug(f"发送给 SDK 的 tool_result: {tool_result_content}")
+                                        logger.debug(f"answer 对象完整内容: {answer}")
 
                                         # 更新状态为COMPLETED
                                         await self._update_question_state(
@@ -755,7 +760,7 @@ class ClaudeCodeClient:
                         # 例如：SDK 返回 "Answer questions?" 表示在等待确认
                         for block in getattr(message, 'content', []):
                             if isinstance(block, ToolResultBlock):
-                                print(f"[SDK Raw] ★★★ UserMessage 中的 ToolResultBlock: tool_use_id={block.tool_use_id}, content={block.content}, is_error={block.is_error}")
+                                logger.debug(f"UserMessage 中的 ToolResultBlock: tool_use_id={block.tool_use_id}, content={block.content}, is_error={block.is_error}")
                                 # 如果 SDK 返回 is_error=True，这可能是询问确认
                                 # 我们不需要主动发送响应，等待后续处理
 
@@ -784,8 +789,8 @@ class ClaudeCodeClient:
         except Exception as e:
             import traceback
             error_trace = traceback.format_exc()
-            print(f"[ClaudeCodeClient] run_stream 发生错误: {e}")
-            print(f"[ClaudeCodeClient] 错误堆栈:\n{error_trace}")
+            logger.error(f"run_stream 发生错误: {e}")
+            logger.error(f"错误堆栈:\n{error_trace}")
             error_msg = StreamMessage(
                 type=MessageType.ERROR,
                 content=f"执行错误: {str(e)}",

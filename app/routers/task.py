@@ -60,7 +60,7 @@ async def save_user_message_to_session(session_id: str, prompt: str, cwd: str) -
             f.write(json.dumps(message_data, ensure_ascii=False) + "\n")
     except Exception as e:
         # 记录错误但不影响主流程
-        print(f"保存用户消息失败: {e}")
+        logger.warning(f"保存用户消息失败: {e}")
 
 
 class TaskRequest(BaseModel):
@@ -150,6 +150,7 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
     logger.info(f"[SSE] 当前所有会话IDs: {list(session_manager._sessions.keys())}")
 
     # 如果提供了 resume 参数，尝试恢复已有会话；否则生成新的会话 ID
+    existing_session = None
     if task.resume:
         # 尝试恢复已有会话
         existing_session = await session_manager.get_session(task.resume)
@@ -168,12 +169,12 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
     # 确定工作目录
     cwd = task.working_dir or working_dir
 
-    # 创建客户端
+    # 创建客户端：如果会话不存在，将 resume 设为 None 避免传递无效值
     client = ClaudeCodeClient(
         working_dir=cwd,
         allowed_tools=task.tools,
         continue_conversation=task.continue_conversation,
-        resume=task.resume,
+        resume=task.resume if existing_session else None,
         permission_mode=task.permission_mode,
     )
 

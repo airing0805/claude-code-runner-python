@@ -5,6 +5,7 @@
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -19,7 +20,8 @@ class SessionState:
     session_id: str
     client: ClaudeCodeClient
     is_waiting: bool = False
-    created_at: float = field(default_factory=lambda: asyncio.get_event_loop().time())
+    # 使用系统时间而不是事件循环时间，确保会话过期判断准确
+    created_at: float = field(default_factory=time.time)
     pending_question_id: Optional[str] = None
 
 
@@ -47,21 +49,23 @@ class SessionManager:
             return state
 
     async def get_session(self, session_id: str) -> Optional[SessionState]:
-        """获取会话状态"""
-        return self._sessions.get(session_id)
+        """获取会话状态（带锁保护）"""
+        async with self._lock:
+            return self._sessions.get(session_id)
 
     async def get_session_info(self, session_id: str) -> Optional[SessionInfo]:
-        """获取会话信息（不含客户端）"""
-        state = self._sessions.get(session_id)
-        if not state:
-            return None
+        """获取会话信息（不含客户端，带锁保护）"""
+        async with self._lock:
+            state = self._sessions.get(session_id)
+            if not state:
+                return None
 
-        return SessionInfo(
-            session_id=state.session_id,
-            is_waiting=state.is_waiting,
-            pending_question_id=state.client.get_pending_question_id(),
-            created_at=state.created_at,
-        )
+            return SessionInfo(
+                session_id=state.session_id,
+                is_waiting=state.is_waiting,
+                pending_question_id=state.client.get_pending_question_id(),
+                created_at=state.created_at,
+            )
 
     async def list_sessions(self) -> list[SessionInfo]:
         """列出所有会话信息"""
@@ -98,7 +102,8 @@ class SessionManager:
 
     async def cleanup_old_sessions(self, max_age_seconds: float = 14400) -> int:
         """清理过期会话"""
-        current_time = asyncio.get_event_loop().time()
+        # 使用系统时间进行准确的过期判断
+        current_time = time.time()
         to_remove = []
 
         async with self._lock:

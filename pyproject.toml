@@ -13,7 +13,10 @@ dependencies = [
     "uvicorn>=0.41.0",
     "bcrypt>=4.2.0",
     "python-jose[cryptography]>=3.3.0",
-    "pydantic>=2.10.0",
+    # 显式约束 pydantic 版本以兼容 claude-agent-sdk
+    # pydantic 2.12.x 需要 pydantic-core 2.41.x
+    "pydantic>=2.10.0,<2.13.0",
+    "pydantic-core>=2.41.0,<2.42.0",
     "slowapi>=0.1.9",
 ]
 

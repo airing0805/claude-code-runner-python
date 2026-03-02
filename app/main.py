@@ -2,6 +2,7 @@
 
 import os
 import logging
+import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,11 +14,16 @@ from fastapi.templating import Jinja2Templates
 
 from app.routers import api_keys, agents, auth, claude, mcp, scheduler, session, skills, status, task
 
-# 配置日志
+# 配置日志 - 明确输出到控制台
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
 )
+
+# 创建应用日志记录器
+logger = logging.getLogger(__name__)
 
 # 加载环境变量
 load_dotenv()
@@ -36,10 +42,10 @@ STATIC_DIR = BASE_DIR / "web" / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    print(f"[INFO] Claude Code Runner 启动")
-    print(f"[INFO] 工作目录: {WORKING_DIR}")
+    logger.info("Claude Code Runner 启动")
+    logger.info(f"工作目录: {WORKING_DIR}")
     yield
-    print("[INFO] Claude Code Runner 关闭")
+    logger.info("Claude Code Runner 关闭")
 
 
 app = FastAPI(
