@@ -222,11 +222,17 @@ class ClaudeCodeClient:
 
     def _create_options(self) -> ClaudeAgentOptions:
         """创建 SDK 配置"""
+        # 解决 Windows 崩溃问题：限制缓冲区大小
+        # 通过 env 参数传递 API Key，确保认证正常工作
         return ClaudeAgentOptions(
             permission_mode=self.permission_mode,
             cwd=self.working_dir,
             continue_conversation=self.continue_conversation,
             resume=self.resume,
+            max_buffer_size=1024 * 1024,  # 限制缓冲区为 1MB
+            env={
+                "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY", ""),
+            } if os.getenv("ANTHROPIC_API_KEY") else {},
         )
 
     async def _track_tool_use(self, tool_name: str, tool_input: dict) -> None:
