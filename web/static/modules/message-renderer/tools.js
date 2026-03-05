@@ -65,7 +65,6 @@ const MessageRendererTools = {
         // 处理特殊工具名称
         const specialNames = {
             'todowrite': 'TodoWrite',
-            'askuserquestion': 'AskUserQuestion',
             'websearch': 'WebSearch',
             'webfetch': 'WebFetch',
         };
@@ -99,15 +98,18 @@ const MessageRendererTools = {
         const hasSpecialRenderer = this._isToolRenderersAvailable() &&
             window.ToolRenderers.hasInputRenderer(toolName);
 
+        // 获取工具颜色类
+        const toolColorClass = this._isToolIconsAvailable() ? window.ToolIcons.getToolColorClass(rawToolName) : 'tool-color-default';
+
         // 如果有专用渲染器且应该自动展开
         if (shouldAutoExpand && hasSpecialRenderer) {
             try {
                 const renderedEl = window.ToolRenderers.renderInput(toolName, toolInput);
                 if (renderedEl) {
                     const wrapper = document.createElement('div');
-                    wrapper.className = 'assistant-msg assistant-msg-tool_use message-fade-in';
+                    wrapper.className = 'assistant-msg assistant-msg-tool_use message-fade-in message-tool_use';
                     wrapper.innerHTML = `
-                        <button class="tool-button tool-button-input expanded" onclick="this.classList.toggle('expanded')">
+                        <button class="tool-button tool-button-input ${toolColorClass} expanded" onclick="this.classList.toggle('expanded')">
                             <span class="tool-button-icon">${toolIcon}</span>
                             <span class="tool-button-preview">${Utils.escapeHtml(rawToolName)}</span>
                             ${toolPreview ? `<span class="tool-button-preview">${Utils.escapeHtml(toolPreview)}</span>` : ''}
@@ -130,7 +132,7 @@ const MessageRendererTools = {
         const hasInput = toolInput && Object.keys(toolInput).length > 0;
 
         return `
-            <div class="assistant-msg assistant-msg-tool_use message-fade-in" id="${blockId}">
+            <div class="assistant-msg assistant-msg-tool_use message-fade-in message-tool_use ${toolColorClass}" id="${blockId}">
                 <button class="tool-button tool-button-input ${shouldAutoExpand ? 'expanded' : ''}"
                         onclick="MessageRendererTools._toggleToolUse('${blockId}', ${shouldAutoExpand})"
                         ${!hasInput ? 'disabled' : ''}>
@@ -219,6 +221,11 @@ const MessageRendererTools = {
         // 生成唯一 ID
         const blockId = `tool-result-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
+        // 获取工具颜色类
+        const toolColorClass = this._isToolIconsAvailable() && !isError
+            ? window.ToolIcons.getToolColorClass(rawToolName)
+            : (isError ? 'tool-color-rose' : 'tool-color-green');
+
         // v0.5.4: 使用新的工具按钮样式
         const btnClass = isError ? 'tool-button-error' : 'tool-button-result';
         const icon = isError ? '❌' : '✅';
@@ -227,8 +234,8 @@ const MessageRendererTools = {
         // 如果没有内容，显示简洁的成功/错误状态
         if (!hasContent) {
             return `
-                <div class="assistant-msg assistant-msg-tool_result message-fade-in">
-                    <button class="tool-button ${btnClass}" disabled>
+                <div class="assistant-msg assistant-msg-tool_result message-fade-in message-tool_result ${toolColorClass}">
+                    <button class="tool-button ${btnClass} ${toolColorClass}" disabled>
                         <span class="tool-button-icon">${icon}</span>
                         <span class="tool-button-preview">${label}</span>
                     </button>
@@ -250,8 +257,8 @@ const MessageRendererTools = {
                 if (renderedEl) {
                     // 包装为可折叠的按钮
                     return `
-                        <div class="assistant-msg assistant-msg-tool_result message-fade-in" id="${blockId}">
-                            <button class="tool-button ${btnClass}" onclick="MessageRendererTools._toggleToolResult('${blockId}')">
+                        <div class="assistant-msg assistant-msg-tool_result message-fade-in message-tool_result ${toolColorClass}" id="${blockId}">
+                            <button class="tool-button ${btnClass} ${toolColorClass}" onclick="MessageRendererTools._toggleToolResult('${blockId}')">
                                 <span class="tool-button-icon">${icon}</span>
                                 <span class="tool-button-preview">${label}</span>
                                 ${contentPreview ? `<span class="tool-button-preview">${Utils.escapeHtml(contentPreview)}</span>` : ''}
@@ -279,8 +286,8 @@ const MessageRendererTools = {
         const resultContent = MessageRendererToolResults._renderToolResultByType(toolName, style, isError, displayContent, content);
 
         return `
-            <div class="assistant-msg assistant-msg-tool_result message-fade-in" id="${blockId}">
-                <button class="tool-button ${btnClass}" onclick="MessageRendererTools._toggleToolResult('${blockId}')">
+            <div class="assistant-msg assistant-msg-tool_result message-fade-in message-tool_result ${toolColorClass}" id="${blockId}">
+                <button class="tool-button ${btnClass} ${toolColorClass}" onclick="MessageRendererTools._toggleToolResult('${blockId}')">
                     <span class="tool-button-icon">${isError ? '❌' : style.icon}</span>
                     <span class="tool-button-preview">${isError ? 'error' : style.label}</span>
                     ${contentPreview ? `<span class="tool-button-preview">${Utils.escapeHtml(contentPreview)}</span>` : ''}

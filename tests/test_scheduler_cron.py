@@ -614,3 +614,225 @@ class TestEdgeCases:
 
         assert expr1.minute.values == expr2.minute.values
         assert expr1.minute.values == expr3.minute.values
+
+
+class TestSpecialCharacters:
+    """测试特殊字符 L, W, n#k"""
+
+    @pytest.fixture
+    def parser(self):
+        return CronParser()
+
+    def test_parse_l_last_day(self, parser):
+        """测试 L (月末) 字符"""
+        expr = parser.parse("0 0 L * *")
+
+        assert expr.day.is_last_day is True
+
+    def test_parse_lw_last_weekday(self, parser):
+        """测试 LW (月末工作日) 字符"""
+        expr = parser.parse("0 0 LW * *")
+
+        assert expr.day.is_last_day is True
+        assert expr.day.is_weekday is True
+
+    def test_validate_l_field(self, parser):
+        """测试验证 L 字段"""
+        is_valid, error = parser.validate("0 0 L * *")
+        assert is_valid is True
+
+    def test_validate_lw_field(self, parser):
+        """测试验证 LW 字段"""
+        is_valid, error = parser.validate("0 0 LW * *")
+        assert is_valid is True
+
+
+class TestRangesConstants:
+    """测试 RANGES 常量"""
+
+    def test_ranges_constants(self):
+        """测试范围常量"""
+        from app.scheduler.cron import RANGES
+
+        assert RANGES["second"] == (0, 59)
+        assert RANGES["minute"] == (0, 59)
+        assert RANGES["hour"] == (0, 23)
+        assert RANGES["day"] == (1, 31)
+        assert RANGES["month"] == (1, 12)
+        assert RANGES["weekday"] == (0, 6)
+
+
+class TestAliasesConstants:
+    """测试别名常量"""
+
+    def test_month_aliases(self):
+        """测试月份别名"""
+        from app.scheduler.cron import MONTH_ALIASES
+
+        assert MONTH_ALIASES["jan"] == 1
+        assert MONTH_ALIASES["feb"] == 2
+        assert MONTH_ALIASES["mar"] == 3
+        assert MONTH_ALIASES["apr"] == 4
+        assert MONTH_ALIASES["may"] == 5
+        assert MONTH_ALIASES["jun"] == 6
+        assert MONTH_ALIASES["jul"] == 7
+        assert MONTH_ALIASES["aug"] == 8
+        assert MONTH_ALIASES["sep"] == 9
+        assert MONTH_ALIASES["oct"] == 10
+        assert MONTH_ALIASES["nov"] == 11
+        assert MONTH_ALIASES["dec"] == 12
+
+    def test_weekday_aliases(self):
+        """测试星期别名"""
+        from app.scheduler.cron import WEEKDAY_ALIASES
+
+        assert WEEKDAY_ALIASES["sun"] == 0
+        assert WEEKDAY_ALIASES["mon"] == 1
+        assert WEEKDAY_ALIASES["tue"] == 2
+        assert WEEKDAY_ALIASES["wed"] == 3
+        assert WEEKDAY_ALIASES["thu"] == 4
+        assert WEEKDAY_ALIASES["fri"] == 5
+        assert WEEKDAY_ALIASES["sat"] == 6
+
+    def test_cron_aliases(self):
+        """测试 Cron 表达式别名"""
+        from app.scheduler.cron import CRON_ALIASES
+
+        assert CRON_ALIASES["@yearly"] == "0 0 1 1 *"
+        assert CRON_ALIASES["@annually"] == "0 0 1 1 *"
+        assert CRON_ALIASES["@monthly"] == "0 0 1 * *"
+        assert CRON_ALIASES["@weekly"] == "0 0 * * 0"
+        assert CRON_ALIASES["@daily"] == "0 0 * * *"
+        assert CRON_ALIASES["@midnight"] == "0 0 * * *"
+        assert CRON_ALIASES["@hourly"] == "0 * * * *"
+
+
+class TestCalculateNextRunWithExtended:
+    """测试扩展格式的下次执行时间计算"""
+
+    @pytest.fixture
+    def parser(self):
+        return CronParser()
+
+    def test_extended_format_seconds(self, parser):
+        """测试 6 位格式的秒字段"""
+        from_time = datetime(2024, 1, 1, 10, 30, 45)
+        next_run = parser.calculate_next_run("0 30 * * * *", from_time)
+
+        assert next_run is not None
+        assert next_run.minute == 30
+        assert next_run.second == 0
+
+
+class TestGetLastDayOfMonth:
+    """测试获取月份最后一天"""
+
+    @pytest.fixture
+    def parser(self):
+        return CronParser()
+
+    def test_get_last_day_january(self, parser):
+        """测试 1 月最后一天"""
+        assert parser._get_last_day_of_month(2024, 1) == 31
+
+    def test_get_last_day_february_leap(self, parser):
+        """测试闰年 2 月最后一天"""
+        assert parser._get_last_day_of_month(2024, 2) == 29
+
+    def test_get_last_day_february_non_leap(self, parser):
+        """测试非闰年 2 月最后一天"""
+        assert parser._get_last_day_of_month(2023, 2) == 28
+
+    def test_get_last_day_april(self, parser):
+        """测试 4 月最后一天（30天）"""
+        assert parser._get_last_day_of_month(2024, 4) == 30
+
+    def test_get_last_day_december(self, parser):
+        """测试 12 月最后一天"""
+        assert parser._get_last_day_of_month(2024, 12) == 31
+
+
+class TestFieldMatches:
+    """测试字段匹配逻辑"""
+
+    @pytest.fixture
+    def parser(self):
+        return CronParser()
+
+    def test_field_matches_last_day(self, parser):
+        """测试月末匹配"""
+        expr = parser.parse("0 0 L * *")
+        dt = datetime(2024, 1, 31, 0, 0)
+
+        assert parser._matches(expr, dt) is True
+
+    def test_field_matches_not_last_day(self, parser):
+        """测试非月末不匹配"""
+        expr = parser.parse("0 0 L * *")
+        dt = datetime(2024, 1, 30, 0, 0)
+
+        assert parser._matches(expr, dt) is False
+
+
+class TestValidateField:
+    """测试字段验证"""
+
+    @pytest.fixture
+    def parser(self):
+        return CronParser()
+
+    def test_validate_field_wildcard(self, parser):
+        """测试验证通配符字段"""
+        expr = parser.parse("* * * * *")
+        assert parser._validate_field(expr.minute, "minute") is True
+
+    def test_validate_field_in_range(self, parser):
+        """测试验证范围内的字段"""
+        expr = parser.parse("30 * * * *")
+        assert parser._validate_field(expr.minute, "minute") is True
+
+    def test_validate_field_out_of_range(self, parser):
+        """测试验证超出范围的字段"""
+        expr = parser.parse("70 * * * *")  # 无效分钟值
+        assert parser._validate_field(expr.minute, "minute") is False
+
+    def test_validate_field_with_list(self, parser):
+        """测试验证列表字段"""
+        expr = parser.parse("0,15,30,45 * * * *")
+        assert parser._validate_field(expr.minute, "minute") is True
+
+
+class TestMatchesMethod:
+    """测试 _matches 方法"""
+
+    @pytest.fixture
+    def parser(self):
+        return CronParser()
+
+    def test_matches_all_wildcards(self, parser):
+        """测试全通配符匹配"""
+        expr = parser.parse("* * * * *")
+        dt = datetime(2024, 1, 1, 12, 30, 0)
+
+        assert parser._matches(expr, dt) is True
+
+    def test_matches_specific_time(self, parser):
+        """测试特定时间匹配"""
+        expr = parser.parse("30 14 * * *")
+        dt = datetime(2024, 1, 1, 14, 30, 0)
+
+        assert parser._matches(expr, dt) is True
+
+    def test_matches_specific_time_wrong(self, parser):
+        """测试特定时间不匹配"""
+        expr = parser.parse("30 14 * * *")
+        dt = datetime(2024, 1, 1, 14, 31, 0)
+
+        assert parser._matches(expr, dt) is False
+
+    def test_matches_month(self, parser):
+        """测试月份匹配"""
+        expr = parser.parse("0 0 * 1 *")  # 1 月
+        dt = datetime(2024, 1, 1, 0, 0)
+
+        assert parser._matches(expr, dt) is True

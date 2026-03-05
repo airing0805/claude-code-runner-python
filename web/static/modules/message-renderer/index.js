@@ -35,6 +35,7 @@ const MessageRenderer = {
     // 代理核心功能
     displayHistoryMessages: MessageRendererCore.displayHistoryMessages.bind(MessageRendererCore),
     addAssistantMessage: MessageRendererCore.addAssistantMessage.bind(MessageRendererCore),
+    displayHistoryMessagesToTab: MessageRendererCore.displayHistoryMessagesToTab.bind(MessageRendererCore),
     
     // 代理配置访问
     get truncationConfig() {

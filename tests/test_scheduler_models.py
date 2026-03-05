@@ -4,7 +4,7 @@ import pytest
 import uuid
 from datetime import datetime
 
-from app.scheduler.models import Task, ScheduledTask, TaskStatus, PaginatedResponse
+from app.scheduler.models import Task, ScheduledTask, TaskStatus, TaskSource, PaginatedResponse
 
 
 class TestTaskStatus:
@@ -44,7 +44,7 @@ class TestTask:
         assert task.timeout == 600000
         assert task.status == TaskStatus.PENDING
         assert task.retries == 0
-        assert task.scheduled is False
+        assert task.source == TaskSource.MANUAL
 
     def test_task_default_values(self):
         """测试任务默认值"""

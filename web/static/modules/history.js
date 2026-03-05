@@ -572,7 +572,6 @@ const History = {
             // 填充会话信息
             runner.resumeInput.value = sessionId;
             runner.resumeInput.title = sessionId;
-            document.getElementById('continue-conversation').checked = false;
 
             // 设置工作目录并禁用编辑
             if (projectPath) {

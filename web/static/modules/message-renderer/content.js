@@ -84,6 +84,12 @@ const MessageRendererContent = {
                 return MessageRendererTools._renderToolUseBlock(block);
             case 'tool_result':
                 return MessageRendererTools._renderToolResultBlock(block);
+            case 'complete':
+                return this._renderCompleteBlock(block);
+            case 'info':
+                return this._renderInfoBlock(block);
+            case 'ask_user_question':
+                return this._renderAskUserQuestionBlock(block);
             default:
                 return '';
         }
@@ -108,7 +114,7 @@ const MessageRendererContent = {
         }
 
         return `
-            <div class="assistant-msg assistant-msg-text message-fade-in">
+            <div class="assistant-msg assistant-msg-text message-fade-in message-text">
                 <span class="timestamp">${timeStr}</span>
                 <div class="content">${Utils.escapeHtml(text)}</div>
             </div>
@@ -133,7 +139,7 @@ const MessageRendererContent = {
         const displayContent = displayLines.map(line => Utils.escapeHtml(line)).join('\n');
 
         return `
-            <div class="assistant-msg assistant-msg-text message-fade-in" id="${blockId}">
+            <div class="assistant-msg assistant-msg-text message-fade-in message-text" id="${blockId}">
                 <span class="timestamp">${timeStr}</span>
                 <div class="content content-collapsible collapsed">
                     <pre>${displayContent}</pre>
@@ -145,6 +151,118 @@ const MessageRendererContent = {
                     <span class="expand-icon">▼</span>
                     <span class="expand-text">展开更多</span>
                 </button>
+            </div>
+        `;
+    },
+
+    /**
+     * 渲染完成消息块（PQ-011, PQ-012）
+     * @param {Object} block - 完成消息块数据
+     * @returns {string} 渲染后的 HTML
+     */
+    _renderCompleteBlock(block) {
+        const timeStr = Utils.formatTime(block.timestamp);
+        const content = block.content || '任务完成';
+        const metadata = block.metadata || {};
+        
+        // 获取 files_changed 和 tools_used
+        const filesChanged = metadata.files_changed || [];
+        const toolsUsed = metadata.tools_used || [];
+        
+        // 构建文件变更HTML
+        let filesHtml = '';
+        if (filesChanged.length > 0) {
+            const fileItems = filesChanged.map(file => 
+                `<div class="file-item" title="点击复制路径" onclick="Utils.copyToClipboard('${Utils.escapeHtml(file)}')">${Utils.escapeHtml(file)}</div>`
+            ).join('');
+            filesHtml = `
+                <div class="complete-section">
+                    <div class="complete-section-header">
+                        <span class="section-title">📁 文件变更 (${filesChanged.length})</span>
+                        <button class="copy-all-btn" onclick="Utils.copyToClipboard(${JSON.stringify(filesChanged.join('\\n'))})">
+                            📋 复制全部
+                        </button>
+                    </div>
+                    <div class="files-list">${fileItems}</div>
+                </div>
+            `;
+        }
+        
+        // 构建工具使用HTML
+        let toolsHtml = '';
+        if (toolsUsed.length > 0) {
+            const toolItems = toolsUsed.map(tool => {
+                const toolName = tool.name || tool;
+                const toolCount = tool.count || 1;
+                const toolIcon = MessageRendererTools._getToolIcon(toolName.toLowerCase());
+                return `<span class="tool-tag" title="${Utils.escapeHtml(toolName)}">${toolIcon} ${Utils.escapeHtml(toolName)}${toolCount > 1 ? ` (${toolCount})` : ''}</span>`;
+            }).join('');
+            toolsHtml = `
+                <div class="complete-section">
+                    <div class="complete-section-header">
+                        <span class="section-title">🔧 工具使用 (${toolsUsed.length})</span>
+                    </div>
+                    <div class="tools-list">${toolItems}</div>
+                </div>
+            `;
+        }
+        
+        // 统计信息
+        const costUsd = metadata.cost_usd !== undefined ? metadata.cost_usd : null;
+        const durationMs = metadata.duration_ms !== undefined ? metadata.duration_ms : null;
+        let statsHtml = '';
+        if (costUsd !== null || durationMs !== null) {
+            const costStr = costUsd !== null ? `$${costUsd.toFixed(4)}` : '';
+            const durationStr = durationMs !== null ? `${durationMs}ms` : '';
+            const statsItems = [];
+            if (costStr) statsItems.push(`费用: ${costStr}`);
+            if (durationStr) statsItems.push(`耗时: ${durationStr}`);
+            if (statsItems.length > 0) {
+                statsHtml = `<div class="complete-stats">${statsItems.join(' • ')}</div>`;
+            }
+        }
+
+        return `
+            <div class="assistant-msg assistant-msg-complete message-fade-in message-complete">
+                <span class="timestamp">${timeStr}</span>
+                <div class="complete-content">
+                    <div class="complete-message">${Utils.escapeHtml(content)}</div>
+                    ${statsHtml}
+                    ${toolsHtml}
+                    ${filesHtml}
+                </div>
+            </div>
+        `;
+    },
+
+    /**
+     * 渲染信息消息块
+     * @param {Object} block - 信息消息块数据
+     * @returns {string} 渲染后的 HTML
+     */
+    _renderInfoBlock(block) {
+        const timeStr = Utils.formatTime(block.timestamp);
+        const content = block.content || '';
+        return `
+            <div class="assistant-msg assistant-msg-info message-fade-in message-info">
+                <span class="timestamp">${timeStr}</span>
+                <div class="content">${Utils.escapeHtml(content)}</div>
+            </div>
+        `;
+    },
+
+    /**
+     * 渲染用户问答消息块
+     * @param {Object} block - 用户问答消息块数据
+     * @returns {string} 渲染后的 HTML
+     */
+    _renderAskUserQuestionBlock(block) {
+        const timeStr = Utils.formatTime(block.timestamp);
+        const content = block.content || '等待用户回答...';
+        return `
+            <div class="assistant-msg assistant-msg-ask_user_question message-fade-in message-ask_user_question">
+                <span class="timestamp">${timeStr}</span>
+                <div class="content">${Utils.escapeHtml(content)}</div>
             </div>
         `;
     },

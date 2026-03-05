@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.routers import api_keys, agents, auth, claude, mcp, scheduler, session, skills, status, task
+from app.scheduler.scheduler import start_scheduler
 
 # 配置日志 - 明确输出到控制台
 logging.basicConfig(
@@ -44,6 +45,17 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     logger.info("Claude Code Runner 启动")
     logger.info(f"工作目录: {WORKING_DIR}")
+
+    # 启动任务调度器
+    try:
+        scheduler_started = await start_scheduler()
+        if scheduler_started:
+            logger.info("任务调度器已自动启动")
+        else:
+            logger.warning("任务调度器启动失败或已在运行")
+    except Exception as e:
+        logger.error(f"启动任务调度器时出错: {e}")
+
     yield
     logger.info("Claude Code Runner 关闭")
 

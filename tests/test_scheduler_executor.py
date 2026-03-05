@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from app.scheduler import executor
 from app.scheduler.executor import (
     TaskExecutor,
     ErrorCollector,
@@ -36,11 +37,17 @@ def mock_storage():
     storage.queue = MagicMock()
     storage.running = MagicMock()
     storage.history = MagicMock()
+    storage.logs = MagicMock()
+    storage.cancelled = MagicMock()
     storage.queue.add = MagicMock()
+    storage.queue.add_to_front = MagicMock()
     storage.running.add = MagicMock()
     storage.running.remove = MagicMock()
+    storage.running.update = MagicMock()
     storage.history.add_completed = MagicMock()
     storage.history.add_failed = MagicMock()
+    storage.cancelled.add = MagicMock()
+    storage.logs.append = MagicMock()
     return storage
 
 
@@ -521,8 +528,8 @@ class TestTaskExecutor:
             assert result.success is False
             assert sample_task.retries == 1
             assert sample_task.status == TaskStatus.PENDING
-            # 验证重新加入队列
-            mock_storage.queue.add.assert_called()
+            # 验证重新加入队列（使用 add_to_front 优先处理重试）
+            mock_storage.queue.add_to_front.assert_called()
 
     @pytest.mark.asyncio
     async def test_execute_max_retries_exceeded(self, mock_storage):
@@ -722,7 +729,8 @@ class TestHandleRetry:
         assert result.success is False
         assert task.retries == 1
         assert task.status == TaskStatus.PENDING
-        mock_storage.queue.add.assert_called_once()
+        # 重试任务使用 add_to_front 插入队首
+        mock_storage.queue.add_to_front.assert_called_once()
 
     def test_handle_retry_exceeds_limit(self, mock_storage):
         """测试超过重试次数"""
@@ -740,3 +748,490 @@ class TestHandleRetry:
         assert result.success is False
         assert task.status == TaskStatus.FAILED
         mock_storage.history.add_failed.assert_called_once()
+
+    def test_handle_retry_cancelled_task(self, mock_storage):
+        """测试已取消的任务不重试"""
+        executor = TaskExecutor(mock_storage)
+        task_id = str(uuid.uuid4())
+        task = Task(
+            id=task_id,
+            prompt="测试",
+            timeout=60000,
+            retries=0,
+        )
+        error = RuntimeError("Temporary failure")
+
+        # 模拟队列中的任务已被标记为取消
+        mock_storage.queue.get.return_value = Task(
+            id=task_id,
+            prompt="测试",
+            status=TaskStatus.CANCELLED,
+        )
+
+        result = executor._handle_retry(task, error)
+
+        assert result.success is False
+        assert task.status == TaskStatus.CANCELLED
+        mock_storage.running.remove.assert_called_once()
+        mock_storage.cancelled.add.assert_called_once()
+
+
+class TestCancelTask:
+    """任务取消测试"""
+
+    def test_cancel_pending_task(self, mock_storage):
+        """测试取消队列中的任务"""
+        executor = TaskExecutor(mock_storage)
+        task_id = str(uuid.uuid4())
+        task = Task(
+            id=task_id,
+            prompt="测试任务",
+            status=TaskStatus.PENDING,
+        )
+        mock_storage.queue.get.return_value = task
+
+        result = executor.cancel_task(task_id)
+
+        assert result is True
+        mock_storage.queue.remove.assert_called_once_with(task_id)
+        mock_storage.cancelled.add.assert_called_once()
+
+    def test_cancel_running_task(self, mock_storage):
+        """测试取消运行中的任务"""
+        executor = TaskExecutor(mock_storage)
+        task_id = str(uuid.uuid4())
+        task = Task(
+            id=task_id,
+            prompt="测试任务",
+            status=TaskStatus.RUNNING,
+        )
+        mock_storage.queue.get.return_value = None
+        mock_storage.running.get.return_value = task
+
+        result = executor.cancel_task(task_id)
+
+        assert result is True
+        assert task.status == TaskStatus.CANCELLED
+        assert task.error == "用户取消"
+        mock_storage.running.update.assert_called_once()
+
+    def test_cancel_nonexistent_task(self, mock_storage):
+        """测试取消不存在的任务"""
+        executor = TaskExecutor(mock_storage)
+        mock_storage.queue.get.return_value = None
+        mock_storage.running.get.return_value = None
+
+        result = executor.cancel_task("nonexistent-id")
+
+        assert result is False
+
+    def test_cancel_task_already_cancelled(self, mock_storage):
+        """测试取消已取消的任务"""
+        executor = TaskExecutor(mock_storage)
+        task_id = str(uuid.uuid4())
+        task = Task(
+            id=task_id,
+            prompt="测试任务",
+            status=TaskStatus.CANCELLED,
+        )
+        mock_storage.queue.get.return_value = task
+
+        result = executor.cancel_task(task_id)
+
+        assert result is True
+
+
+class TestTransitionStatus:
+    """状态转换测试"""
+
+    def test_transition_status_invalid(self, mock_storage):
+        """测试无效状态转换"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试",
+            status=TaskStatus.PENDING,
+        )
+
+        # PENDING -> COMPLETED 是无效的转换
+        result = executor._transition_status(
+            task, TaskStatus.COMPLETED, error="测试错误"
+        )
+
+        assert result is False
+        assert task.status == TaskStatus.PENDING
+
+    def test_transition_status_pending_to_running(self, mock_storage):
+        """测试 PENDING -> RUNNING 转换"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试",
+            status=TaskStatus.PENDING,
+        )
+
+        result = executor._transition_status(task, TaskStatus.RUNNING)
+
+        assert result is True
+        assert task.status == TaskStatus.RUNNING
+        assert task.finished_at is not None
+
+    def test_transition_status_running_to_completed(self, mock_storage):
+        """测试 RUNNING -> COMPLETED 转换"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试",
+            status=TaskStatus.RUNNING,
+        )
+
+        result = executor._transition_status(task, TaskStatus.COMPLETED)
+
+        assert result is True
+        assert task.status == TaskStatus.COMPLETED
+        mock_storage.running.remove.assert_called_once()
+        mock_storage.history.add_completed.assert_called_once()
+
+    def test_transition_status_running_to_failed(self, mock_storage):
+        """测试 RUNNING -> FAILED 转换"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试",
+            status=TaskStatus.RUNNING,
+        )
+        error_msg = "执行失败"
+
+        result = executor._transition_status(
+            task, TaskStatus.FAILED, error=error_msg
+        )
+
+        assert result is True
+        assert task.status == TaskStatus.FAILED
+        assert task.error == error_msg
+        mock_storage.running.remove.assert_called_once()
+        mock_storage.history.add_failed.assert_called_once()
+
+    def test_transition_status_running_to_cancelled(self, mock_storage):
+        """测试 RUNNING -> CANCELLED 转换"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试",
+            status=TaskStatus.RUNNING,
+        )
+
+        result = executor._transition_status(task, TaskStatus.CANCELLED)
+
+        assert result is True
+        assert task.status == TaskStatus.CANCELLED
+        mock_storage.running.remove.assert_called_once()
+        mock_storage.cancelled.add.assert_called_once()
+
+    def test_transition_status_failed_to_pending(self, mock_storage):
+        """测试 FAILED -> PENDING 转换（手动重试）"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试",
+            status=TaskStatus.FAILED,
+        )
+
+        result = executor._transition_status(task, TaskStatus.PENDING)
+
+        assert result is True
+        assert task.status == TaskStatus.PENDING
+        mock_storage.running.remove.assert_called_once()
+        mock_storage.queue.add.assert_called_once()
+
+
+class TestExecuteWithClient:
+    """测试 _execute_with_client 方法"""
+
+    @pytest.mark.asyncio
+    async def test_execute_with_client_exception_collected(self, mock_storage):
+        """测试 _execute_with_client 异常时收集错误"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试任务",
+            workspace="/test",
+        )
+
+        with patch(
+            "app.scheduler.executor.ClaudeCodeClient"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.run.side_effect = RuntimeError("Client error")
+            mock_client_class.return_value = mock_client
+
+            with pytest.raises(RuntimeError):
+                await executor._execute_with_client(task)
+
+            # 验证错误被收集
+            assert executor._error_collector.has_errors()
+            error = executor._error_collector.get_latest()
+            assert error.type == "RuntimeError"
+            assert error.message == "Client error"
+            assert error.context == {"task_id": task.id}
+
+    @pytest.mark.asyncio
+    async def test_execute_with_client_success(self, mock_storage, sample_task):
+        """测试 _execute_with_client 成功执行"""
+        executor = TaskExecutor(mock_storage)
+
+        with patch(
+            "app.scheduler.executor.ClaudeCodeClient"
+        ) as mock_client_class:
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.message = "执行成功"
+            mock_result.cost_usd = 0.123
+            mock_result.duration_ms = 5000
+            mock_result.files_changed = ["/test/a.py"]
+            mock_result.tools_used = ["Read", "Edit"]
+
+            mock_client = AsyncMock()
+            mock_client.run.return_value = mock_result
+            mock_client_class.return_value = mock_client
+
+            result = await executor._execute_with_client(sample_task)
+
+            assert result.success is True
+            assert result.cost_usd == 0.123
+            assert sample_task.cost_usd == 0.123
+            assert sample_task.files_changed == ["/test/a.py"]
+
+
+class TestHandleError:
+    """测试错误处理"""
+
+    def test_handle_error_adds_to_collector(self, mock_storage):
+        """测试错误被添加到收集器"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试",
+            timeout=60000,
+            retries=MAX_RETRIES,
+        )
+        error = RuntimeError("Test error")
+
+        result = executor._handle_error(task, error)
+
+        assert result.success is False
+        assert executor._error_collector.has_errors()
+        assert executor._error_collector.get_latest().type == "RuntimeError"
+
+
+class TestHandleFailure:
+    """测试失败处理"""
+
+    def test_handle_failure_delegates_to_retry(self, mock_storage):
+        """测试失败处理委托给重试逻辑"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试",
+            timeout=60000,
+            retries=0,
+        )
+        result = ExecutionResult(
+            success=False,
+            message="失败",
+            error="Some error",
+        )
+
+        with patch.object(executor, "_handle_retry") as mock_retry:
+            mock_retry.return_value = ExecutionResult(
+                success=False, message="重试中"
+            )
+            executor._handle_failure(task, result)
+
+            mock_retry.assert_called_once()
+            assert isinstance(mock_retry.call_args[0][1], Exception)
+
+
+class TestLogMethod:
+    """测试日志记录方法"""
+
+    def test_log_creates_task_log(self, mock_storage):
+        """测试日志创建"""
+        executor = TaskExecutor(mock_storage)
+        task_id = "task-123"
+
+        executor._log(task_id, "INFO", "测试消息", {"key": "value"})
+
+        mock_storage.logs.append.assert_called_once()
+        call_args = mock_storage.logs.append.call_args[0][0]
+        assert call_args.task_id == task_id
+        assert call_args.level == "INFO"
+        assert call_args.message == "测试消息"
+        assert call_args.context == {"key": "value"}
+
+
+class TestExecuteWithClientConfig:
+    """测试客户端配置"""
+
+    @pytest.mark.asyncio
+    async def test_execute_with_client_auto_approve(self, mock_storage):
+        """测试自动批准模式"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试任务",
+            workspace="/test",
+            auto_approve=True,
+        )
+
+        with patch(
+            "app.scheduler.executor.ClaudeCodeClient"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.message = "成功"
+            mock_result.cost_usd = 0.0
+            mock_result.duration_ms = 0
+            mock_result.files_changed = []
+            mock_result.tools_used = []
+            mock_client.run.return_value = mock_result
+            mock_client_class.return_value = mock_client
+
+            await executor._execute_with_client(task)
+
+            # 验证使用 acceptEdits 模式
+            mock_client_class.assert_called_once()
+            call_kwargs = mock_client_class.call_args[1]
+            assert call_kwargs["permission_mode"] == "acceptEdits"
+
+    @pytest.mark.asyncio
+    async def test_execute_with_client_default_mode(self, mock_storage):
+        """测试默认权限模式"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试任务",
+            workspace="/test",
+            auto_approve=False,
+        )
+
+        with patch(
+            "app.scheduler.executor.ClaudeCodeClient"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.message = "成功"
+            mock_result.cost_usd = 0.0
+            mock_result.duration_ms = 0
+            mock_result.files_changed = []
+            mock_result.tools_used = []
+            mock_client.run.return_value = mock_result
+            mock_client_class.return_value = mock_client
+
+            await executor._execute_with_client(task)
+
+            # 验证使用 default 模式
+            mock_client_class.assert_called_once()
+            call_kwargs = mock_client_class.call_args[1]
+            assert call_kwargs["permission_mode"] == "default"
+
+    @pytest.mark.asyncio
+    async def test_execute_with_client_allowed_tools(self, mock_storage):
+        """测试允许的工具列表"""
+        executor = TaskExecutor(mock_storage)
+        task = Task(
+            id=str(uuid.uuid4()),
+            prompt="测试任务",
+            workspace="/test",
+            allowed_tools=["Read", "Edit", "Glob"],
+        )
+
+        with patch(
+            "app.scheduler.executor.ClaudeCodeClient"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.message = "成功"
+            mock_result.cost_usd = 0.0
+            mock_result.duration_ms = 0
+            mock_result.files_changed = []
+            mock_result.tools_used = []
+            mock_client.run.return_value = mock_result
+            mock_client_class.return_value = mock_client
+
+            await executor._execute_with_client(task)
+
+            # 验证传递工具列表
+            mock_client_class.assert_called_once()
+            call_kwargs = mock_client_class.call_args[1]
+            assert call_kwargs["allowed_tools"] == ["Read", "Edit", "Glob"]
+
+
+class TestHandleRetryCancelledInQueue:
+    """测试队列中取消的任务在重试时的处理"""
+
+    def test_handle_retry_cancelled_in_queue(self, mock_storage):
+        """测试队列中标记为取消的任务在重试时停止"""
+        executor = TaskExecutor(mock_storage)
+        task_id = str(uuid.uuid4())
+        task = Task(
+            id=task_id,
+            prompt="测试",
+            timeout=60000,
+            retries=0,
+        )
+        error = RuntimeError("Temporary failure")
+
+        # 模拟队列中的任务已被取消
+        mock_storage.queue.get.return_value = Task(
+            id=task_id,
+            prompt="测试",
+            status=TaskStatus.CANCELLED,
+        )
+
+        result = executor._handle_retry(task, error)
+
+        assert result.success is False
+        assert result.message == "任务已被取消"
+        assert task.status == TaskStatus.CANCELLED
+        mock_storage.running.remove.assert_called_once()
+        mock_storage.cancelled.add.assert_called_once()
+
+
+class TestGetExecutor:
+    """测试执行器实例获取"""
+
+    def test_get_executor_singleton(self):
+        """测试 get_executor 返回单例"""
+        from app.scheduler.executor import get_executor
+
+        # 清除单例
+        executor._executor = None
+
+        executor1 = get_executor()
+        executor2 = get_executor()
+
+        assert executor1 is executor2
+
+
+class TestExecuteHandlesExceptions:
+    """测试执行器异常处理"""
+
+    @pytest.mark.asyncio
+    async def test_execute_handles_generic_exception(self, mock_storage, sample_task):
+        """测试执行器处理通用异常"""
+        executor = TaskExecutor(mock_storage)
+
+        with patch.object(
+            executor, "_execute_with_client", new_callable=AsyncMock
+        ) as mock_execute:
+            mock_execute.side_effect = Exception("Unexpected error")
+
+            result = await executor.execute(sample_task)
+
+            assert result.success is False
+            # 应该被处理为失败或重试
+            assert sample_task.status in [TaskStatus.PENDING, TaskStatus.FAILED]

@@ -24,7 +24,6 @@ async function loadToolRenderers() {
         window.SearchResultRenderer = module.SearchResultRenderer;
         window.TodoRenderer = module.TodoRenderer;
         window.TaskRenderer = module.TaskRenderer;
-        window.AskQuestionRenderer = module.AskQuestionRenderer;
 
         console.log('ToolRenderers loaded successfully');
     } catch (err) {

@@ -104,6 +104,7 @@ const MarkdownRenderer = {
         renderer.code = (code, language) => {
             const lang = language || 'text';
             const langLabel = this.getLanguageLabel(lang);
+            const prismLang = this.getPrismLanguage(lang);
 
             return `
                 <div class="markdown-code-block" data-language="${lang}">
@@ -114,7 +115,7 @@ const MarkdownRenderer = {
                             <span class="copy-success" style="display: none;">✓</span>
                         </button>
                     </div>
-                    <pre class="markdown-pre"><code class="language-${lang}">${code}</code></pre>
+                    <pre class="markdown-pre"><code class="language-${prismLang}">${code}</code></pre>
                 </div>
             `;
         };
@@ -165,7 +166,7 @@ const MarkdownRenderer = {
     },
 
     /**
-     * 后处理：为代码块绑定复制事件
+     * 后处理：为代码块绑定复制事件并应用语法高亮
      * @param {HTMLElement} container - 容器元素
      */
     postProcess(container) {
@@ -181,6 +182,11 @@ const MarkdownRenderer = {
                 }
             });
         });
+
+        // 应用 Prism.js 语法高亮
+        if (typeof Prism !== 'undefined') {
+            Prism.highlightAllUnder(container);
+        }
     },
 
     /**
@@ -235,6 +241,61 @@ const MarkdownRenderer = {
             'plaintext': 'Text'
         };
         return labels[lang.toLowerCase()] || lang.toUpperCase();
+    },
+
+    /**
+     * 获取 Prism.js 语言标识
+     * @param {string} lang - 语言标识
+     * @returns {string}
+     */
+    getPrismLanguage(lang) {
+        const prismMap = {
+            'js': 'javascript',
+            'javascript': 'javascript',
+            'ts': 'typescript',
+            'typescript': 'typescript',
+            'py': 'python',
+            'python': 'python',
+            'rb': 'ruby',
+            'ruby': 'ruby',
+            'go': 'go',
+            'rust': 'rust',
+            'java': 'java',
+            'c': 'c',
+            'cpp': 'cpp',
+            'csharp': 'csharp',
+            'cs': 'csharp',
+            'php': 'php',
+            'swift': 'swift',
+            'kt': 'kotlin',
+            'kotlin': 'kotlin',
+            'scala': 'scala',
+            'html': 'html',
+            'css': 'css',
+            'scss': 'scss',
+            'less': 'less',
+            'json': 'json',
+            'xml': 'xml',
+            'yaml': 'yaml',
+            'yml': 'yaml',
+            'md': 'markdown',
+            'markdown': 'markdown',
+            'sql': 'sql',
+            'sh': 'bash',
+            'bash': 'bash',
+            'zsh': 'bash',
+            'powershell': 'powershell',
+            'dockerfile': 'docker',
+            'docker': 'docker',
+            'makefile': 'makefile',
+            'toml': 'toml',
+            'ini': 'ini',
+            'diff': 'diff',
+            'text': 'plaintext',
+            'plaintext': 'plaintext',
+            'git': 'git',
+        };
+        return prismMap[lang.toLowerCase()] || 'plaintext';
     },
 
     /**

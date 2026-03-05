@@ -109,15 +109,6 @@ export const TOOL_PREVIEW_HANDLERS = {
     },
 
     /**
-     * AskUserQuestion 工具预览 - 显示问题数量
-     */
-    askuserquestion: (input) => {
-        if (!input || !input.questions || !Array.isArray(input.questions)) return null;
-        const count = input.questions.length;
-        return `${count} 个问题`;
-    },
-
-    /**
      * WebSearch 工具预览 - 显示搜索查询
      */
     websearch: (input) => {

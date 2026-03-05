@@ -472,7 +472,8 @@ agentMonitorStyle.textContent = `
     }
 
     .btn-danger {
-        color: #dc3545;
+        background: var(--zinc-600, #52525b);
+        color: white;
     }
 
     /* 代理详情对话框 */

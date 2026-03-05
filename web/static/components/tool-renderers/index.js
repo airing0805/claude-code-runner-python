@@ -13,7 +13,6 @@ import { BashRenderer, BashResultRenderer } from './bashRenderer.js';
 import { GrepRenderer, GlobRenderer, SearchResultRenderer } from './searchRenderer.js';
 import { TodoRenderer } from './todoRenderer.js';
 import { TaskRenderer } from './taskRenderer.js';
-import { AskQuestionRenderer } from './askQuestionRenderer.js';
 
 /**
  * 工具输入渲染器映射表
@@ -28,7 +27,6 @@ const inputRenderers = {
     Glob: GlobRenderer,
     Task: TaskRenderer,
     TodoWrite: TodoRenderer,
-    AskUserQuestion: AskQuestionRenderer
 };
 
 /**
@@ -44,7 +42,6 @@ const resultRenderers = {
     Glob: SearchResultRenderer,
     Task: null,  // 使用默认渲染
     TodoWrite: null, // 使用默认渲染
-    AskUserQuestion: null // 使用默认渲染
 };
 
 /**
@@ -198,8 +195,7 @@ export {
     GlobRenderer,
     SearchResultRenderer,
     TodoRenderer,
-    TaskRenderer,
-    AskQuestionRenderer
+    TaskRenderer
 };
 
 // 默认导出

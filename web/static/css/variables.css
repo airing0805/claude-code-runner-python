@@ -15,6 +15,21 @@
     --zinc-900: #18181b;
     --zinc-950: #09090b;
 
+    /* ============== 需求规范颜色变量 ============== */
+    /* PQ-006 消息类型样式规范要求的颜色 */
+    --message-text-border: #3b82f6; /* 蓝色边框 */
+    --message-thinking-bg: #fef3c7; /* 黄色背景 */
+    --message-tool-use-border: #22c55e; /* 绿色边框 */
+    --message-tool-result-border: #3b82f6; /* 蓝色边框 */
+    --message-error-border: #ef4444; /* 红色边框 */
+    --message-error-bg: #ef4444; /* 红色背景 */
+    --message-complete-border: #22c55e; /* 绿色边框 */
+    --message-complete-bg: #22c55e; /* 绿色背景 */
+    --message-info-border: #0ea5e9; /* 天蓝色边框 */
+    --message-info-bg: #0ea5e9; /* 天蓝色背景 */
+    --message-ask-user-question-border: #a855f7; /* 紫色边框 */
+    --message-ask-user-question-bg: #a855f7; /* 紫色背景 */
+
     /* ============== 强调色 - Cyan (主色调) ============== */
     --cyan-50: #ecfeff;
     --cyan-100: #cffafe;

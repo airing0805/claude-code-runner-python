@@ -50,7 +50,7 @@
          * 测试输入渲染器注册
          */
         testInputRenderers() {
-            const expectedRenderers = ['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob', 'Task', 'TodoWrite', 'AskUserQuestion'];
+            const expectedRenderers = ['Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob', 'Task', 'TodoWrite'];
             expectedRenderers.forEach(name => {
                 assert(window.ToolRenderers.hasInputRenderer(name), `输入渲染器 ${name} 已注册`);
             });
@@ -208,24 +208,6 @@
             };
             const element = window.ToolRenderers.renderInput('Task', input);
             assert(element !== null, 'Task 渲染器返回元素');
-        },
-
-        /**
-         * 测试 AskQuestion 渲染器
-         */
-        testAskQuestionRenderer() {
-            const input = {
-                questions: [{
-                    question: 'Choose an option?',
-                    header: 'Selection',
-                    options: [
-                        { label: 'Option A', description: 'Description A' },
-                        { label: 'Option B', description: 'Description B' }
-                    ]
-                }]
-            };
-            const element = window.ToolRenderers.renderInput('AskUserQuestion', input);
-            assert(element !== null, 'AskQuestion 渲染器返回元素');
         },
 
         /**

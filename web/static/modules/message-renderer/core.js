@@ -19,7 +19,7 @@ const MessageRendererCore = {
     /**
      * 自动展开的工具类型
      */
-    _autoExpandTools: ['todowrite', 'askuserquestion', 'task'],
+    _autoExpandTools: ['todowrite', 'task'],
 
     /**
      * 显示历史消息
@@ -55,6 +55,45 @@ const MessageRendererCore = {
 
         // 滚动到底部
         Utils.scrollToBottom(runner.outputEl);
+    },
+
+    /**
+     * 显示历史消息到指定tab
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {string} tabId - 目标tab ID
+     * @param {Array} messages - 消息数组
+     */
+    displayHistoryMessagesToTab(runner, tabId, messages) {
+        // 找到对应的输出容器
+        const outputContainer = document.getElementById(`output-${tabId}`);
+        if (!outputContainer) {
+            console.warn(`[MessageRenderer] 未找到tab ${tabId}的输出容器`);
+            return;
+        }
+
+        // 清空容器
+        outputContainer.innerHTML = '';
+
+        // 按轮次分组消息
+        const rounds = this._groupByRounds(messages);
+
+        // 渲染每一轮对话
+        rounds.forEach((round, index) => {
+            const roundEl = this._createRoundElement(
+                runner,
+                round,
+                index + 1
+            );
+            outputContainer.appendChild(roundEl);
+        });
+
+        // 如果没有消息，显示占位符
+        if (rounds.length === 0) {
+            outputContainer.innerHTML = '<div class="output-placeholder">暂无历史消息</div>';
+        }
+
+        // 滚动到底部
+        Utils.scrollToBottom(outputContainer);
     },
 
     /**
@@ -155,22 +194,44 @@ const MessageRendererCore = {
     },
 
     /**
-     * 添加助手消息到当前轮次
+     * 添加助手消息到当前轮次（支持tab-specific）
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} type - 消息类型
      * @param {string} content - 消息内容
      * @param {string|null} timestamp - 时间戳
      */
     addAssistantMessage(runner, type, content, timestamp = null) {
+        // 确保有当前轮次
         if (!runner.currentRoundEl) {
             // 如果没有当前轮次，创建一个
             Task.startNewRound(runner, '(继续对话)');
         }
 
+        // 找到消息容器
         const messagesContainer = runner.currentRoundEl.querySelector('.assistant-messages');
 
         const msgEl = document.createElement('div');
-        msgEl.className = `assistant-msg assistant-msg-${type} message-fade-in`;
+        // 根据消息类型添加对应的CSS类名
+        let messageClass = `assistant-msg assistant-msg-${type} message-fade-in`;
+        if (type === 'text') {
+            messageClass += ' message-text';
+        } else if (type === 'thinking') {
+            messageClass += ' message-thinking';
+        } else if (type === 'tool_use') {
+            messageClass += ' message-tool_use';
+        } else if (type === 'tool_result') {
+            messageClass += ' message-tool_result';
+        } else if (type === 'error') {
+            messageClass += ' message-error';
+        } else if (type === 'complete') {
+            messageClass += ' message-complete';
+        } else if (type === 'info') {
+            messageClass += ' message-info';
+        } else if (type === 'ask_user_question') {
+            messageClass += ' message-ask_user_question';
+        }
+
+        msgEl.className = messageClass;
 
         const timeStr = Utils.formatTime(timestamp);
         msgEl.innerHTML = `
@@ -179,6 +240,8 @@ const MessageRendererCore = {
         `;
 
         messagesContainer.appendChild(msgEl);
+
+        // 滚动到底部
         Utils.scrollToBottom(runner.outputEl);
     }
 };

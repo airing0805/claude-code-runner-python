@@ -141,6 +141,117 @@ const Utils = {
         setTimeout(() => {
             notification.remove();
         }, 3000);
+    },
+
+    /**
+     * 显示确认对话框
+     * @param {string} message - 确认消息
+     * @param {Object} options - 配置选项
+     * @param {string} [options.title='确认'] - 对话框标题
+     * @param {string} [options.confirmText='确定'] - 确认按钮文本
+     * @param {string} [options.cancelText='取消'] - 取消按钮文本
+     * @param {string} [options.type='warning'] - 对话框类型 (warning, danger, info)
+     * @returns {Promise<boolean>} 用户是否确认
+     */
+    showConfirm(message, options = {}) {
+        const {
+            title = '确认',
+            confirmText = '确定',
+            cancelText = '取消',
+            type = 'warning'
+        } = options;
+
+        return new Promise((resolve) => {
+            // 查找或创建确认对话框
+            let overlay = document.getElementById('confirm-dialog-overlay');
+
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'confirm-dialog-overlay';
+                overlay.className = 'dialog-overlay';
+                overlay.innerHTML = `
+                    <div class="dialog-content confirm-dialog">
+                        <div class="confirm-dialog-body">
+                            <span class="confirm-dialog-icon"></span>
+                            <div class="confirm-dialog-content">
+                                <h3 class="confirm-dialog-title"></h3>
+                                <p class="confirm-dialog-message"></p>
+                            </div>
+                        </div>
+                        <div class="dialog-footer">
+                            <button class="btn btn-secondary confirm-dialog-cancel"></button>
+                            <button class="btn btn-primary confirm-dialog-confirm"></button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+            }
+
+            // 获取元素
+            const titleEl = overlay.querySelector('.confirm-dialog-title');
+            const messageEl = overlay.querySelector('.confirm-dialog-message');
+            const iconEl = overlay.querySelector('.confirm-dialog-icon');
+            const confirmBtn = overlay.querySelector('.confirm-dialog-confirm');
+            const cancelBtn = overlay.querySelector('.confirm-dialog-cancel');
+            const dialogContent = overlay.querySelector('.confirm-dialog');
+
+            // 设置内容
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            confirmBtn.textContent = confirmText;
+            cancelBtn.textContent = cancelText;
+
+            // 设置类型样式
+            dialogContent.className = `dialog-content confirm-dialog confirm-dialog-${type}`;
+
+            // 设置图标
+            const icons = {
+                warning: '⚠️',
+                danger: '🗑️',
+                info: 'ℹ️'
+            };
+            iconEl.textContent = icons[type] || icons.warning;
+
+            // 设置按钮样式
+            confirmBtn.className = type === 'danger'
+                ? 'btn btn-danger confirm-dialog-confirm'
+                : 'btn btn-primary confirm-dialog-confirm';
+
+            // 清理旧的事件监听器
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+            // 关闭对话框的函数
+            const closeDialog = (result) => {
+                overlay.classList.remove('active');
+                resolve(result);
+            };
+
+            // 绑定事件
+            newConfirmBtn.addEventListener('click', () => closeDialog(true));
+            newCancelBtn.addEventListener('click', () => closeDialog(false));
+
+            // 点击遮罩层关闭
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    closeDialog(false);
+                }
+            };
+
+            // ESC 键关闭
+            const handleEsc = (e) => {
+                if (e.key === 'Escape') {
+                    document.removeEventListener('keydown', handleEsc);
+                    closeDialog(false);
+                }
+            };
+            document.addEventListener('keydown', handleEsc);
+
+            // 显示对话框
+            overlay.classList.add('active');
+        });
     }
 };
 

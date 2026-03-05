@@ -1,11 +1,11 @@
 [project]
 name = "claude-code-runner"
 version = "0.6.0"
-description = "基于 Claude Agent SDK 的 Web 服务封装，通过 FastAPI 提供 REST API 和 Web 界面来调用 Claude Agent 执行编程任务"
+description = "基于 Claude Agent SDK 的 Web 服务封装，通过 FastAPI 提供 REST API 和 Web 界面来调用 Claude Code 执行编程任务"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "claude-agent-sdk>=0.1.39",
+    "claude-agent-sdk>=0.1.44",
     "fastapi>=0.129.0",
     "jinja2>=3.1.6",
     "python-dotenv>=1.2.1",
@@ -13,11 +13,9 @@ dependencies = [
     "uvicorn>=0.41.0",
     "bcrypt>=4.2.0",
     "python-jose[cryptography]>=3.3.0",
-    # 显式约束 pydantic 版本以兼容 claude-agent-sdk
-    # pydantic 2.12.x 需要 pydantic-core 2.41.x
-    "pydantic>=2.10.0,<2.13.0",
-    "pydantic-core>=2.41.0,<2.42.0",
+    "pydantic>=2.10.0",
     "slowapi>=0.1.9",
+    "apscheduler>=3.11.0",
 ]
 
 [dependency-groups]

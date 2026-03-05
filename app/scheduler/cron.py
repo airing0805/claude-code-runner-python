@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional
 
+from app.scheduler.timezone_utils import SHANGHAI_TZ, now_shanghai, to_shanghai, format_datetime, is_due as _tz_is_due
+
 
 # 字段范围定义
 RANGES: dict[str, tuple[int, int]] = {
@@ -463,7 +465,7 @@ class CronParser:
             下次执行时间，如果无法计算返回 None
         """
         if from_time is None:
-            from_time = datetime.now()
+            from_time = now_shanghai()
 
         try:
             expression = self.parse(cron)
@@ -471,10 +473,17 @@ class CronParser:
             return None
 
         # 6 位格式保留微秒，5 位格式秒和微秒都设为 0
-        if expression.is_extended:
-            current = from_time.replace(microsecond=0)
+        # 对于 5 位格式，需要先检查 from_time 本身是否就是有效的执行时间
+        # 如果是（秒=0），直接返回，否则从下一分钟开始搜索
+        if not expression.is_extended:
+            # 5 位格式：检查秒是否为 0，如果是则检查是否匹配
+            if from_time.second == 0 and self._matches(expression, from_time):
+                # 当前时间就是有效的执行时间，直接返回
+                return from_time
+            # 否则从下一分钟开始搜索
+            current = from_time.replace(second=0, microsecond=0) + timedelta(minutes=1)
         else:
-            current = from_time.replace(second=0, microsecond=0)
+            current = from_time.replace(microsecond=0) + timedelta(seconds=1)
 
         # 最多尝试计算 1 年内的下一个执行时间
         # 按分钟迭代，最多 366 * 24 * 60 = 527,040 次
@@ -761,7 +770,7 @@ class CronParser:
             执行时间列表
         """
         results: list[datetime] = []
-        current = from_time if from_time else datetime.now()
+        current = from_time if from_time else now_shanghai()
 
         # 解析表达式确定格式
         try:
@@ -794,20 +803,7 @@ def is_due(next_run: Optional[str]) -> bool:
     Returns:
         是否到期
     """
-    if next_run is None:
-        return False
-
-    try:
-        # 尝试解析带时区和不带时区的时间
-        if "+" in next_run or "Z" in next_run or next_run.endswith("+00:00"):
-            next_run_time = datetime.fromisoformat(next_run.replace("Z", "+00:00"))
-            now = datetime.now(next_run_time.tzinfo)
-        else:
-            next_run_time = datetime.fromisoformat(next_run)
-            now = datetime.now()
-        return now >= next_run_time
-    except (ValueError, AttributeError):
-        return False
+    return _tz_is_due(next_run)
 
 
 def format_next_run(dt: datetime) -> str:
@@ -818,6 +814,6 @@ def format_next_run(dt: datetime) -> str:
         dt: 日期时间对象
 
     Returns:
-        格式化的时间字符串
+        格式化的时间字符串（带上海时区）
     """
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+    return format_datetime(dt)

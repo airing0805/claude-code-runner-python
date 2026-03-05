@@ -7,11 +7,25 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
     <link rel="stylesheet" href="/static/style.css">
 
-    <!-- v0.5.2: Markdown 渲染库 -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- v0.5.2: Markdown 渲染库 (本地) -->
+    <script src="/static/vendor/marked/marked.min.js"></script>
 
-    <!-- v0.5.7: Diff 可视化库 -->
-    <script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js"></script>
+    <!-- v0.5.8: 语法高亮库 Prism.js (本地) -->
+    <link href="/static/vendor/prismjs/prism-tomorrow.min.css" rel="stylesheet">
+    <script src="/static/vendor/prismjs/prism.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-python.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-javascript.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-typescript.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-bash.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-json.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-yaml.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-sql.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-docker.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-git.min.js"></script>
+    <script src="/static/vendor/prismjs/components/prism-diff.min.js"></script>
+
+    <!-- v0.5.7: Diff 可视化库 (本地) -->
+    <script src="/static/vendor/diff/diff.min.js"></script>
 </head>
 <body>
     <div class="app-layout">
@@ -67,6 +81,10 @@
                     <span class="nav-icon">📋</span>
                     <span class="nav-text">任务调度</span>
                 </div>
+                <div class="nav-item" data-view="questions">
+                    <span class="nav-icon">❓</span>
+                    <span class="nav-text">提问历史</span>
+                </div>
             </div>
 
             <div class="nav-footer">
@@ -118,10 +136,10 @@
                             </div>
                             <input type="hidden" id="tools" value="Read,Write,Edit,Bash,Glob,Grep">
                         </span>
-                        <span class="info-item info-item-toggle">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="continue-conversation">
-                                <span>继续会话</span>
+                        <span class="info-item">
+                            <label class="info-checkbox-label">
+                                <input type="checkbox" id="continue-conversation" class="info-checkbox" checked title="延续最近会话的对话历史">
+                                <span class="info-label">继续会话</span>
                             </label>
                         </span>
                         <span class="info-item info-item-right">
@@ -129,59 +147,56 @@
                         </span>
                     </div>
 
-                    <!-- 中间：会话过程显示区 -->
-                    <!-- v0.5.5 SSE 连接状态指示器 -->
-                    <div class="connection-indicator" id="connection-indicator" style="display: none;">
-                        <span class="connection-status-dot">🟢</span>
-                        <span class="connection-status-text">已连接</span>
-                        <span class="connection-retry-info" style="display: none;"></span>
-                        <button class="connection-reconnect-btn" style="display: none;" title="手动重连">🔄 重连</button>
-                    </div>
-                    <div class="session-output" id="output">
-                        <div class="output-placeholder">执行任务后，输出将显示在这里...</div>
-                    </div>
+                    <!-- 中间：空白区域 -->
+                    <div class="session-middle-spacer"></div>
 
-                    <!-- 统计信息（悬浮显示） -->
-                    <div class="stats-floating" id="task-stats-floating" style="display: none;">
-                        <span class="stat-item" id="stat-status-wrapper">
-                            <span class="stat-label">状态</span>
-                            <span class="stat-value" id="stat-status">-</span>
-                        </span>
-                        <span class="stat-item">
-                            <span class="stat-label">耗时</span>
-                            <span class="stat-value" id="stat-duration">-</span>
-                        </span>
-                        <span class="stat-item">
-                            <span class="stat-label">费用</span>
-                            <span class="stat-value" id="stat-cost">-</span>
-                        </span>
-                        <span class="stat-item">
-                            <span class="stat-label">会话ID</span>
-                            <span class="stat-value stat-session" id="stat-session" title="点击复制">-</span>
-                        </span>
-                    </div>
+                    <!-- 底部：对话区和输入区 -->
+                    <div class="session-bottom-container">
+                        <!-- 对话输出区 -->
+                        <div id="output-container-wrapper"></div>
 
-                    <!-- 底部：对话输入区 -->
-                    <div class="session-input-container">
-                        <div class="session-input">
-                            <textarea id="prompt" rows="2" placeholder="描述你希望 Claude Code 执行的任务... (Enter 发送, Ctrl+Enter 换行)"></textarea>
+                        <!-- 统计信息（悬浮显示） -->
+                        <div class="stats-floating" id="task-stats-floating" style="display: none;">
+                            <span class="stat-item" id="stat-status-wrapper">
+                                <span class="stat-label">状态</span>
+                                <span class="stat-value" id="stat-status">-</span>
+                            </span>
+                            <span class="stat-item">
+                                <span class="stat-label">耗时</span>
+                                <span class="stat-value" id="stat-duration">-</span>
+                            </span>
+                            <span class="stat-item">
+                                <span class="stat-label">费用</span>
+                                <span class="stat-value" id="stat-cost">-</span>
+                            </span>
+                            <span class="stat-item">
+                                <span class="stat-label">会话ID</span>
+                                <span class="stat-value stat-session" id="stat-session" title="点击复制">-</span>
+                            </span>
                         </div>
-                        <div class="input-toolbar">
-                            <div class="toolbar-left">
-                                <div class="permission-select">
-                                    <label class="permission-label">权限模式</label>
-                                    <select id="permission-mode" class="permission-dropdown">
-                                        <option value="default">default - 默认</option>
-                                        <option value="acceptEdits">acceptEdits - 接受编辑</option>
-                                        <option value="plan">plan - 计划模式</option>
-                                        <option value="bypassPermissions">bypassPermissions - 绕过权限</option>
-                                    </select>
-                                </div>
+
+                        <!-- 对话输入区 -->
+                        <div class="session-input-container">
+                            <div class="session-input">
+                                <textarea id="prompt" rows="2" placeholder="描述你希望 Claude Code 执行的任务... (Enter 发送, Ctrl+Enter 换行)"></textarea>
                             </div>
-                            <div class="toolbar-right">
-                                <button id="send-btn" class="btn btn-primary">➤ 发送</button>
-                                <button id="stop-btn" class="btn btn-stop" style="display: none;">⏹ 停止</button>
-                                <button id="clear-btn" class="btn btn-secondary">🗑 清空</button>
+                            <div class="input-toolbar">
+                                <div class="toolbar-left">
+                                    <div class="permission-select">
+                                        <label class="permission-label">权限模式</label>
+                                        <select id="permission-mode" class="permission-dropdown">
+                                            <option value="default">default - 默认</option>
+                                            <option value="acceptEdits">acceptEdits - 接受编辑</option>
+                                            <option value="plan">plan - 计划模式</option>
+                                            <option value="bypassPermissions">bypassPermissions - 绕过权限</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="toolbar-right">
+                                    <button id="send-btn" class="btn btn-primary">➤ 发送</button>
+                                    <button id="stop-btn" class="btn btn-stop" style="display: none;">⏹ 停止</button>
+                                    <button id="clear-btn" class="btn btn-secondary">🗑 清空</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -640,7 +655,23 @@
                                 <button class="btn btn-secondary" id="scheduler-clear-queue-btn">🗑 清空队列</button>
                             </div>
                             <div class="scheduler-list" id="scheduler-queue-list">
-                                <div class="loading-placeholder">加载中...</div>
+                                <div class="skeleton-container">
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -650,21 +681,49 @@
                                 <button class="btn btn-primary" id="scheduler-add-scheduled-btn">➕ 添加定时任务</button>
                             </div>
                             <div class="scheduler-list" id="scheduler-scheduled-list">
-                                <div class="loading-placeholder">加载中...</div>
+                                <div class="skeleton-container">
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <!-- 运行中标签页 -->
                         <div class="scheduler-tab-pane" id="scheduler-tab-running">
                             <div class="scheduler-list" id="scheduler-running-list">
-                                <div class="loading-placeholder">加载中...</div>
+                                <div class="skeleton-container">
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <!-- 已完成标签页 -->
                         <div class="scheduler-tab-pane" id="scheduler-tab-completed">
                             <div class="scheduler-list" id="scheduler-completed-list">
-                                <div class="loading-placeholder">加载中...</div>
+                                <div class="skeleton-container">
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                </div>
                             </div>
                             <div class="pagination-bar" id="completed-pagination"></div>
                         </div>
@@ -672,9 +731,55 @@
                         <!-- 失败标签页 -->
                         <div class="scheduler-tab-pane" id="scheduler-tab-failed">
                             <div class="scheduler-list" id="scheduler-failed-list">
-                                <div class="loading-placeholder">加载中...</div>
+                                <div class="skeleton-container">
+                                    <div class="skeleton-scheduler-item">
+                                        <span class="skeleton skeleton-icon"></span>
+                                        <span class="skeleton skeleton-line"></span>
+                                        <span class="skeleton skeleton-badge"></span>
+                                    </div>
+                                </div>
                             </div>
                             <div class="pagination-bar" id="failed-pagination"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 提问历史记录视图 (v8.0.2) -->
+            <div class="view-panel" id="view-questions">
+                <div class="page-container">
+                    <div class="page-header">
+                        <button class="menu-toggle" id="menu-toggle-questions" title="显示/隐藏菜单">☰</button>
+                        <div class="page-title">❓ 提问历史</div>
+                        <div class="page-subtitle">查看和复用历史提问</div>
+                    </div>
+
+                    <div class="page-body history-body">
+                        <!-- 项目列表 -->
+                        <div class="history-section" id="questions-projects">
+                            <div class="history-header">
+                                <h2>📁 项目列表</h2>
+                            </div>
+                            <div class="questions-project-list-container">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                            <div class="pagination-bar" id="questions-projects-pagination">
+                                <!-- 项目分页控件 -->
+                            </div>
+                        </div>
+
+                        <!-- 提问列表 (选择项目后显示) -->
+                        <div class="history-section" id="questions-list-section" style="display: none;">
+                            <div class="history-header">
+                                <button class="back-btn" id="questions-back-to-projects">← 返回项目列表</button>
+                                <h2 id="current-questions-project-title">提问列表</h2>
+                            </div>
+                            <div class="questions-list-container">
+                                <div class="loading-placeholder">加载中...</div>
+                            </div>
+                            <div class="pagination-bar" id="questions-pagination">
+                                <!-- 提问分页控件 -->
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -876,8 +981,9 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">工作目录</label>
+                <label class="form-label">工作空间</label>
                 <input type="text" class="form-input" id="task-working-dir" placeholder="留空使用默认目录">
+                <div class="workspace-list" id="task-workspace-list"></div>
             </div>
 
             <div class="form-group">
@@ -900,7 +1006,7 @@
 
             <div class="form-group">
                 <label class="form-checkbox">
-                    <input type="checkbox" id="task-auto-approve">
+                    <input type="checkbox" id="task-auto-approve" checked>
                     <span>自动批准工具操作</span>
                 </label>
             </div>
@@ -946,8 +1052,9 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">工作目录</label>
+                <label class="form-label">工作空间</label>
                 <input type="text" class="form-input" id="scheduled-working-dir" placeholder="留空使用默认目录">
+                <div class="workspace-list" id="scheduled-workspace-list"></div>
             </div>
 
             <div class="form-group">
@@ -970,7 +1077,7 @@
 
             <div class="form-group">
                 <label class="form-checkbox">
-                    <input type="checkbox" id="scheduled-auto-approve">
+                    <input type="checkbox" id="scheduled-auto-approve" checked>
                     <span>自动批准工具操作</span>
                 </label>
             </div>
@@ -1023,7 +1130,7 @@
                 </div>
 
                 <div class="detail-section">
-                    <div class="detail-section-title">工作目录</div>
+                    <div class="detail-section-title">工作空间</div>
                     <div class="detail-section-content" id="detail-task-working-dir">-</div>
                 </div>
 
@@ -1117,6 +1224,7 @@
     <script src="/static/modules/mcpManager.js"></script>
     <script src="/static/modules/pluginManager.js"></script>
     <script src="/static/modules/hooksManager.js"></script>
+    <script src="/static/modules/questions.js"></script>
     <!-- Claude 状态模块依赖 -->
     <script src="/static/modules/claude-status/claudeStatusCore.js"></script>
     <script src="/static/modules/claude-status/claudeDocs.js"></script>
@@ -1131,7 +1239,16 @@
     <script src="/static/modules/message-renderer/tool-results.js"></script>
     <script src="/static/modules/message-renderer/index.js"></script>
 
-    <script src="/static/modules/scheduler.js?v=0.6.6"></script>
+        <!-- 任务调度模块 (v7.0.10-v7.0.14) -->
+    <script type="module" src="/static/modules/scheduler/state.js"></script>
+    <script type="module" src="/static/modules/scheduler/api.js"></script>
+    <script type="module" src="/static/modules/scheduler/utils.js"></script>
+    <script type="module" src="/static/modules/scheduler/renderers/index.js"></script>
+    <script type="module" src="/static/modules/scheduler/dialogs/cronHelperDialog.js"></script>
+    <script type="module" src="/static/modules/scheduler/dialogs/addTaskDialog.js"></script>
+    <script type="module" src="/static/modules/scheduler/dialogs/addScheduledDialog.js"></script>
+    <script type="module" src="/static/modules/scheduler/dialogs/taskDetailDialog.js"></script>
+    <script type="module" src="/static/modules/scheduler/index.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>

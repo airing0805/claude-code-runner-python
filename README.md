@@ -9,7 +9,7 @@
 
 </div>
 
-Claude Code Runner 是基于 [Claude Agent SDK](https://docs.anthropic.com/en/docs/agent-sdk/python) 的 Web 服务封装，通过 FastAPI 提供 REST API 和友好的 Web 界面来调用 Claude Agent 执行任务。
+Claude Code Runner 是基于 [Claude Agent SDK](https://docs.anthropic.com/en/docs/claude-agent-sdk) 的 Web 服务封装，通过 FastAPI 提供 REST API 和友好的 Web 界面来调用 Claude Code 执行任务。
 
 **前端小伙伴，欢迎加入！** 目前的 Web 界面比较简陋，期待各位前端同学大显神通，优化样式和交互体验！
 
@@ -273,6 +273,36 @@ uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 # 方式3: 使用启动脚本
 python run_server.py
 ```
+
+#### 调度器自动启动
+
+服务启动时，任务调度器会**自动启动**，无需手动操作。启动后控制台会显示：
+
+```
+2026-03-05 xx:xx:xx - app.main - INFO - Claude Code Runner 启动
+2026-03-05 xx:xx:xx - app.scheduler.scheduler - INFO - 正在启动调度器...
+2026-03-05 xx:xx:xx - app.scheduler.scheduler - INFO - 调度器已启动，轮询间隔: 10秒
+2026-03-05 xx:xx:xx - app.main - INFO - 任务调度器已自动启动
+```
+
+**自动启动的行为：**
+
+| 场景 | 行为 |
+|------|------|
+| 服务器首次启动 | ✅ 调度器自动启动 |
+| 服务器重启 | ✅ 调度器自动启动 |
+| 定时任务到期 | ✅ 自动加入队列并执行 |
+| 手动添加任务到队列 | ✅ 自动按顺序执行 |
+
+**手动控制 API：**
+
+即使自动启动，仍可通过以下 API 手动控制：
+
+| API | 说明 |
+|-----|------|
+| `POST /api/scheduler/start` | 手动启动调度器 |
+| `POST /api/scheduler/stop` | 停止调度器 |
+| `GET /api/scheduler/status` | 查看调度器状态 |
 
 服务启动后，访问 http://127.0.0.1:8000
 

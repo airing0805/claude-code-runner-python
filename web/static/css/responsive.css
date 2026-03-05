@@ -1,5 +1,134 @@
-/* ============== 响应式 ============== */
+/* ============== v7.0.15 响应式布局 ============== */
+
+/* ============== 平板端 (768px - 1024px) ============== */
+@media (max-width: 1024px) {
+    /* 提问历史记录 - 项目列表 */
+    .question-project-item {
+        padding: 12px 16px;
+    }
+
+    .question-project-info .project-path {
+        font-size: 0.85rem;
+    }
+
+    /* 提问历史记录 - 提问列表 */
+    .question-item {
+        padding: 12px 16px;
+    }
+
+    .question-text {
+        font-size: 0.85rem;
+    }
+
+    /* 调度器标签页 */
+    .scheduler-tabs {
+        flex-wrap: wrap;
+    }
+
+    .scheduler-tab {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+
+    .scheduler-tab .tab-text {
+        font-size: 0.8rem;
+    }
+
+    /* 调度器表格 */
+    .scheduler-table th,
+    .scheduler-table td {
+        padding: 10px 12px;
+    }
+
+    .scheduler-table .task-prompt {
+        max-width: 250px;
+    }
+
+    /* 调度器操作栏 */
+    .scheduler-actions-bar {
+        flex-wrap: wrap;
+    }
+
+    /* 对话框 */
+    .dialog-content {
+        max-width: 90%;
+        margin: 10px;
+    }
+}
+
+/* ============== 移动端 (768px 以下) ============== */
 @media (max-width: 768px) {
+    /* 提问历史记录 - 项目列表 */
+    .question-project-item {
+        padding: 10px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .question-project-info {
+        width: 100%;
+    }
+
+    .question-project-info .project-path {
+        font-size: 0.8rem;
+        word-break: break-all;
+    }
+
+    .question-project-info .project-meta {
+        font-size: 0.7rem;
+    }
+
+    .project-arrow {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .question-project-item {
+        position: relative;
+    }
+
+    /* 提问历史记录 - 提问列表 */
+    .question-item {
+        padding: 10px 12px;
+    }
+
+    .question-text {
+        font-size: 0.8rem;
+        margin-bottom: 8px;
+    }
+
+    .question-meta {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .question-time {
+        font-size: 0.7rem;
+    }
+
+    .btn-copy-question {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+
+    .btn-expand-question {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+
+    /* 分页信息 */
+    .pagination-info {
+        font-size: 0.7rem;
+    }
+
+    .load-more-hint {
+        font-size: 0.65rem;
+    }
+
+    /* 导航菜单 */
     .nav-menu {
         position: fixed;
         left: 0;
@@ -23,6 +152,7 @@
         justify-content: center;
     }
 
+    /* 页面头部 */
     header {
         padding: 20px 0;
     }
@@ -82,451 +212,260 @@
     .stats-floating .stat-item {
         font-size: 0.8rem;
     }
-}
 
-/* ========================================
-   AskUserQuestion 对话框样式增强
-   ======================================== */
+    .info-checkbox-label {
+        font-size: 0.8rem;
+    }
 
-/* 基础选项样式 */
-.option-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-bottom: 8px;
-}
+    .info-checkbox-label .info-checkbox {
+        width: 14px;
+        height: 14px;
+    }
 
-.option-item:hover {
-    border-color: #8b5cf6;
-    background: rgba(139, 92, 246, 0.05);
-}
+    /* ============== 调度器模块响应式 ============== */
 
-.option-item input[type="radio"],
-.option-item input[type="checkbox"] {
-    margin-top: 3px;
-    accent-color: #8b5cf6;
-    cursor: pointer;
-    transform: scale(1.1);
-}
+    /* 调度器状态栏 */
+    .scheduler-status-bar {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+    }
 
-.option-item .option-label {
-    font-weight: 500;
-    color: var(--text-color);
-    cursor: pointer;
-}
+    .scheduler-status-left {
+        width: 100%;
+        justify-content: center;
+    }
 
-.option-item .option-description {
-    display: block;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin-top: 4px;
-    cursor: pointer;
-}
-
-/* 单选按钮样式 */
-.option-item.radio {
-    border-radius: 20px;
-}
-
-/* 复选框样式 */
-.option-item.checkbox {
-    border-radius: 8px;
-}
-
-/* 调试样式 */
-.no-options {
-    color: var(--text-muted);
-    font-style: italic;
-    padding: 12px;
-    text-align: center;
-    border: 1px dashed var(--border-color);
-    border-radius: 4px;
-}
-
-/* 确保容器可见 */
-.question-options {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin: 12px 0;
-    min-height: 20px;
-}
-
-.assistant-msg-ask_user_question {
-    border-color: #8b5cf6;
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(139, 92, 246, 0.1) 100%);
-    position: relative;
-    overflow: hidden;
-}
-
-.assistant-msg-ask_user_question::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, #8b5cf6, #a78bfa, #8b5cf6);
-    animation: pulse-border 2s ease-in-out infinite;
-}
-
-@keyframes pulse-border {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-.question-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid rgba(139, 92, 246, 0.2);
-    margin-bottom: 12px;
-    position: relative;
-}
-
-.question-icon {
-    font-size: 1.2rem;
-    animation: bounce 1s ease-in-out;
-}
-
-@keyframes bounce {
-    0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-    40% { transform: translateY(-5px); }
-    60% { transform: translateY(-3px); }
-}
-
-.question-title {
-    font-weight: 600;
-    color: #8b5cf6;
-    font-size: 0.95rem;
-    flex-grow: 1;
-}
-
-.question-progress {
-    font-size: 0.8rem;
-    color: #a78bfa;
-    background: rgba(139, 92, 246, 0.1);
-    padding: 2px 8px;
-    border-radius: 12px;
-}
-
-.question-content {
-    padding: 8px 0;
-}
-
-.question-text {
-    font-weight: 500;
-    color: var(--text-color);
-    margin-bottom: 8px;
-    line-height: 1.5;
-}
-
-.question-description {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    margin-bottom: 16px;
-    padding: 8px 12px;
-    background: rgba(139, 92, 246, 0.08);
-    border-radius: 6px;
-    border-left: 3px solid #8b5cf6;
-}
-
-.question-options {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 16px;
-}
-
-.option-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
-}
-
-.option-item:hover {
-    border-color: #8b5cf6;
-    background: rgba(139, 92, 246, 0.05);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.1);
-}
-
-.option-item.selected {
-    border-color: #8b5cf6;
-    background: rgba(139, 92, 246, 0.1);
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
-}
-
-.option-item input[type="radio"],
-.option-item input[type="checkbox"] {
-    margin-top: 3px;
-    accent-color: #8b5cf6;
-    cursor: pointer;
-    transform: scale(1.1);
-}
-
-.option-label {
-    font-weight: 500;
-    color: var(--text-color);
-}
-
-.option-description {
-    display: block;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin-top: 4px;
-}
-
-/* 单选按钮样式 */
-.option-item.radio {
-    border-radius: 20px;
-}
-
-/* 复选框样式 */
-.option-item.checkbox {
-    border-radius: 8px;
-}
-
-/* 文本输入样式 */
-.text-input-container {
-    position: relative;
-    margin-bottom: 16px;
-}
-
-.question-text-input {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    background: var(--card-bg);
-    color: var(--text-color);
-    font-family: inherit;
-    resize: vertical;
-    min-height: 80px;
-    transition: border-color 0.2s ease;
-}
-
-.question-text-input:focus {
-    outline: none;
-    border-color: #8b5cf6;
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
-}
-
-.input-counter {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    background: rgba(0, 0, 0, 0.5);
-    padding: 2px 6px;
-    border-radius: 4px;
-}
-
-.char-count {
-    color: #8b5cf6;
-    font-weight: 500;
-}
-
-/* "其他"选项输入框样式 */
-.other-input-container {
-    padding: 8px 12px;
-    background: var(--card-bg);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    margin-top: 4px;
-}
-
-.question-other-input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--bg-color);
-    color: var(--text-color);
-    font-family: inherit;
-    resize: vertical;
-    min-height: 60px;
-    transition: border-color 0.2s ease;
-}
-
-.question-other-input:focus {
-    outline: none;
-    border-color: #8b5cf6;
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
-}
-
-.option-item.other-selected {
-    background: rgba(139, 92, 246, 0.1);
-    border-color: rgba(139, 92, 246, 0.3);
-}
-
-/* 操作按钮样式 */
-.question-actions {
-    display: flex;
-    gap: 12px;
-    justify-content: flex-end;
-    padding-top: 16px;
-    border-top: 1px solid rgba(139, 92, 246, 0.1);
-}
-
-.btn-cancel, .btn-confirm {
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: none;
-}
-
-.btn-cancel {
-    background: var(--card-bg);
-    color: var(--text-muted);
-    border: 1px solid var(--border-color);
-}
-
-.btn-cancel:hover:not(:disabled) {
-    background: var(--bg-color);
-    color: var(--text-color);
-}
-
-.btn-confirm {
-    background: #8b5cf6;
-    color: white;
-    min-width: 80px;
-}
-
-.btn-confirm:hover:not(:disabled) {
-    background: #7c3aed;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
-}
-
-.btn-confirm:disabled {
-    background: #a78bfa;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
-/* 追问问题样式 */
-.follow-up-questions-container {
-    margin-top: 16px;
-    padding-top: 16px;
-    border-top: 1px dashed rgba(139, 92, 246, 0.3);
-}
-
-.follow-up-question {
-    margin-bottom: 12px;
-    padding: 12px;
-    background: rgba(139, 92, 246, 0.03);
-    border-radius: 8px;
-    border: 1px solid rgba(139, 92, 246, 0.1);
-}
-
-.follow-up-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
-}
-
-.follow-up-icon {
-    font-size: 1rem;
-}
-
-.follow-up-title {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #8b5cf6;
-}
-
-.follow-up-text {
-    font-size: 0.85rem;
-    color: var(--text-color);
-    margin-bottom: 8px;
-    padding-left: 20px;
-}
-
-.follow-up-options {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-/* 状态样式 */
-.assistant-msg-ask_user_question.answered {
-    border-color: #10b981;
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.1) 100%);
-}
-
-.assistant-msg-ask_user_question.answered .question-header {
-    border-bottom-color: rgba(16, 185, 129, 0.2);
-}
-
-.assistant-msg-ask_user_question.answered .question-title {
-    color: #10b981;
-}
-
-.assistant-msg-ask_user_question.cancelled {
-    border-color: #ef4444;
-    background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(239, 68, 68, 0.1) 100%);
-    opacity: 0.7;
-}
-
-.assistant-msg-ask_user_question.timed-out {
-    border-color: #f59e0b;
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(245, 158, 11, 0.1) 100%);
-}
-
-.assistant-msg-ask_user_question.disabled {
-    opacity: 0.6;
-    pointer-events: none;
-}
-
-/* 倒计时样式 */
-.question-timer {
-    font-size: 0.8rem;
-    color: #f59e0b;
-    text-align: right;
-    margin-top: 8px;
-    font-weight: 500;
-}
-
-/* 响应式调整 */
-@media (max-width: 768px) {
-    .question-options {
+    .scheduler-stats {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
         gap: 8px;
     }
-    
-    .option-item {
-        padding: 10px 12px;
-    }
-    
-    .question-actions {
-        flex-direction: column;
-    }
-    
-    .btn-cancel, .btn-confirm {
+
+    .scheduler-actions {
         width: 100%;
+        justify-content: center;
     }
-    
-    .question-timer {
-        text-align: center;
+
+    /* 调度器标签页 */
+    .scheduler-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 4px;
+        gap: 2px;
+    }
+
+    .scheduler-tab {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+
+    .scheduler-tab .tab-icon {
+        font-size: 1.1rem;
+    }
+
+    .scheduler-tab .tab-text {
+        display: none;
+    }
+
+    /* 调度器操作栏 */
+    .scheduler-actions-bar {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .scheduler-actions-bar .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* 调度器表格 - 移动端卡片布局 */
+    .scheduler-table {
+        display: block;
+    }
+
+    .scheduler-table thead {
+        display: none;
+    }
+
+    .scheduler-table tbody {
+        display: block;
+    }
+
+    .scheduler-table tr {
+        display: block;
+        margin-bottom: 12px;
+        background: color-mix(in srgb, var(--zinc-800) 50%, transparent);
+        border-radius: var(--radius-md);
+        padding: 12px;
+        border: 1px solid color-mix(in srgb, var(--zinc-700) 50%, transparent);
+    }
+
+    .scheduler-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--zinc-700) 30%, transparent);
+        text-align: right;
+    }
+
+    .scheduler-table td:last-child {
+        border-bottom: none;
+    }
+
+    .scheduler-table td::before {
+        content: attr(data-label);
+        font-weight: 500;
+        color: var(--text-muted);
         font-size: 0.75rem;
+        text-transform: uppercase;
+        margin-right: 8px;
+    }
+
+    .scheduler-table td.task-prompt {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .scheduler-table td.task-prompt::before {
+        margin-bottom: 4px;
+    }
+
+    .scheduler-table .actions {
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .scheduler-table .actions .btn {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+
+    /* 状态徽章 - 移动端 */
+    .status-badge {
+        padding: 2px 8px;
+        font-size: 0.7rem;
+    }
+
+    /* 分页控件 - 移动端 */
+    .pagination {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .pagination-btn {
+        padding: 8px 16px;
+        font-size: 0.85rem;
+    }
+
+    /* 对话框 - 移动端 */
+    .dialog-overlay {
+        padding: 10px;
+    }
+
+    .dialog-content {
+        max-width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .confirm-dialog {
+        max-width: 100%;
+    }
+
+    .confirm-dialog-body {
+        padding: 16px;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .confirm-dialog-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.25rem;
+    }
+
+    .confirm-dialog-title {
+        font-size: 1rem;
+    }
+
+    .confirm-dialog-message {
+        font-size: 0.85rem;
+    }
+
+    .confirm-dialog .dialog-footer {
+        flex-direction: column-reverse;
+        padding: 12px 16px;
+    }
+
+    .confirm-dialog .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* 空状态 - 移动端 */
+    .empty-state {
+        padding: 24px 16px;
+        font-size: 0.85rem;
+    }
+
+    /* Cron 帮助对话框 - 移动端 */
+    .cron-example-item {
+        padding: 8px 10px;
+    }
+
+    .cron-example-expr {
+        font-size: 0.8rem;
+    }
+
+    .cron-example-desc {
+        font-size: 0.75rem;
+    }
+}
+
+/* ============== 小屏幕移动端 (480px 以下) ============== */
+@media (max-width: 480px) {
+    /* 页面标题 */
+    .page-title {
+        font-size: 1rem;
+    }
+
+    .page-subtitle {
+        font-size: 0.75rem;
+    }
+
+    /* 调度器统计数字 */
+    .scheduler-stat .stat-value {
+        font-size: 1rem;
+    }
+
+    .scheduler-stat .stat-label {
+        font-size: 0.7rem;
+    }
+
+    /* 按钮 */
+    .btn {
+        padding: 10px 16px;
+        font-size: 0.85rem;
+    }
+
+    .btn-small {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+
+    /* 标签页 */
+    .scheduler-tab {
+        padding: 6px 8px;
+    }
+
+    .scheduler-tab .tab-icon {
+        font-size: 1rem;
     }
 }

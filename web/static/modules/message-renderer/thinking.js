@@ -17,7 +17,7 @@ const MessageRendererThinking = {
         const blockId = `thinking-block-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
         return `
-            <div class="thinking-block message-fade-in" id="${blockId}">
+            <div class="assistant-msg assistant-msg-thinking message-fade-in message-thinking" id="${blockId}">
                 <button class="tool-button tool-button-thinking" onclick="MessageRendererThinking._toggleThinking('${blockId}')">
                     <span class="tool-button-icon">💡</span>
                     <span class="tool-button-preview">thinking</span>

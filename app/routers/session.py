@@ -7,8 +7,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
+
+from app.services import extract_question
 
 router = APIRouter(prefix="/api", tags=["session"])
 
@@ -108,22 +110,40 @@ def decode_project_name(encoded_name: str) -> str:
     return encoded_name.replace('-', '/')
 
 
-def get_project_hash(project_path: str) -> str:
-    """根据项目路径生成哈希值（与 Claude Code 一致）"""
+def get_project_dir_name(project_path: str) -> str:
+    """
+    根据项目路径生成目录名（与 Claude Agent SDK 一致）
+
+    SDK 使用的命名规则：
+    - Windows: E:\\workspaces_2026\\project → E--workspaces-2026-project
+    - Unix: /home/user/project → -home-user-project
+    - 盘符后的冒号转换为 --
+    - 路径分隔符和下划线都转换为 -
+    """
     abs_path = Path(project_path).resolve()
-    path_str = str(abs_path).replace("\\", "/")
-    return hashlib.md5(path_str.encode()).hexdigest()[:16]
+    path_str = str(abs_path)
+
+    # Windows 路径处理
+    if len(path_str) >= 2 and path_str[1] == ":":
+        # E:\path → E--path (从索引 3 跳过 "E:\")
+        drive = path_str[0].upper()
+        rest = path_str[3:].replace("\\", "-").replace("/", "-").replace("_", "-")
+        return f"{drive}--{rest}"
+    else:
+        # Unix 路径: /home/user → -home-user
+        return path_str.replace("\\", "-").replace("/", "-").replace("_", "-")
 
 
 def get_sessions_dir(working_dir: str) -> Path:
     """获取当前项目的会话目录"""
-    project_hash = get_project_hash(working_dir)
-    return CLAUDE_DIR / "projects" / project_hash
+    project_dir_name = get_project_dir_name(working_dir)
+    return CLAUDE_DIR / "projects" / project_dir_name
 
 
 def parse_session_metadata(
     filepath: Path,
     cache: MetadataCache | None = None,
+    extract_full_question: bool = False,
 ) -> dict[str, Any]:
     """
     解析会话文件获取元数据
@@ -131,11 +151,17 @@ def parse_session_metadata(
     Args:
         filepath: 会话文件路径
         cache: 可选的元数据缓存实例
+        extract_full_question: 是否提取完整提问文本（用于提问历史记录功能）
     """
     # 尝试从缓存获取
     if cache:
         cached = cache.get(filepath)
         if cached is not None:
+            # 如果需要提取完整提问文本，但缓存中没有，则需要重新提取
+            if extract_full_question and cached.get("has_question"):
+                question_result = extract_question(filepath)
+                if question_result:
+                    cached["question_text"] = question_result.get("question_text", "")
             return cached
 
     try:
@@ -146,6 +172,9 @@ def parse_session_metadata(
             message_count = 0
             tools_used: set[str] = set()
             cwd = None  # 工作目录
+            has_question = False  # 是否存在有效用户提问
+            question_timestamp = None  # 提问时间戳
+            question_text = None  # 完整提问文本
 
             for line in f:
                 line = line.strip()
@@ -180,6 +209,11 @@ def parse_session_metadata(
                                         break
                             timestamp = data.get("timestamp")
                             session_id = data.get("sessionId")
+
+                            # 检查是否存在有效提问（用于缓存）
+                            # 只有当 first_user_msg 不为空时才认为有有效提问
+                            has_question = first_user_msg is not None
+                            question_timestamp = timestamp
                         message_count += 1
                     elif msg_type == "assistant":
                         message_count += 1
@@ -195,6 +229,14 @@ def parse_session_metadata(
                 except json.JSONDecodeError:
                     continue
 
+        # 如果需要提取完整提问文本
+        if extract_full_question:
+            question_result = extract_question(filepath)
+            if question_result:
+                question_text = question_result.get("question_text", "")
+                has_question = bool(question_text)
+                question_timestamp = question_result.get("timestamp") or question_timestamp
+
         metadata = {
             "id": session_id or filepath.stem,
             "title": first_user_msg or "无标题",
@@ -203,7 +245,14 @@ def parse_session_metadata(
             "size": filepath.stat().st_size if filepath.exists() else 0,
             "tools": sorted(list(tools_used)),
             "cwd": cwd,  # 返回工作目录
+            # 提问缓存字段（用于提问历史记录功能）
+            "has_question": has_question,
+            "question_timestamp": question_timestamp,
         }
+
+        # 如果提取了完整提问文本，也添加到元数据中
+        if question_text:
+            metadata["question_text"] = question_text
 
         # 更新缓存
         if cache:
@@ -219,6 +268,8 @@ def parse_session_metadata(
             "size": 0,
             "tools": [],
             "cwd": None,
+            "has_question": False,
+            "question_timestamp": None,
         }
         return error_metadata
 
@@ -601,3 +652,167 @@ async def add_session_message(session_id: str, request: AddMessageRequest):
         raise HTTPException(status_code=500, detail=f"保存消息失败: {str(e)}")
 
     return {"success": True, "message": "消息已保存"}
+
+
+# ============= 提问历史记录 API =============
+
+from datetime import datetime, timedelta
+
+
+def format_time_display(timestamp: str | None) -> str:
+    """
+    格式化时间显示
+
+    Args:
+        timestamp: ISO 格式时间戳
+
+    Returns:
+        格式化后的时间字符串
+    """
+    if not timestamp:
+        return "未知时间"
+
+    try:
+        date = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        now = datetime.now(date.tzinfo)
+
+        # 计算时间差
+        diff = (now - date).total_seconds()
+
+        # 小于 1 分钟
+        if diff < 60:
+            return "刚刚"
+
+        # 小于 1 小时
+        if diff < 3600:
+            return f"{int(diff // 60)} 分钟前"
+
+        # 小于 24 小时
+        if diff < 86400:
+            return f"{int(diff // 3600)} 小时前"
+
+        # 昨天
+        yesterday = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        if date.replace(hour=0, minute=0, second=0, microsecond=0) == yesterday:
+            return f"昨天 {date.strftime('%H:%M')}"
+
+        # 小于 7 天
+        if diff < 604800:
+            return f"{int(diff // 86400)} 天前"
+
+        # >= 7 天
+        return date.strftime("%Y-%m-%d %H:%M")
+
+    except Exception:
+        return "未知时间"
+
+
+@router.get("/projects/{project_name}/questions")
+async def get_project_questions(
+    project_name: str,
+    page: int = Query(1, ge=1, description="页码"),
+    limit: int = Query(20, ge=1, le=100, description="每页数量"),
+):
+    """
+    获取指定项目的提问列表（分页）
+
+    从项目的所有会话文件中提取首次用户提问，并按时间倒序排列。
+
+    Args:
+        project_name: 项目编码名称
+        page: 页码，从 1 开始
+        limit: 每页数量，最大 100
+
+    Returns:
+        {
+            "success": true,
+            "data": {
+                "items": [
+                    {
+                        "id": "session_uuid",
+                        "session_id": "session_uuid",
+                        "project_name": "E--test-project",
+                        "question_text": "完整提问内容",
+                        "timestamp": "2026-03-05T10:30:00.000Z",
+                        "time_display": "2 小时前"
+                    }
+                ],
+                "total": 50,
+                "page": 1,
+                "limit": 20,
+                "pages": 3
+            },
+            "project_path": "E:\\test\\project"
+        }
+    """
+    # 验证项目目录
+    project_dir = PROJECTS_DIR / project_name
+    if not project_dir.exists():
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    # 获取真实项目路径
+    project_path = decode_project_name(project_name)
+
+    # 创建缓存实例
+    cache = MetadataCache(project_dir)
+
+    # 提取所有提问
+    questions = []
+
+    for filepath in project_dir.glob("*.jsonl"):
+        try:
+            # 使用缓存解析元数据，同时提取完整提问文本
+            metadata = parse_session_metadata(filepath, cache=cache, extract_full_question=True)
+
+            # 检查是否有有效提问
+            has_question = metadata.get("has_question", False)
+            question_timestamp = metadata.get("question_timestamp") or metadata.get("timestamp")
+
+            if has_question and question_timestamp:
+                # 获取完整提问文本
+                question_text = metadata.get("question_text", "")
+
+                # 如果缓存中没有完整提问文本（可能是旧缓存），则从文件提取
+                if not question_text:
+                    result = extract_question(filepath)
+                    if result:
+                        question_text = result.get("question_text", "")
+
+                if question_text:
+                    questions.append({
+                        "id": metadata.get("id", filepath.stem),
+                        "session_id": metadata.get("id", filepath.stem),
+                        "project_name": project_name,
+                        "question_text": question_text,
+                        "timestamp": question_timestamp,
+                    })
+        except Exception:
+            # 跳过无法处理的文件
+            continue
+
+    # 按时间倒序排序
+    questions.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+
+    # 分页
+    total = len(questions)
+    pages = (total + limit - 1) // limit if total > 0 else 0
+    start = (page - 1) * limit
+    end = start + limit
+    paginated_questions = questions[start:end]
+
+    # 添加时间显示
+    for question in paginated_questions:
+        question["time_display"] = format_time_display(question.get("timestamp"))
+
+    # 返回响应
+    return {
+        "success": True,
+        "data": {
+            "items": paginated_questions,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "pages": pages,
+        },
+        "project_path": project_path,
+    }

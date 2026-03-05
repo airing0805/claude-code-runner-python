@@ -1,6 +1,6 @@
 """主调度器
 
-负责定时轮询、检查定时任务到期、从队列获取任务执行。
+使用 APScheduler 管理定时任务，提供进程隔离的任务执行。
 """
 
 import asyncio
@@ -9,11 +9,12 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from app.scheduler.config import POLL_INTERVAL, SchedulerStatus
-from app.scheduler.cron import CronParser, is_due
-from app.scheduler.executor import TaskExecutor, get_executor
+from app.scheduler.config import SchedulerStatus, POLL_INTERVAL
 from app.scheduler.models import ScheduledTask, Task, TaskStatus
 from app.scheduler.storage import TaskStorage, get_storage
+from app.scheduler.apscheduler_wrapper import APSchedulerWrapper
+from app.scheduler.security import validate_workspace
+from app.scheduler.timezone_utils import now_iso, format_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,7 @@ class Scheduler:
     """主调度器
 
     负责：
-    - 定时轮询循环（默认 10 秒）
-    - 检查定时任务到期
+    - 使用 APScheduler 管理定时任务
     - 从队列获取任务执行
     - 管理任务状态迁移
     - 启动/停止调度器
@@ -33,16 +33,11 @@ class Scheduler:
     def __init__(
         self,
         storage: Optional[TaskStorage] = None,
-        executor: Optional[TaskExecutor] = None,
-        poll_interval: int = POLL_INTERVAL,
     ) -> None:
         self.storage = storage or get_storage()
-        self.executor = executor or get_executor()
-        self.poll_interval = poll_interval
+        self.apscheduler = APSchedulerWrapper(self.storage)
         self._status = SchedulerStatus.STOPPED
-        self._task: Optional[asyncio.Task] = None
-        self._stop_event = asyncio.Event()
-        self._cron_parser = CronParser()
+        self._queue_task: asyncio.Task[None] | None = None  # 队列处理任务
 
     @property
     def status(self) -> SchedulerStatus:
@@ -56,20 +51,17 @@ class Scheduler:
         Returns:
             包含状态、统计信息的字典
         """
+        # 获取 APScheduler 的任务信息
+        aps_jobs = self.apscheduler.get_jobs()
+
         return {
             "status": self._status.value,
-            "poll_interval": self.poll_interval,
             "queue_count": self.storage.queue.count(),
             "scheduled_count": self.storage.scheduled.count(),
             "enabled_scheduled_count": self.storage.scheduled.enabled_count(),
             "running_count": self.storage.running.count(),
-            "is_executing": self.executor.is_executing(),
-            "current_task_id": (
-                self.executor.get_current_task().id
-                if self.executor.get_current_task()
-                else None
-            ),
-            "updated_at": datetime.now().isoformat(),
+            "apscheduler_jobs": aps_jobs,
+            "updated_at": now_iso(),
         }
 
     async def start(self) -> bool:
@@ -89,13 +81,23 @@ class Scheduler:
 
         logger.info("正在启动调度器...")
         self._status = SchedulerStatus.STARTING
-        self._stop_event.clear()
 
         try:
-            # 创建调度任务
-            self._task = asyncio.create_task(self._run_loop())
+            # 启动前恢复运行中的任务
+            await self._recover_running_tasks()
+
+            # 加载所有启用的定时任务到 APScheduler
+            await self._load_scheduled_tasks()
+
+            # 启动 APScheduler
+            self.apscheduler.start()
+
+            # 启动队列处理循环
+            self._queue_task = asyncio.create_task(self._run_queue_loop())
+            logger.info("队列处理循环已启动")
+
             self._status = SchedulerStatus.RUNNING
-            logger.info(f"调度器已启动，轮询间隔: {self.poll_interval}秒")
+            logger.info("调度器已启动")
             return True
 
         except Exception as e:
@@ -122,23 +124,17 @@ class Scheduler:
         self._status = SchedulerStatus.STOPPING
 
         try:
-            # 设置停止信号
-            self._stop_event.set()
-
-            # 等待调度任务结束
-            if self._task and not self._task.done():
+            # 取消队列处理任务
+            if self._queue_task and not self._queue_task.done():
+                self._queue_task.cancel()
                 try:
-                    # 最多等待 5 秒
-                    await asyncio.wait_for(self._task, timeout=5.0)
-                except asyncio.TimeoutError:
-                    logger.warning("调度任务未在超时时间内结束，强制取消")
-                    self._task.cancel()
-                    try:
-                        await self._task
-                    except asyncio.CancelledError:
-                        pass
+                    await self._queue_task
+                except asyncio.CancelledError:
+                    pass
+                logger.info("队列处理循环已取消")
 
-            self._task = None
+            # 关闭 APScheduler
+            self.apscheduler.shutdown(wait=True)
             self._status = SchedulerStatus.STOPPED
             logger.info("调度器已停止")
             return True
@@ -148,168 +144,193 @@ class Scheduler:
             self._status = SchedulerStatus.STOPPED
             return False
 
-    async def _run_loop(self) -> None:
+    async def _load_scheduled_tasks(self) -> None:
         """
-        主调度循环
-
-        每次循环执行:
-        1. 检查定时任务是否到期，到期则加入队列
-        2. 从队列获取任务执行
+        加载所有启用的定时任务到 APScheduler
+        并检查过期任务立即执行
         """
-        logger.info("调度循环开始")
+        from app.scheduler.cron import CronParser, is_due
 
-        while not self._stop_event.is_set():
+        scheduled_tasks = self.storage.scheduled.get_enabled()
+        logger.info(f"加载 {len(scheduled_tasks)} 个启用的定时任务")
+
+        cron_parser = CronParser()
+
+        for scheduled in scheduled_tasks:
             try:
-                # 1. 检查定时任务到期
-                await self._check_scheduled_tasks()
-
-                # 2. 执行队列中的任务
-                await self._process_queue()
-
-            except Exception as e:
-                logger.exception(f"调度循环异常: {e}")
-
-            # 等待下一次轮询
-            try:
-                await asyncio.wait_for(
-                    self._stop_event.wait(),
-                    timeout=self.poll_interval,
-                )
-                # 如果 wait 返回，说明收到了停止信号
-                break
-            except asyncio.TimeoutError:
-                # 超时正常，继续下一次循环
-                pass
-
-        logger.info("调度循环结束")
-
-    async def _check_scheduled_tasks(self) -> None:
-        """
-        检查定时任务是否到期
-
-        到期的定时任务会被转换为普通任务加入队列
-        """
-        try:
-            scheduled_tasks = self.storage.scheduled.get_enabled()
-
-            for scheduled in scheduled_tasks:
-                if self._stop_event.is_set():
-                    break
-
-                # 检查是否到期
+                # 检查 next_run 是否过期
                 if is_due(scheduled.next_run):
-                    await self._trigger_scheduled_task(scheduled)
+                    logger.info(f"检测到过期任务，准备执行: {scheduled.name} ({scheduled.id}), next_run: {scheduled.next_run}")
 
-        except Exception as e:
-            logger.error(f"检查定时任务失败: {e}")
+                    # 立即触发任务
+                    await self.apscheduler.trigger_scheduled_task(scheduled.id)
 
-    async def _trigger_scheduled_task(self, scheduled: ScheduledTask) -> None:
+                    # 更新下次执行时间
+                    next_run = cron_parser.calculate_next_run(scheduled.cron)
+                    if next_run:
+                        scheduled.next_run = format_datetime(next_run)
+                        self.storage.scheduled.save(scheduled)
+                        logger.info(f"已更新任务下次执行时间: {scheduled.name}, next_run: {scheduled.next_run}")
+
+                # 添加到 APScheduler
+                self.apscheduler.add_scheduled_task(scheduled)
+                logger.info(f"定时任务已加载: {scheduled.name} ({scheduled.id})")
+            except Exception as e:
+                logger.error(f"加载定时任务失败: {scheduled.id}, 错误: {e}")
+
+    async def _recover_running_tasks(self) -> None:
         """
-        触发定时任务
+        恢复运行中的任务
 
-        将定时任务转换为普通任务加入队列，并更新下次执行时间
+        服务重启时，running.json 中可能有未完成的任务。
+        将这些任务的状态重置为 pending 并加入队列头部。
+        """
+        running_tasks = self.storage.running.get_all()
+        if not running_tasks:
+            return
+
+        logger.info(f"发现 {len(running_tasks)} 个运行中的任务，开始恢复")
+
+        for task in running_tasks:
+            # 规范化 workspace
+            task.workspace = validate_workspace(task.workspace)
+
+            # 重置任务状态
+            task.status = TaskStatus.PENDING
+            task.started_at = None
+            task.error = "服务重启，任务重新排队"
+
+            # 加入队列头部（优先处理）
+            self.storage.queue.add_to_front(task)
+            logger.info(f"任务已恢复到队列: {task.id}")
+
+        # 清空 running 存储
+        self.storage.running.clear()
+        logger.info(f"已恢复 {len(running_tasks)} 个运行中的任务")
+
+    async def _run_queue_loop(self) -> None:
+        """队列处理循环
+
+        定期从队列中取出任务并执行。
+        这是解决"队列任务无法自动执行"问题的关键方法。
+        """
+        # 延迟导入避免循环依赖
+        from app.scheduler.executor import TaskExecutor
+
+        executor = TaskExecutor(self.storage)
+
+        logger.info("队列处理循环已开始运行")
+
+        while self._status == SchedulerStatus.RUNNING:
+            try:
+                # 从队列获取任务
+                task = self.storage.queue.pop()
+
+                if task:
+                    logger.info(f"从队列取出任务: {task.id}, prompt: {task.prompt[:50]}...")
+
+                    # 执行任务
+                    try:
+                        result = await executor.execute(task)
+
+                        if result.success:
+                            logger.info(f"任务执行成功: {task.id}")
+                        else:
+                            logger.warning(f"任务执行失败: {task.id}, 错误: {result.error}")
+
+                    except Exception as e:
+                        logger.error(f"执行任务时发生异常: {task.id}, 错误: {e}", exc_info=True)
+
+                # 等待一段时间
+                await asyncio.sleep(POLL_INTERVAL)
+
+            except asyncio.CancelledError:
+                logger.info("队列处理循环已取消")
+                break
+            except Exception as e:
+                logger.error(f"队列处理循环错误: {e}", exc_info=True)
+                await asyncio.sleep(POLL_INTERVAL)
+
+    def add_scheduled_task(self, scheduled: ScheduledTask) -> bool:
+        """
+        添加定时任务
 
         Args:
-            scheduled: 到期的定时任务
+            scheduled: 定时任务对象
+
+        Returns:
+            bool: 是否添加成功
         """
-        logger.info(f"定时任务到期: {scheduled.name} ({scheduled.id})")
-
         try:
-            # 创建任务并加入队列
-            task = Task(
-                id=str(uuid.uuid4()),
-                prompt=scheduled.prompt,
-                workspace=scheduled.workspace,
-                timeout=scheduled.timeout,
-                auto_approve=scheduled.auto_approve,
-                allowed_tools=scheduled.allowed_tools,
-                scheduled=True,
-                scheduled_id=scheduled.id,
-            )
+            # 规范化 workspace
+            scheduled.workspace = validate_workspace(scheduled.workspace)
 
-            self.storage.queue.add(task)
-            logger.info(f"定时任务已加入队列: {task.id}")
-
-            # 更新定时任务的执行信息
-            scheduled.last_run = datetime.now().isoformat()
-            scheduled.run_count += 1
-
-            # 计算下次执行时间
-            next_run = self._cron_parser.calculate_next_run(scheduled.cron)
-            if next_run:
-                scheduled.next_run = next_run.isoformat()
-
-            # 保存更新
+            # 保存到存储
             self.storage.scheduled.save(scheduled)
-            logger.info(f"定时任务下次执行时间: {scheduled.next_run}")
 
+            # 添加到 APScheduler
+            self.apscheduler.add_scheduled_task(scheduled)
+            logger.info(f"定时任务已添加: {scheduled.name} ({scheduled.id})")
+            return True
         except Exception as e:
-            logger.error(f"触发定时任务失败: {e}")
+            logger.error(f"添加定时任务失败: {scheduled.id}, 错误: {e}")
+            return False
 
-    async def _process_queue(self) -> None:
+    def update_scheduled_task(self, scheduled: ScheduledTask) -> bool:
         """
-        处理任务队列
-
-        从队列获取任务并执行
-        """
-        # 如果正在执行任务，跳过
-        if self.executor.is_executing():
-            return
-
-        # 从队列获取任务
-        task = self.storage.queue.pop()
-        if task is None:
-            return
-
-        logger.info(f"从队列获取任务: {task.id}")
-        await self._execute_task(task)
-
-    async def _execute_task(self, task: Task) -> None:
-        """
-        执行单个任务
+        更新定时任务
 
         Args:
-            task: 待执行的任务
+            scheduled: 定时任务对象
+
+        Returns:
+            bool: 是否更新成功
         """
         try:
-            result = await self.executor.execute(task)
+            # 规范化 workspace
+            scheduled.workspace = validate_workspace(scheduled.workspace)
 
-            if result.success:
-                logger.info(f"任务执行成功: {task.id}")
+            # 先移除旧的
+            if scheduled.enabled:
+                self.apscheduler.remove_scheduled_task(scheduled.id)
+
+            # 保存到存储
+            self.storage.scheduled.save(scheduled)
+
+            # 如果启用，重新添加到 APScheduler
+            if scheduled.enabled:
+                self.apscheduler.add_scheduled_task(scheduled)
+                logger.info(f"定时任务已更新并启用: {scheduled.name} ({scheduled.id})")
             else:
-                logger.warning(f"任务执行失败: {task.id}, 原因: {result.error}")
-
+                logger.info(f"定时任务已更新并禁用: {scheduled.name} ({scheduled.id})")
+            return True
         except Exception as e:
-            logger.exception(f"任务执行异常: {task.id}, 错误: {e}")
+            logger.error(f"更新定时任务失败: {scheduled.id}, 错误: {e}")
+            return False
 
-            # 确保异常情况下任务状态被正确处理
-            if task.status == TaskStatus.RUNNING:
-                task.status = TaskStatus.FAILED
-                task.error = str(e)
-                task.finished_at = datetime.now().isoformat()
-                self.storage.running.remove(task.id)
-                self.storage.history.add_failed(task)
-
-    def run_task_now(self, task_id: str) -> Optional[Task]:
+    def remove_scheduled_task(self, task_id: str) -> bool:
         """
-        立即执行指定的队列任务
-
-        注意：此方法是同步的，只是将任务移到队首
-        实际执行会在下一次轮询时进行
+        移除定时任务
 
         Args:
             task_id: 任务 ID
 
         Returns:
-            Task: 找到的任务，未找到返回 None
+            bool: 是否移除成功
         """
-        task = self.storage.queue.get(task_id)
-        if task is None:
-            logger.warning(f"未找到任务: {task_id}")
-            return None
+        try:
+            # 从存储移除
+            success = self.storage.scheduled.delete(task_id)
 
-        logger.info(f"任务已标记为立即执行: {task_id}")
-        return task
+            # 从 APScheduler 移除
+            self.apscheduler.remove_scheduled_task(task_id)
+
+            if success:
+                logger.info(f"定时任务已移除: {task_id}")
+            return success
+        except Exception as e:
+            logger.error(f"移除定时任务失败: {task_id}, 错误: {e}")
+            return False
 
     def run_scheduled_now(self, scheduled_id: str) -> Optional[Task]:
         """
@@ -328,16 +349,20 @@ class Scheduler:
             logger.warning(f"未找到定时任务: {scheduled_id}")
             return None
 
+        # 规范化 workspace
+        workspace = validate_workspace(scheduled.workspace)
+
         # 创建任务并加入队列
         task = Task(
             id=str(uuid.uuid4()),
             prompt=scheduled.prompt,
-            workspace=scheduled.workspace,
+            workspace=workspace,
             timeout=scheduled.timeout,
             auto_approve=scheduled.auto_approve,
             allowed_tools=scheduled.allowed_tools,
-            scheduled=True,
+            source="immediate",
             scheduled_id=scheduled.id,
+            scheduled_name=scheduled.name,
         )
 
         self.storage.queue.add(task)
@@ -352,6 +377,18 @@ class Scheduler:
     def is_stopped(self) -> bool:
         """检查调度器是否已停止"""
         return self._status == SchedulerStatus.STOPPED
+
+    def get_job_info(self, task_id: str) -> Optional[dict]:
+        """
+        获取任务信息
+
+        Args:
+            task_id: 任务 ID
+
+        Returns:
+            任务信息字典，不存在返回 None
+        """
+        return self.apscheduler.get_job_info(task_id)
 
 
 # 全局调度器实例

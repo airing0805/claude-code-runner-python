@@ -4,6 +4,9 @@
  */
 
 const Navigation = {
+    // 当前视图（用于 onHide 清理）
+    currentView: null,
+
     /**
      * 初始化导航
      * @param {Object} runner - ClaudeCodeRunner 实例
@@ -90,6 +93,14 @@ const Navigation = {
             });
         }
 
+        // v8.0.2: 提问历史记录视图移动端菜单切换
+        const menuToggleQuestions = document.getElementById('menu-toggle-questions');
+        if (menuToggleQuestions) {
+            menuToggleQuestions.addEventListener('click', () => {
+                runner.navMenu.classList.toggle('open');
+            });
+        }
+
         // 返回项目列表
         const backToProjects = document.getElementById('back-to-projects');
         if (backToProjects) {
@@ -100,11 +111,66 @@ const Navigation = {
     },
 
     /**
+     * 调用指定视图的 onHide 方法（用于清理资源）
+     * @param {string} view - 视图名称
+     */
+    callOnHide(view) {
+        switch (view) {
+            case Views.CLAUDE_STATUS:
+                if (typeof ClaudeStatus !== 'undefined' && ClaudeStatus.onHide) {
+                    ClaudeStatus.onHide();
+                }
+                break;
+            case Views.AGENT_MONITOR:
+                if (typeof AgentMonitor !== 'undefined' && AgentMonitor.onHide) {
+                    AgentMonitor.onHide();
+                }
+                break;
+            case Views.SCHEDULER:
+                if (typeof Scheduler !== 'undefined' && Scheduler.onHide) {
+                    Scheduler.onHide();
+                }
+                break;
+            case Views.SKILLS:
+                if (typeof SkillManager !== 'undefined' && SkillManager.onHide) {
+                    SkillManager.onHide();
+                }
+                break;
+            case Views.MCP_SERVERS:
+                if (typeof MCPManager !== 'undefined' && MCPManager.onHide) {
+                    MCPManager.onHide();
+                }
+                break;
+            case Views.PLUGINS:
+                if (typeof PluginManager !== 'undefined' && PluginManager.onHide) {
+                    PluginManager.onHide();
+                }
+                break;
+            case Views.HOOKS_CONFIG:
+                if (typeof HooksManager !== 'undefined' && HooksManager.onHide) {
+                    HooksManager.onHide();
+                }
+                break;
+            case Views.QUESTIONS:
+                if (typeof Questions !== 'undefined' && Questions.onHide) {
+                    Questions.onHide();
+                }
+                break;
+        }
+    },
+
+    /**
      * 切换视图
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} view - 视图名称
      */
     switchView(runner, view) {
+        // 切换前调用当前视图的 onHide 方法（如果有）
+        if (this.currentView && this.currentView !== view) {
+            this.callOnHide(this.currentView);
+        }
+
+        this.currentView = view;
         runner.currentView = view;
 
         // 更新菜单高亮
@@ -182,10 +248,17 @@ const Navigation = {
             }
         }
 
-        // 如果是任务调度视图，加载调度数据
+        // 如果是任务调度视图, 加载调度数据
         if (view === Views.SCHEDULER) {
             if (typeof Scheduler !== 'undefined') {
                 Scheduler.onShow();
+            }
+        }
+
+        // v8.0.2: 如果是提问历史记录视图, 加载提问数据
+        if (view === Views.QUESTIONS) {
+            if (typeof Questions !== 'undefined') {
+                Questions.onShow();
             }
         }
 

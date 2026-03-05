@@ -4,7 +4,9 @@
 """
 
 import json
+import logging
 import os
+import re
 import tempfile
 import time
 import msvcrt
@@ -13,6 +15,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Optional
 
+logger = logging.getLogger(__name__)
+
 from app.scheduler.config import (
     DATA_DIR,
     QUEUE_FILE,
@@ -20,6 +24,8 @@ from app.scheduler.config import (
     RUNNING_FILE,
     COMPLETED_FILE,
     FAILED_FILE,
+    CANCELLED_FILE,
+    LOGS_FILE,
     MAX_HISTORY,
     LOCK_TIMEOUT,
     LOCK_RETRY_INTERVAL,
@@ -117,7 +123,6 @@ class BaseStorage:
 
     def __init__(self, filepath: Path):
         self.filepath = filepath
-        self.lock = FileLock(filepath)
 
     def _read_raw(self) -> dict:
         """读取原始数据（不加锁）"""
@@ -130,8 +135,7 @@ class BaseStorage:
 
     def _read(self) -> dict:
         """读取数据（加锁）"""
-        with self.lock:
-            return self._read_raw()
+        return self._read_raw()
 
     def _write_raw(self, data: dict) -> None:
         """写入原始数据（不加锁）"""
@@ -140,8 +144,7 @@ class BaseStorage:
 
     def _write(self, data: dict) -> None:
         """写入数据（加锁和原子操作）"""
-        with self.lock:
-            self._write_raw(data)
+        self._write_raw(data)
 
 
 class QueueStorage(BaseStorage):
@@ -160,6 +163,12 @@ class QueueStorage(BaseStorage):
         """添加任务到队列"""
         data = self._read()
         data["tasks"].append(task.to_dict())
+        self._write(data)
+
+    def add_to_front(self, task: Task) -> None:
+        """添加任务到队列头部（优先处理）"""
+        data = self._read()
+        data["tasks"].insert(0, task.to_dict())
         self._write(data)
 
     def get_all(self) -> list[Task]:
@@ -214,12 +223,78 @@ class ScheduledStorage(BaseStorage):
         if not self.filepath.exists():
             self._write_raw({"tasks": []})
 
+    def _read(self) -> dict:
+        """读取数据，每次读取时自动修复数据一致性问题"""
+        data = self._read_raw()
+        tasks = data.get("tasks", [])
+        tasks, changed = self._sanitize_tasks(tasks)
+        if changed:
+            self._write_raw({"tasks": tasks})
+            logger.info("[ScheduledStorage] 数据一致性修复完成，已回写文件")
+        return {"tasks": tasks}
+
+    def _sanitize_tasks(self, tasks: list) -> tuple[list, bool]:
+        """修复任务列表中的数据一致性问题，返回 (修复后的列表, 是否有变更)
+
+        修复规则：
+        1. 重复 ID：同一 ID 出现多次时，从第 2 条起追加 -2、-3 ... 后缀，使每条记录拥有唯一 ID
+        2. 过期 next_run：next_run 非空且时间早于当前时间时，清空为 null，由调度器重新计算
+        """
+        from app.scheduler.timezone_utils import parse_datetime, now_shanghai
+
+        changed = False
+        id_counter: dict[str, int] = {}
+        now = now_shanghai()
+
+        for task in tasks:
+            original_id = task.get("id", "")
+
+            # --- 规则1: 修复重复 ID ---
+            if original_id in id_counter:
+                id_counter[original_id] += 1
+                suffix = id_counter[original_id]
+                # 去掉末尾已有的 -N 后缀，基于原始 base 重新编号
+                base_id = re.sub(r'-\d+$', '', original_id)
+                new_id = f"{base_id}-{suffix}"
+                # 确保 new_id 唯一（避免与其他任务冲突）
+                while any(t.get("id") == new_id for t in tasks if t is not task):
+                    suffix += 1
+                    new_id = f"{base_id}-{suffix}"
+                logger.warning(
+                    f"[ScheduledStorage] 发现重复ID，自动修正: '{original_id}' -> '{new_id}' "
+                    f"(name={task.get('name', '')})"
+                )
+                task["id"] = new_id
+                task["next_run"] = None  # ID 变更，重置 next_run 由调度器重新计算
+                changed = True
+            else:
+                id_counter[original_id] = 1
+
+            # --- 规则2: 清空过期 next_run ---
+            next_run_str = task.get("next_run")
+            if next_run_str:
+                next_run_dt = parse_datetime(next_run_str)
+                if next_run_dt is not None and next_run_dt < now:
+                    logger.info(
+                        f"[ScheduledStorage] 清空过期next_run: "
+                        f"id={task.get('id')}, name={task.get('name', '')}, next_run={next_run_str}"
+                    )
+                    task["next_run"] = None
+                    changed = True
+
+        return tasks, changed
+
     def save(self, task: ScheduledTask) -> None:
-        """保存或更新定时任务"""
+        """保存定时任务
+
+        规则：
+        - ID 相同则按顺序更新第一条匹配记录
+        - 未找到则追加
+        """
         data = self._read()
         tasks = data.get("tasks", [])
 
-        # 查找并更新或添加
+        # 查找相同 ID 的任务（_read 已保证无重复 ID，直接按 ID 匹配）
         found = False
         for i, t in enumerate(tasks):
             if t["id"] == task.id:
@@ -238,8 +313,13 @@ class ScheduledStorage(BaseStorage):
         return [ScheduledTask.from_dict(t) for t in data.get("tasks", [])]
 
     def get(self, task_id: str) -> Optional[ScheduledTask]:
-        """获取指定定时任务"""
+        """获取指定定时任务（优先返回已启用的任务）"""
         tasks = self.get_all()
+        # 优先返回已启用的任务
+        for task in tasks:
+            if task.id == task_id and task.enabled:
+                return task
+        # 如果没有启用的，返回第一个匹配的任务
         for task in tasks:
             if task.id == task_id:
                 return task
@@ -254,8 +334,19 @@ class ScheduledStorage(BaseStorage):
         return len(data["tasks"]) < original_count
 
     def get_enabled(self) -> list[ScheduledTask]:
-        """获取所有已启用的定时任务"""
-        return [t for t in self.get_all() if t.enabled]
+        """获取所有已启用的定时任务（按ID去重）"""
+        tasks = self.get_all()
+        enabled_tasks = [t for t in tasks if t.enabled]
+        
+        # 按ID去重：相同ID只保留一个（优先保留已处理的）
+        seen_ids = set()
+        result = []
+        for task in enabled_tasks:
+            if task.id not in seen_ids:
+                seen_ids.add(task.id)
+                result.append(task)
+        
+        return result
 
     def count(self) -> int:
         """获取定时任务数量"""
@@ -410,6 +501,99 @@ class HistoryStorage(BaseStorage):
         )
 
 
+class CancelledStorage(BaseStorage):
+    """已取消任务存储"""
+
+    def __init__(self):
+        super().__init__(CANCELLED_FILE)
+        self._ensure_init()
+
+    def _ensure_init(self) -> None:
+        """确保文件存在"""
+        if not self.filepath.exists():
+            self._write_raw({"tasks": []})
+
+    def add(self, task: Task) -> None:
+        """添加已取消任务"""
+        data = self._read()
+        tasks = data.get("tasks", [])
+
+        # 添加到列表开头（最新在前）
+        tasks.insert(0, task.to_dict())
+
+        # 限制历史记录数量
+        if len(tasks) > MAX_HISTORY:
+            tasks = tasks[:MAX_HISTORY]
+
+        self._write({"tasks": tasks})
+
+    def get_all(self, page: int = 1, limit: int = 20) -> PaginatedResponse:
+        """获取已取消任务（分页）"""
+        data = self._read()
+        tasks = [Task.from_dict(t) for t in data.get("tasks", [])]
+        total = len(tasks)
+
+        offset = (page - 1) * limit
+        items = tasks[offset : offset + limit]
+        pages = (total + limit - 1) // limit if total > 0 else 1
+
+        return PaginatedResponse(
+            items=[t.to_dict() for t in items],
+            total=total,
+            page=page,
+            limit=limit,
+            pages=pages,
+        )
+
+
+class LogsStorage:
+    """任务日志存储（使用 JSONL 格式）"""
+
+    def __init__(self):
+        self.filepath = LOGS_FILE
+
+    def _ensure_init(self) -> None:
+        """确保文件存在"""
+        if not self.filepath.exists():
+            self.filepath.parent.mkdir(parents=True, exist_ok=True)
+            self.filepath.write_text("", encoding="utf-8")
+
+    def append(self, log_entry: dict) -> None:
+        """追加日志条目"""
+        self._ensure_init()
+        with open(self.filepath, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+    def get_all(self, limit: int = 100) -> list[dict]:
+        """获取最近的日志条目"""
+        if not self.filepath.exists():
+            return []
+
+        logs = []
+        with open(self.filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        logs.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+
+        # 返回最近的日志
+        return logs[-limit:] if len(logs) > limit else logs
+
+    def get_by_task_id(self, task_id: str, limit: int = 100) -> list[dict]:
+        """获取指定任务的日志"""
+        all_logs = self.get_all(limit * 10)  # 获取更多日志以便过滤
+        return [log for log in all_logs if log.get("task_id") == task_id][-limit:]
+
+    def clear(self) -> None:
+        """清空所有日志"""
+        self._ensure_init()
+        # 清空文件内容
+        self.filepath.write_text("", encoding="utf-8")
+
+
 class TaskStorage:
     """统一的任务存储接口"""
 
@@ -418,6 +602,8 @@ class TaskStorage:
         self.scheduled = ScheduledStorage()
         self.running = RunningStorage()
         self.history = HistoryStorage()
+        self.cancelled = CancelledStorage()
+        self.logs = LogsStorage()
 
     @classmethod
     def get_instance(cls) -> "TaskStorage":

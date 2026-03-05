@@ -30,6 +30,10 @@ const Scheduler = {
     REFRESH_INTERVAL_MS: 5000,  // 5秒刷新一次
     DURATION_UPDATE_MS: 1000,  // 1秒更新运行时长
 
+    // 页面可见性
+    _isPageVisible: true,  // 页面是否可见
+    _shouldAutoRefresh: false,  // 是否应该自动刷新（视图显示且页面可见）
+
     // Cron 示例
     cronExamples: [
         { expression: '0 9 * * *', description: '每天上午 9:00' },
@@ -52,6 +56,25 @@ const Scheduler = {
     init() {
         this.bindEvents();
         this.initToolsMultiselect();
+        this.initVisibilityListener();
+    },
+
+    /**
+     * 初始化页面可见性监听
+     */
+    initVisibilityListener() {
+        // 监听页面可见性变化
+        document.addEventListener('visibilitychange', () => {
+            this._isPageVisible = !document.hidden;
+
+            // 页面重新可见时，如果视图正在显示则恢复轮询
+            if (this._isPageVisible && this._shouldAutoRefresh) {
+                this.startAutoRefresh();
+            } else {
+                // 页面不可见时停止轮询
+                this.stopAutoRefresh();
+            }
+        });
     },
 
     /**
@@ -312,9 +335,23 @@ const Scheduler = {
     },
 
     /**
+     * 视图隐藏时调用
+     */
+    onHide() {
+        this.stopAutoRefresh();
+    },
+
+    /**
      * 开始自动刷新
      */
     startAutoRefresh() {
+        this._shouldAutoRefresh = true;
+
+        // 页面不可见时不启动轮询
+        if (!this._isPageVisible) {
+            return;
+        }
+
         this.stopAutoRefresh();
         this.refreshInterval = setInterval(() => {
             this.refreshCurrentTab();
@@ -329,6 +366,7 @@ const Scheduler = {
      * 停止自动刷新
      */
     stopAutoRefresh() {
+        this._shouldAutoRefresh = false;
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
             this.refreshInterval = null;
@@ -441,7 +479,9 @@ const Scheduler = {
      */
     async loadSchedulerStatus() {
         try {
-            const data = await SchedulerAPI.getStatus();
+            const response = await SchedulerAPI.getStatus();
+            // 后端返回格式: { success: true, data: { is_running, ... } }
+            const data = response.data || response;
             this.state.scheduler.isRunning = data.is_running;
             this.state.scheduler.lastCheckTime = data.last_check_time;
             this.renderSchedulerStatus();
@@ -454,9 +494,12 @@ const Scheduler = {
      * 加载任务队列
      */
     async loadQueue() {
+        this.renderSkeleton('scheduler-queue-list', 3);
         try {
-            const data = await SchedulerAPI.getQueue();
-            this.state.queue = data.items || [];
+            const response = await SchedulerAPI.getQueue();
+            // 后端返回格式: { success: true, data: [...] }
+            const data = response.data || response;
+            this.state.queue = Array.isArray(data) ? data : (data.items || []);
             this.state.stats.queueCount = this.state.queue.length;
             this.renderQueueList();
             this.updateStats();
@@ -470,9 +513,12 @@ const Scheduler = {
      * 加载定时任务
      */
     async loadScheduled() {
+        this.renderSkeleton('scheduler-scheduled-list', 2);
         try {
-            const data = await SchedulerAPI.getScheduled();
-            this.state.scheduled = data.items || [];
+            const response = await SchedulerAPI.getScheduled();
+            // 后端返回格式: { success: true, data: [...] }
+            const data = response.data || response;
+            this.state.scheduled = Array.isArray(data) ? data : (data.items || []);
             this.state.stats.scheduledCount = this.state.scheduled.length;
             this.renderScheduledList();
             this.updateStats();
@@ -486,9 +532,12 @@ const Scheduler = {
      * 加载运行中任务
      */
     async loadRunning() {
+        this.renderSkeleton('scheduler-running-list', 2);
         try {
-            const data = await SchedulerAPI.getRunning();
-            this.state.running = data.items || [];
+            const response = await SchedulerAPI.getRunning();
+            // 后端返回格式: { success: true, data: [...] }
+            const data = response.data || response;
+            this.state.running = Array.isArray(data) ? data : (data.items || []);
             this.state.stats.runningCount = this.state.running.length;
             this.renderRunningList();
             this.updateStats();
@@ -502,10 +551,13 @@ const Scheduler = {
      * 加载已完成任务
      */
     async loadCompleted(page = 1) {
+        this.renderSkeleton('scheduler-completed-list', 3);
         try {
             this.state.completed.page = page;
-            const data = await SchedulerAPI.getCompleted(page, this.state.completed.limit);
-            this.state.completed.items = data.items || [];
+            const response = await SchedulerAPI.getCompleted(page, this.state.completed.limit);
+            // 后端返回格式: { success: true, data: { items: [...], total: N, ... } }
+            const data = response.data || response;
+            this.state.completed.items = Array.isArray(data) ? data : (data.items || []);
             this.state.completed.total = data.total || 0;
             this.renderCompletedList();
             this.renderPagination('completed-pagination', this.state.completed, (p) => this.loadCompleted(p));
@@ -519,10 +571,13 @@ const Scheduler = {
      * 加载失败任务
      */
     async loadFailed(page = 1) {
+        this.renderSkeleton('scheduler-failed-list', 2);
         try {
             this.state.failed.page = page;
-            const data = await SchedulerAPI.getFailed(page, this.state.failed.limit);
-            this.state.failed.items = data.items || [];
+            const response = await SchedulerAPI.getFailed(page, this.state.failed.limit);
+            // 后端返回格式: { success: true, data: { items: [...], total: N, ... } }
+            const data = response.data || response;
+            this.state.failed.items = Array.isArray(data) ? data : (data.items || []);
             this.state.failed.total = data.total || 0;
             this.renderFailedList();
             this.renderPagination('failed-pagination', this.state.failed, (p) => this.loadFailed(p));
@@ -584,6 +639,9 @@ const Scheduler = {
             document.getElementById('task-tools')
         );
 
+        // 加载工作空间列表
+        this.loadWorkspaceList('task');
+
         document.getElementById('add-task-dialog').classList.add('active');
     },
 
@@ -604,11 +662,15 @@ const Scheduler = {
             return;
         }
 
+        // 获取工具列表并转为数组
+        const toolsValue = document.getElementById('task-tools').value;
+        const allowedTools = toolsValue ? toolsValue.split(',').map(t => t.trim()).filter(t => t) : null;
+
         const task = {
             prompt,
-            working_dir: document.getElementById('task-working-dir').value.trim() || null,
+            workspace: document.getElementById('task-working-dir').value.trim() || null,
             timeout: parseInt(document.getElementById('task-timeout').value) * 1000,
-            tools: document.getElementById('task-tools').value || null,
+            allowed_tools: allowedTools,
             auto_approve: document.getElementById('task-auto-approve').checked,
         };
 
@@ -626,7 +688,12 @@ const Scheduler = {
      * 删除队列任务
      */
     async deleteTask(taskId) {
-        if (!confirm('确定要删除这个任务吗？')) return;
+        const confirmed = await Utils.showConfirm('确定要删除这个任务吗？', {
+            title: '删除任务',
+            type: 'danger',
+            confirmText: '删除'
+        });
+        if (!confirmed) return;
 
         try {
             await SchedulerAPI.deleteTask(taskId);
@@ -641,7 +708,12 @@ const Scheduler = {
      * 清空队列
      */
     async clearQueue() {
-        if (!confirm('确定要清空任务队列吗？')) return;
+        const confirmed = await Utils.showConfirm('确定要清空任务队列吗？', {
+            title: '清空队列',
+            type: 'danger',
+            confirmText: '清空'
+        });
+        if (!confirmed) return;
 
         try {
             await SchedulerAPI.clearQueue();
@@ -664,18 +736,23 @@ const Scheduler = {
         document.getElementById('scheduled-dialog-title').textContent =
             task ? '编辑定时任务' : '添加定时任务';
 
-        // 填充表单
+        // 填充表单 (后端字段: cron, workspace, allowed_tools)
         document.getElementById('scheduled-task-id').value = task?.id || '';
         document.getElementById('scheduled-name').value = task?.name || '';
-        document.getElementById('scheduled-cron').value = task?.cron_expression || '';
+        document.getElementById('scheduled-cron').value = task?.cron || '';
         document.getElementById('scheduled-prompt').value = task?.prompt || '';
-        document.getElementById('scheduled-working-dir').value = task?.working_dir || '';
+        document.getElementById('scheduled-working-dir').value = task?.workspace || '';
         document.getElementById('scheduled-timeout').value = (task?.timeout || 600000) / 1000;
         document.getElementById('scheduled-auto-approve').checked = task?.auto_approve || false;
         document.getElementById('scheduled-enabled').checked = task?.enabled !== false;
 
-        // 设置工具选择
-        const tools = task?.tools ? task.tools.split(',') : AVAILABLE_TOOLS.filter(t => t.selected).map(t => t.name);
+        // 设置工具选择 (后端返回 allowed_tools 为数组)
+        let tools;
+        if (task?.allowed_tools) {
+            tools = Array.isArray(task.allowed_tools) ? task.allowed_tools : task.allowed_tools.split(',');
+        } else {
+            tools = AVAILABLE_TOOLS.filter(t => t.selected).map(t => t.name);
+        }
         const dropdown = document.getElementById('scheduled-tools-dropdown');
         const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]');
         checkboxes.forEach(cb => {
@@ -687,9 +764,12 @@ const Scheduler = {
             document.getElementById('scheduled-tools')
         );
 
+        // 加载工作空间列表
+        this.loadWorkspaceList('scheduled');
+
         // 验证 Cron 表达式
-        if (task?.cron_expression) {
-            this.validateCron(task.cron_expression);
+        if (task?.cron) {
+            this.validateCron(task.cron);
         } else {
             document.getElementById('cron-preview').style.display = 'none';
             document.getElementById('cron-error').style.display = 'none';
@@ -727,13 +807,24 @@ const Scheduler = {
             return;
         }
 
+        // 保存前验证 Cron 表达式
+        const cronValid = await this.validateCron(cronExpression);
+        if (!cronValid) {
+            Utils.showNotification('请先修正 Cron 表达式错误', 'error');
+            return;
+        }
+
+        // 获取工具列表并转为数组
+        const toolsValue = document.getElementById('scheduled-tools').value;
+        const allowedTools = toolsValue ? toolsValue.split(',').map(t => t.trim()).filter(t => t) : null;
+
         const task = {
             name,
-            cron_expression: cronExpression,
+            cron: cronExpression,  // 后端字段名
             prompt,
-            working_dir: document.getElementById('scheduled-working-dir').value.trim() || null,
+            workspace: document.getElementById('scheduled-working-dir').value.trim() || null,  // 后端字段名
             timeout: parseInt(document.getElementById('scheduled-timeout').value) * 1000,
-            tools: document.getElementById('scheduled-tools').value || null,
+            allowed_tools: allowedTools,  // 后端字段名，数组格式
             auto_approve: document.getElementById('scheduled-auto-approve').checked,
             enabled: document.getElementById('scheduled-enabled').checked,
         };
@@ -770,7 +861,12 @@ const Scheduler = {
      * 立即执行定时任务
      */
     async runScheduledNow(taskId) {
-        if (!confirm('确定要立即执行这个定时任务吗？')) return;
+        const confirmed = await Utils.showConfirm('确定要立即执行这个定时任务吗？', {
+            title: '立即执行',
+            type: 'warning',
+            confirmText: '执行'
+        });
+        if (!confirmed) return;
 
         try {
             await SchedulerAPI.runScheduledNow(taskId);
@@ -785,7 +881,12 @@ const Scheduler = {
      * 删除定时任务
      */
     async deleteScheduled(taskId) {
-        if (!confirm('确定要删除这个定时任务吗？')) return;
+        const confirmed = await Utils.showConfirm('确定要删除这个定时任务吗？', {
+            title: '删除定时任务',
+            type: 'danger',
+            confirmText: '删除'
+        });
+        if (!confirmed) return;
 
         try {
             await SchedulerAPI.deleteScheduled(taskId);
@@ -814,23 +915,25 @@ const Scheduler = {
 
         try {
             const result = await SchedulerAPI.validateCron(expression);
-            if (result.valid) {
+            // 后端返回结构: { success: true, data: { valid: true, next_run: "...", next_runs: [...] } }
+            // 或错误时通过 catch 处理
+            if (result.data && result.data.valid) {
                 preview.style.display = 'flex';
                 error.style.display = 'none';
-                nextRun.textContent = result.next_run
-                    ? this.formatDateTime(result.next_run)
+                nextRun.textContent = result.data.next_run
+                    ? this.formatDateTime(result.data.next_run)
                     : '-';
                 return true;
             } else {
                 preview.style.display = 'none';
                 error.style.display = 'block';
-                error.textContent = result.error || '无效的 Cron 表达式';
+                error.textContent = result.data?.error || '无效的 Cron 表达式';
                 return false;
             }
         } catch (err) {
             preview.style.display = 'none';
             error.style.display = 'block';
-            error.textContent = '验证失败';
+            error.textContent = err.message || '无效的 Cron 表达式';
             return false;
         }
     },
@@ -902,13 +1005,13 @@ const Scheduler = {
         document.getElementById('detail-task-started').textContent = task.started_at
             ? this.formatDateTime(task.started_at)
             : '-';
-        document.getElementById('detail-task-ended').textContent = task.ended_at
-            ? this.formatDateTime(task.ended_at)
+        document.getElementById('detail-task-ended').textContent = task.finished_at  // 后端字段名
+            ? this.formatDateTime(task.finished_at)
             : '-';
         document.getElementById('detail-task-duration').textContent = task.duration_ms
             ? this.formatDuration(task.duration_ms)
             : '-';
-        document.getElementById('detail-task-working-dir').textContent = task.working_dir || '默认目录';
+        document.getElementById('detail-task-working-dir').textContent = task.workspace || '默认工作空间';  // 后端字段名
 
         // 工具使用
         const toolsEl = document.getElementById('detail-task-tools');
@@ -965,11 +1068,15 @@ const Scheduler = {
         try {
             // 重新添加任务到队列
             const task = await SchedulerAPI.getTaskDetail(taskId);
+            // 后端字段: workspace, allowed_tools
+            const allowedTools = task.allowed_tools
+                ? (Array.isArray(task.allowed_tools) ? task.allowed_tools : task.allowed_tools.split(','))
+                : null;
             await SchedulerAPI.addTask({
                 prompt: task.prompt,
-                working_dir: task.working_dir,
+                workspace: task.workspace,
                 timeout: task.timeout,
-                tools: task.tools,
+                allowed_tools: allowedTools,
                 auto_approve: task.auto_approve,
             });
             Utils.showNotification('任务已重新加入队列', 'success');
@@ -1032,7 +1139,8 @@ const Scheduler = {
                 <thead>
                     <tr>
                         <th>描述</th>
-                        <th>工作目录</th>
+                        <th>来源</th>
+                        <th>工作空间</th>
                         <th>创建时间</th>
                         <th>操作</th>
                     </tr>
@@ -1040,10 +1148,11 @@ const Scheduler = {
                 <tbody>
                     ${items.map(task => `
                         <tr>
-                            <td class="task-prompt">${this.truncate(task.prompt, 50)}</td>
-                            <td>${task.working_dir || '默认'}</td>
-                            <td>${this.formatDateTime(task.created_at)}</td>
-                            <td class="actions">
+                            <td class="task-prompt" data-label="描述">${this.truncate(task.prompt, 50)}</td>
+                            <td data-label="来源">${this.getSourceBadge(task.source, task.scheduled_name)}</td>
+                            <td data-label="工作空间">${task.workspace || '默认工作空间'}</td>
+                            <td data-label="创建时间">${this.formatDateTime(task.created_at)}</td>
+                            <td class="actions" data-label="操作">
                                 <button class="btn btn-small btn-danger" onclick="Scheduler.deleteTask('${task.id}')">🗑 删除</button>
                             </td>
                         </tr>
@@ -1070,6 +1179,7 @@ const Scheduler = {
                 <thead>
                     <tr>
                         <th>名称</th>
+                        <th>工作空间</th>
                         <th>Cron</th>
                         <th>下次运行</th>
                         <th>状态</th>
@@ -1079,15 +1189,16 @@ const Scheduler = {
                 <tbody>
                     ${items.map(task => `
                         <tr>
-                            <td>${this.escapeHtml(task.name)}</td>
-                            <td><code>${task.cron_expression}</code></td>
-                            <td>${task.next_run ? this.formatDateTime(task.next_run) : '-'}</td>
-                            <td>
+                            <td data-label="名称">${this.escapeHtml(task.name)}</td>
+                            <td data-label="工作空间"><span class="workspace-badge">${task.workspace === '.' ? '默认工作空间' : this.escapeHtml(task.workspace)}</span></td>
+                            <td data-label="Cron"><code>${task.cron}</code></td>
+                            <td data-label="下次运行">${task.next_run ? this.formatDateTime(task.next_run) : '-'}</td>
+                            <td data-label="状态">
                                 <span class="status-badge ${task.enabled ? 'enabled' : 'disabled'}">
                                     ${task.enabled ? '✓ 启用' : '✗ 禁用'}
                                 </span>
                             </td>
-                            <td class="actions">
+                            <td class="actions" data-label="操作">
                                 <button class="btn btn-small" onclick="Scheduler.toggleScheduled('${task.id}')">
                                     ${task.enabled ? '禁用' : '启用'}
                                 </button>
@@ -1130,10 +1241,10 @@ const Scheduler = {
                         const elapsed = Date.now() - new Date(startedAt).getTime();
                         return `
                         <tr>
-                            <td><span class="status-icon running">🔄</span></td>
-                            <td class="task-prompt">${this.truncate(task.prompt, 50)}</td>
-                            <td class="running-duration" data-started-at="${startedAt}">${this.formatDuration(elapsed)}</td>
-                            <td class="actions">
+                            <td data-label="状态"><span class="status-badge running">🔄 运行中</span></td>
+                            <td class="task-prompt" data-label="描述">${this.truncate(task.prompt, 50)}</td>
+                            <td class="running-duration" data-label="运行时长" data-started-at="${startedAt}">${this.formatDuration(elapsed)}</td>
+                            <td class="actions" data-label="操作">
                                 <button class="btn btn-small" onclick="Scheduler.showTaskDetail('${task.id}')">详情</button>
                             </td>
                         </tr>
@@ -1161,6 +1272,7 @@ const Scheduler = {
                     <tr>
                         <th>状态</th>
                         <th>描述</th>
+                        <th>来源</th>
                         <th>完成时间</th>
                         <th>耗时</th>
                         <th>操作</th>
@@ -1169,11 +1281,12 @@ const Scheduler = {
                 <tbody>
                     ${items.map(task => `
                         <tr>
-                            <td><span class="status-icon completed">✅</span></td>
-                            <td class="task-prompt">${this.truncate(task.prompt, 50)}</td>
-                            <td>${this.formatDateTime(task.ended_at)}</td>
-                            <td>${this.formatDuration(task.duration_ms)}</td>
-                            <td class="actions">
+                            <td data-label="状态"><span class="status-badge completed">✅ 已完成</span></td>
+                            <td class="task-prompt" data-label="描述">${this.truncate(task.prompt, 50)}</td>
+                            <td data-label="来源">${this.getSourceBadge(task.source, task.scheduled_name)}</td>
+                            <td data-label="完成时间">${this.formatDateTime(task.finished_at)}</td>
+                            <td data-label="耗时">${this.formatDuration(task.duration_ms)}</td>
+                            <td class="actions" data-label="操作">
                                 <button class="btn btn-small" onclick="Scheduler.showTaskDetail('${task.id}')">详情</button>
                             </td>
                         </tr>
@@ -1201,6 +1314,7 @@ const Scheduler = {
                     <tr>
                         <th>状态</th>
                         <th>描述</th>
+                        <th>来源</th>
                         <th>错误信息</th>
                         <th>操作</th>
                     </tr>
@@ -1208,10 +1322,11 @@ const Scheduler = {
                 <tbody>
                     ${items.map(task => `
                         <tr>
-                            <td><span class="status-icon failed">❌</span></td>
-                            <td class="task-prompt">${this.truncate(task.prompt, 50)}</td>
-                            <td class="error-text">${this.truncate(task.error, 30)}</td>
-                            <td class="actions">
+                            <td data-label="状态"><span class="status-badge failed">❌ 失败</span></td>
+                            <td class="task-prompt" data-label="描述">${this.truncate(task.prompt, 50)}</td>
+                            <td data-label="来源">${this.getSourceBadge(task.source, task.scheduled_name)}</td>
+                            <td class="error-text" data-label="错误信息">${this.truncate(task.error, 30)}</td>
+                            <td class="actions" data-label="操作">
                                 <button class="btn btn-small" onclick="Scheduler.showTaskDetail('${task.id}')">详情</button>
                                 <button class="btn btn-small" onclick="Scheduler.retryTask('${task.id}')">重试</button>
                             </td>
@@ -1254,6 +1369,78 @@ const Scheduler = {
         }
     },
 
+    /**
+     * 渲染骨架屏 (v7.0.15)
+     * @param {string} containerId - 容器元素ID
+     * @param {number} count - 骨架项数量
+     */
+    renderSkeleton(containerId, count = 3) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const skeletonItems = Array(count).fill(0).map(() => `
+            <div class="skeleton-scheduler-item">
+                <span class="skeleton skeleton-icon"></span>
+                <span class="skeleton skeleton-line"></span>
+                <span class="skeleton skeleton-badge"></span>
+            </div>
+        `).join('');
+
+        container.innerHTML = `<div class="skeleton-container">${skeletonItems}</div>`;
+    },
+
+    // ===== 工作空间管理 =====
+
+    /**
+     * 加载工作空间列表
+     */
+    async loadWorkspaceList(dialogType) {
+        try {
+            const response = await fetch('/api/projects');
+            const data = await response.json();
+            const projects = data.projects || [];
+
+            const listId = dialogType === 'task' ? 'task-workspace-list' : 'scheduled-workspace-list';
+            const listEl = document.getElementById(listId);
+            const inputId = dialogType === 'task' ? 'task-working-dir' : 'scheduled-working-dir';
+
+            if (!listEl || !projects.length) {
+                listEl.innerHTML = '<span class="empty-text">暂无项目</span>';
+                return;
+            }
+
+            listEl.innerHTML = projects.map(project => {
+                const isDefault = project.path === '.' || project.path === '' || project.path === '默认工作空间';
+                return `
+                    <div class="workspace-item" data-path="${this.escapeHtml(project.path)}">
+                        <div class="workspace-item-info">
+                            <span class="workspace-item-name">${this.escapeHtml(project.name || project.path)}</span>
+                            <span class="workspace-item-path">${project.path}</span>
+                            ${isDefault ? '<span class="workspace-item-default">(默认)</span>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // 点击工作空间项目自动填入输入框
+            listEl.querySelectorAll('.workspace-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const path = item.dataset.path;
+                    const inputEl = document.getElementById(inputId);
+                    if (inputEl) {
+                        inputEl.value = path;
+                        // 如果点击的是"默认工作空间"，清空为使用默认值
+                        if (path === '默认工作空间') {
+                            inputEl.value = '';
+                        }
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('加载工作空间列表失败:', error);
+        }
+    },
+
     // ===== 工具方法 =====
 
     /**
@@ -1268,6 +1455,19 @@ const Scheduler = {
             'cancelled': '已取消',
         };
         return statusMap[status] || status;
+    },
+
+    /**
+     * 获取来源标识
+     */
+    getSourceBadge(source, scheduledName = null) {
+        const sourceConfig = {
+            'manual': { text: '手动', class: 'source-manual', icon: '✋' },
+            'scheduled': { text: scheduledName || '定时', class: 'source-scheduled', icon: '⏰' },
+            'immediate': { text: scheduledName || '立即执行', class: 'source-immediate', icon: '▶️' },
+        };
+        const config = sourceConfig[source] || sourceConfig['manual'];
+        return `<span class="source-badge ${config.class}" title="${config.text}">${config.icon} ${this.truncate(config.text, 10)}</span>`;
     },
 
     /**
@@ -1305,11 +1505,13 @@ const Scheduler = {
     },
 
     /**
-     * 截断文本
+     * 截断文本并转义HTML (防止XSS攻击)
      */
     truncate(text, maxLength) {
         if (!text) return '-';
-        return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+        // 先转义HTML，再截断
+        const escaped = this.escapeHtml(text);
+        return escaped.length > maxLength ? escaped.substring(0, maxLength) + '...' : escaped;
     },
 
     /**
@@ -1325,51 +1527,75 @@ const Scheduler = {
 
 /**
  * 调度器 API 封装
+ *
+ * 后端路由前缀为 /api/scheduler
  */
 const SchedulerAPI = {
     // 调度器控制
     getStatus: () => fetch('/api/scheduler/status').then(r => r.json()),
-    start: () => fetch('/api/scheduler/start', { method: 'POST' }).then(r => r.json()),
-    stop: () => fetch('/api/scheduler/stop', { method: 'POST' }).then(r => r.json()),
+    start: () => fetch('/api/scheduler/start', { method: 'POST' }).then(r => {
+        if (!r.ok) {
+            return r.json().then(data => {
+                throw new Error(data.error || '启动失败');
+            });
+        }
+        return r.json();
+    }),
+    stop: () => fetch('/api/scheduler/stop', { method: 'POST' }).then(r => {
+        if (!r.ok) {
+            return r.json().then(data => {
+                throw new Error(data.error || '停止失败');
+            });
+        }
+        return r.json();
+    }),
 
     // 任务队列
-    getQueue: () => fetch('/api/tasks').then(r => r.json()),
-    addTask: (task) => fetch('/api/tasks', {
+    getQueue: () => fetch('/api/scheduler/tasks').then(r => r.json()),
+    addTask: (task) => fetch('/api/scheduler/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task)
     }).then(r => r.json()),
-    deleteTask: (id) => fetch(`/api/tasks/${id}`, { method: 'DELETE' }),
-    clearQueue: () => fetch('/api/tasks/clear', { method: 'DELETE' }),
+    deleteTask: (id) => fetch(`/api/scheduler/tasks/${id}`, { method: 'DELETE' }),
+    clearQueue: () => fetch('/api/scheduler/tasks/clear', { method: 'DELETE' }),
 
     // 定时任务
-    getScheduled: () => fetch('/api/scheduled-tasks').then(r => r.json()),
-    addScheduled: (task) => fetch('/api/scheduled-tasks', {
+    getScheduled: () => fetch('/api/scheduler/scheduled-tasks').then(r => r.json()),
+    addScheduled: (task) => fetch('/api/scheduler/scheduled-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task)
     }).then(r => r.json()),
-    updateScheduled: (id, updates) => fetch(`/api/scheduled-tasks/${id}`, {
+    updateScheduled: (id, updates) => fetch(`/api/scheduler/scheduled-tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
     }).then(r => r.json()),
-    deleteScheduled: (id) => fetch(`/api/scheduled-tasks/${id}`, { method: 'DELETE' }),
-    toggleScheduled: (id) => fetch(`/api/scheduled-tasks/${id}/toggle`, { method: 'POST' }),
-    runScheduledNow: (id) => fetch(`/api/scheduled-tasks/${id}/run`, { method: 'POST' }),
+    deleteScheduled: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}`, { method: 'DELETE' }),
+    toggleScheduled: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}/toggle`, { method: 'POST' }),
+    runScheduledNow: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}/run`, { method: 'POST' }),
 
     // 任务状态
-    getRunning: () => fetch('/api/tasks/running').then(r => r.json()),
-    getCompleted: (page = 1, limit = 20) => fetch(`/api/tasks/completed?page=${page}&limit=${limit}`).then(r => r.json()),
-    getFailed: (page = 1, limit = 20) => fetch(`/api/tasks/failed?page=${page}&limit=${limit}`).then(r => r.json()),
-    getTaskDetail: (id) => fetch(`/api/tasks/${id}`).then(r => r.json()),
+    getRunning: () => fetch('/api/scheduler/tasks/running').then(r => r.json()),
+    getCompleted: (page = 1, limit = 20) => fetch(`/api/scheduler/tasks/completed?page=${page}&limit=${limit}`).then(r => r.json()),
+    getFailed: (page = 1, limit = 20) => fetch(`/api/scheduler/tasks/failed?page=${page}&limit=${limit}`).then(r => r.json()),
+    getTaskDetail: (id) => fetch(`/api/scheduler/tasks/${id}`).then(r => r.json()),
 
     // Cron 验证
     validateCron: (expr) => fetch('/api/scheduler/validate-cron', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cron: expr })
-    }).then(r => r.json()),
+    }).then(r => {
+        if (!r.ok) {
+            return r.json().then(data => {
+                // 后端返回 400 时，data.error 包含错误信息
+                throw new Error(data.error || '无效的 Cron 表达式');
+            });
+        }
+        return r.json();
+    }),
     getCronExamples: () => fetch('/api/scheduler/cron-examples').then(r => r.json()),
 };
 

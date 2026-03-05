@@ -220,6 +220,16 @@
     color: #a855f7;
 }
 
+/* TodoWrite 工具 - 任务列表风格 */
+.tool-result-todo {
+    background: rgba(251, 191, 36, 0.15);
+    border-left-color: #fbbf24;
+}
+
+.tool-result-todo .result-label {
+    color: #fbbf24;
+}
+
 /* 默认工具结果样式 */
 .tool-result-default {
     background: rgba(100, 116, 139, 0.15);
@@ -496,7 +506,7 @@
     color: #e6c07b;
 }
 
-/* ========== v0.5.3.5: Todo/Task/AskQuestion 渲染器样式 ========== */
+/* ========== v0.5.3.5: Todo/Task 渲染器样式 ========== */
 
 /* Todo Markdown 内联样式 */
 .todo-markdown {
@@ -529,26 +539,6 @@
 .tool-renderer .task-prompt-wrapper {
     background: rgba(39, 39, 42, 0.4);
     border: 1px solid rgba(63, 63, 70, 0.3);
-}
-
-/* AskQuestion 选项预览样式 */
-.option-markdown-preview {
-    font-size: 0.75rem;
-    max-height: 12rem;
-    overflow-y: auto;
-}
-
-.option-markdown-preview .markdown-p {
-    font-size: 0.75rem;
-}
-
-.option-markdown-preview .markdown-code-block {
-    font-size: 0.7rem;
-}
-
-.option-markdown-preview .markdown-pre {
-    padding: 0.5rem;
-    margin: 0;
 }
 
 /* 进度条样式增强（Todo 渲染器） */
@@ -605,44 +595,6 @@
     border-color: rgba(139, 92, 246, 0.3);
 }
 
-/* 问题卡片样式 */
-.question-card {
-    background: rgba(24, 24, 27, 0.7);
-    border: 1px solid rgba(63, 63, 70, 0.5);
-    border-radius: 0.5rem;
-    overflow: hidden;
-}
-
-.question-card .question-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid rgba(63, 63, 70, 0.5);
-    background: rgba(39, 39, 42, 0.3);
-}
-
-.question-card .question-icon {
-    color: #a78bfa;
-    font-size: 0.875rem;
-}
-
-.question-card .question-title {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #d4d4d8;
-}
-
-.question-card .question-body {
-    padding: 0.75rem;
-}
-
-.question-card .question-text {
-    font-size: 0.875rem;
-    color: #e4e4e7;
-    margin-bottom: 0.75rem;
-}
-
 /* ========== v0.5.3.6: 集成样式增强 ========== */
 
 /* 消息渲染器与工具渲染器的衔接样式 */
@@ -653,14 +605,64 @@
 
 /* 工具使用消息的整体样式 */
 .assistant-msg-tool_use {
-    border-left: 3px solid rgba(34, 211, 238, 0.3);
+    border-left: 3px solid var(--emerald-500); /* 绿色边框 #22c55e */
     background: rgba(24, 24, 27, 0.4);
+}
+
+/* 工具使用消息 - 颜色类变体 */
+.assistant-msg-tool_use.tool-color-cyan {
+    border-left-color: var(--cyan-500);
+}
+
+.assistant-msg-tool_use.tool-color-green {
+    border-left-color: var(--emerald-500);
+}
+
+.assistant-msg-tool_use.tool-color-violet {
+    border-left-color: var(--violet-500);
+}
+
+.assistant-msg-tool_use.tool-color-amber {
+    border-left-color: var(--amber-500);
+}
+
+.assistant-msg-tool_use.tool-color-sky {
+    border-left-color: var(--sky-500);
+}
+
+.assistant-msg-tool_use.tool-color-rose {
+    border-left-color: var(--rose-500);
 }
 
 /* 工具结果消息的整体样式 */
 .assistant-msg-tool_result {
-    border-left: 3px solid rgba(139, 92, 246, 0.3);
+    border-left: 3px solid var(--sky-500); /* 蓝色边框 #3b82f6 */
     background: rgba(24, 24, 27, 0.3);
+}
+
+/* 工具结果消息 - 颜色类变体 */
+.assistant-msg-tool_result.tool-color-cyan {
+    border-left-color: var(--cyan-500);
+}
+
+.assistant-msg-tool_result.tool-color-green {
+    border-left-color: var(--emerald-500);
+}
+
+.assistant-msg-tool_result.tool-color-violet {
+    border-left-color: var(--violet-500);
+}
+
+.assistant-msg-tool_result.tool-color-amber {
+    border-left-color: var(--amber-500);
+}
+
+.assistant-msg-tool_result.tool-color-sky {
+    border-left-color: var(--sky-500);
+}
+
+.assistant-msg-tool_result.tool-color-rose {
+    border-left-color: var(--rose-500);
 }
 
 /* 时间戳在工具消息中的样式 */
@@ -870,24 +872,53 @@
 
 /* 工具按钮 - 输入类型 */
 .tool-button-input {
-    background: rgba(51, 65, 85, 0.3);
-    border-color: rgba(51, 65, 85, 0.4);
-    color: #cbd5e1;
+    background: var(--tool-bg, rgba(51, 65, 85, 0.3));
+    border-color: var(--tool-border, rgba(51, 65, 85, 0.4));
+    color: var(--tool-color, #cbd5e1);
 }
 
 .tool-button-input:hover {
-    background: rgba(51, 65, 85, 0.5);
+    background: var(--tool-bg-hover, rgba(51, 65, 85, 0.5));
 }
 
 /* 工具按钮 - 结果类型（成功） */
 .tool-button-result {
-    background: rgba(20, 184, 166, 0.1);
-    border-color: rgba(20, 184, 166, 0.2);
-    color: #5eead4;
+    background: var(--tool-bg, rgba(20, 184, 166, 0.1));
+    border-color: var(--tool-border, rgba(20, 184, 166, 0.2));
+    color: var(--tool-color, #5eead4);
 }
 
 .tool-button-result:hover {
-    background: rgba(20, 184, 166, 0.2);
+    background: var(--tool-bg-hover, rgba(20, 184, 166, 0.2));
+}
+
+/* 工具按钮颜色 Hover 状态 */
+.tool-button.tool-color-cyan:hover {
+    --tool-bg-hover: rgba(34, 211, 238, 0.25);
+}
+
+.tool-button.tool-color-green:hover {
+    --tool-bg-hover: rgba(74, 222, 128, 0.25);
+}
+
+.tool-button.tool-color-violet:hover {
+    --tool-bg-hover: rgba(167, 139, 250, 0.25);
+}
+
+.tool-button.tool-color-amber:hover {
+    --tool-bg-hover: rgba(251, 191, 36, 0.25);
+}
+
+.tool-button.tool-color-sky:hover {
+    --tool-bg-hover: rgba(56, 189, 248, 0.25);
+}
+
+.tool-button.tool-color-rose:hover {
+    --tool-bg-hover: rgba(251, 113, 133, 0.25);
+}
+
+.tool-button.tool-color-default:hover {
+    --tool-bg-hover: rgba(148, 163, 184, 0.2);
 }
 
 /* 工具按钮 - 结果类型（错误） */
@@ -1161,5 +1192,269 @@
     .diff-new-num {
         min-width: 1.5rem;
         font-size: 0.5rem;
+    }
+}
+
+/* ========== v0.5.8: Complete 消息样式 (PQ-011, PQ-012) ========== */
+
+/* 完成消息容器 */
+.message-complete {
+    border: 2px solid #22c55e;
+    background-color: rgba(34, 197, 94, 0.1);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0;
+}
+
+.message-complete-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #22c55e;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 统计信息栏 */
+.complete-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 12px;
+    background-color: rgba(34, 197, 94, 0.15);
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+}
+
+.stat-label {
+    color: #86efac;
+    font-weight: 500;
+}
+
+.stat-value {
+    color: #4ade80;
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+/* 会话 ID 可点击复制 */
+.session-id-copy {
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.session-id-copy:hover {
+    color: #86efac;
+}
+
+/* 变更文件区域 */
+.complete-files {
+    margin-bottom: 12px;
+}
+
+.complete-files-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background-color: rgba(34, 197, 94, 0.2);
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+
+.complete-files-header:hover {
+    background-color: rgba(34, 197, 94, 0.25);
+}
+
+.complete-files-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #4ade80;
+    font-weight: 500;
+}
+
+.complete-files-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.complete-files-list {
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    padding: 8px 0;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.file-item:hover {
+    background-color: rgba(34, 197, 94, 0.1);
+}
+
+.file-icon {
+    font-size: 16px;
+}
+
+.file-path {
+    color: #86efac;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.8rem;
+}
+
+.file-path:hover {
+    color: #4ade80;
+}
+
+/* 工具使用区域 */
+.complete-tools {
+    margin-bottom: 12px;
+}
+
+.complete-tools-header {
+    padding: 8px 12px;
+    background-color: rgba(34, 197, 94, 0.2);
+    border-radius: 6px 6px 0 0;
+    color: #4ade80;
+    font-weight: 500;
+}
+
+.tools-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.tool-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: default;
+    transition: transform 0.15s;
+}
+
+.tool-badge:hover {
+    transform: scale(1.05);
+}
+
+/* 工具徽章颜色 (需求文档 3.5.4) */
+.tool-badge-read { background-color: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+.tool-badge-edit { background-color: rgba(34, 197, 94, 0.2); color: #86efac; }
+.tool-badge-write { background-color: rgba(34, 197, 94, 0.2); color: #86efac; }
+.tool-badge-bash { background-color: rgba(100, 116, 139, 0.2); color: #cbd5e1; }
+.tool-badge-glob { background-color: rgba(251, 191, 36, 0.2); color: #fcd34d; }
+.tool-badge-grep { background-color: rgba(251, 191, 36, 0.2); color: #fcd34d; }
+.tool-badge-agent { background-color: rgba(168, 85, 247, 0.2); color: #d8b4fe; }
+.tool-badge-task { background-color: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+.tool-badge-web { background-color: rgba(6, 182, 212, 0.2); color: #67e8f9; }
+.tool-badge-default { background-color: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+
+/* 操作按钮 */
+.complete-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
+    border-top: 1px solid rgba(34, 197, 94, 0.2);
+    margin-top: 8px;
+}
+
+.btn-continue-session {
+    padding: 8px 16px;
+    background-color: #22c55e;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-size: 0.85rem;
+}
+
+.btn-continue-session:hover {
+    background-color: #16a34a;
+}
+
+/* 复制按钮 */
+.btn-copy {
+    padding: 2px 8px;
+    background: transparent;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 4px;
+    color: #86efac;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.btn-copy:hover {
+    background: rgba(34, 197, 94, 0.2);
+    border-color: rgba(34, 197, 94, 0.5);
+}
+
+/* 展开箭头 */
+.toggle-icon {
+    font-size: 10px;
+    transition: transform 0.2s ease;
+    color: #86efac;
+}
+
+.toggle-icon.collapsed {
+    transform: rotate(-90deg);
+}
+
+.toggle-icon.expanded {
+    transform: rotate(0deg);
+}
+
+/* 空状态提示 */
+.complete-files-empty {
+    padding: 8px 12px;
+    color: #71717a;
+    font-size: 0.85rem;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 6px;
+}
+
+/* Complete 消息响应式 */
+@media (max-width: 640px) {
+    .complete-stats {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .tools-badges {
+        gap: 6px;
+    }
+
+    .tool-badge {
+        font-size: 11px;
+        padding: 3px 8px;
     }
 }

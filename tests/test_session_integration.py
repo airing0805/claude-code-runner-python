@@ -134,7 +134,7 @@ class TestQuestionAnswerFlow:
 
         # 2. 初始化问题状态为 SHOWING（可以接受答案的状态）
         client._question_states["q1"] = {
-            "status": QuestionStatus.SHOWING.value,
+            "status": QuestionStatus.SHOWING_UPPER.value,
             "updated_at": 0,
             "metadata": {}
         }
@@ -206,7 +206,7 @@ class TestQuestionAnswerFlow:
         client = ClaudeCodeClient()
         client.set_session_id("session-123")
         client._question_states["q1"] = {
-            "status": QuestionStatus.SHOWING.value,
+            "status": QuestionStatus.SHOWING_UPPER.value,
             "updated_at": 0,
             "metadata": {}
         }
@@ -231,7 +231,7 @@ class TestMultiQuestionFlow:
         # 创建三个问题
         for i in range(1, 4):
             client._question_states[f"q{i}"] = {
-                "status": QuestionStatus.SHOWING.value,  # 使用 SHOWING 状态
+                "status": QuestionStatus.SHOWING_UPPER.value,  # 使用 SHOWING 状态
                 "updated_at": 0,
                 "metadata": {}
             }
@@ -406,52 +406,6 @@ class TestPermissionModes:
         client = ClaudeCodeClient(permission_mode="bypassPermissions")
         options = client._create_options()
         assert options.permission_mode == "bypassPermissions"
-
-
-class TestContinueConversation:
-    """继续对话测试"""
-
-    @pytest.mark.asyncio
-    @patch("app.claude_runner.client.ClaudeSDKClient")
-    async def test_continue_conversation_enabled(self, mock_sdk_class):
-        """测试启用继续对话"""
-        mock_instance = MagicMock()
-        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-        mock_instance.__aexit__ = AsyncMock(return_value=None)
-        mock_instance.query = AsyncMock()
-        mock_instance.receive_response = AsyncMock(return_value=iter([]))
-
-        mock_sdk_class.return_value = mock_instance
-
-        client = ClaudeCodeClient(continue_conversation=True)
-        options = client._create_options()
-
-        assert options.continue_conversation is True
-
-        # 运行任务
-        messages = []
-        async for msg in client.run_stream("继续上次的话题"):
-            messages.append(msg)
-
-        mock_instance.query.assert_called_once_with("继续上次的话题")
-
-    @pytest.mark.asyncio
-    @patch("app.claude_runner.client.ClaudeSDKClient")
-    async def test_continue_conversation_disabled(self, mock_sdk_class):
-        """测试禁用继续对话"""
-        mock_instance = MagicMock()
-        mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
-        mock_instance.__aexit__ = AsyncMock(return_value=None)
-        mock_instance.query = AsyncMock()
-        mock_instance.receive_response = AsyncMock(return_value=iter([]))
-
-        mock_sdk_class.return_value = mock_instance
-
-        client = ClaudeCodeClient(continue_conversation=False)
-        options = client._create_options()
-
-        assert options.continue_conversation is False
-
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

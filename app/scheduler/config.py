@@ -15,6 +15,8 @@ SCHEDULED_FILE = DATA_DIR / "scheduled.json"
 RUNNING_FILE = DATA_DIR / "running.json"
 COMPLETED_FILE = DATA_DIR / "completed.json"
 FAILED_FILE = DATA_DIR / "failed.json"
+CANCELLED_FILE = DATA_DIR / "cancelled.json"
+LOGS_FILE = DATA_DIR / "logs.jsonl"
 
 # 默认超时时间（毫秒）
 DEFAULT_TIMEOUT = 600000  # 10 分钟
@@ -41,6 +43,18 @@ MAX_LIMIT = 100
 LOCK_TIMEOUT = 5  # 锁获取超时时间（秒）
 LOCK_RETRY_INTERVAL = 0.1  # 重试间隔（秒）
 MAX_LOCK_RETRIES = 50  # 最大重试次数
+
+# 队列容量配置
+MAX_QUEUE_SIZE = 1000  # 任务队列最大容量
+
+
+class QueueFullError(Exception):
+    """队列已满异常"""
+
+    def __init__(self, current_size: int, max_size: int):
+        self.current_size = current_size
+        self.max_size = max_size
+        super().__init__(f"任务队列已满 ({current_size}/{max_size})")
 
 # 调度器状态
 class SchedulerStatus(str, Enum):

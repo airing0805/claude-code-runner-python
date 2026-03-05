@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.claude_runner import ClaudeCodeClient
-from app.claude_runner.client import PermissionMode
+from app.claude_runner.client import MessageType, PermissionMode
 from app.routers.session_manager import session_manager, SessionInfo
 
 router = APIRouter(prefix="/api/task", tags=["task"])
@@ -25,42 +25,170 @@ router = APIRouter(prefix="/api/task", tags=["task"])
 CLAUDE_DIR = Path.home() / ".claude"
 
 
-def get_project_hash(project_path: str) -> str:
-    """根据项目路径生成哈希值（与 Claude Code 一致）"""
+def get_project_dir_name(project_path: str) -> str:
+    """
+    根据项目路径生成目录名（与 Claude Agent SDK 一致）
+
+    SDK 使用的命名规则：
+    - Windows: E:\\workspaces_2026\\project → E--workspaces-2026-project
+    - Unix: /home/user/project → -home-user-project
+    - 盘符后的冒号转换为 --
+    - 路径分隔符和下划线都转换为 -
+    """
     abs_path = Path(project_path).resolve()
-    path_str = str(abs_path).replace("\\", "/")
-    return hashlib.md5(path_str.encode()).hexdigest()[:16]
+    path_str = str(abs_path)
+
+    # Windows 路径处理
+    if len(path_str) >= 2 and path_str[1] == ":":
+        # E:\path → E--path (从索引 3 跳过 "E:\")
+        drive = path_str[0].upper()
+        rest = path_str[3:].replace("\\", "-").replace("/", "-").replace("_", "-")
+        return f"{drive}--{rest}"
+    else:
+        # Unix 路径: /home/user → -home-user
+        return path_str.replace("\\", "-").replace("/", "-").replace("_", "-")
 
 
-async def save_user_message_to_session(session_id: str, prompt: str, cwd: str) -> None:
-    """保存用户消息到会话文件"""
+async def save_user_message_to_session(
+    session_id: str,
+    prompt: str,
+    cwd: str,
+    permission_mode: PermissionMode = "default",
+) -> None:
+    """
+    保存用户消息到会话文件
+
+    生成与 Claude Agent SDK 兼容的会话文件格式。
+    注意：此函数仅在创建新会话时调用，恢复会话时不应该覆盖已有文件。
+    """
+    import subprocess
+
     try:
         # 获取项目目录
-        project_hash = get_project_hash(cwd)
+        project_hash = get_project_dir_name(cwd)
         project_dir = CLAUDE_DIR / "projects" / project_hash
         project_dir.mkdir(parents=True, exist_ok=True)
 
-        # 创建会话文件
+        # 会话文件路径
         session_file = project_dir / f"{session_id}.jsonl"
 
-        # 构建用户消息格式
+        # 如果文件已存在，不要覆盖（恢复会话的情况）
+        if session_file.exists():
+            logger.info(f"会话文件已存在，跳过创建: {session_file}")
+            return
+
+        # 获取 Git 分支（如果可用）
+        git_branch = "master"
+        try:
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                git_branch = result.stdout.strip() or "master"
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+
+        # 构建符合 Claude Code 格式的用户消息
+        message_uuid = str(uuid.uuid4())
+        timestamp = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
         message_data = {
+            "parentUuid": None,  # 首条消息没有父消息
+            "isSidechain": False,
+            "userType": "external",
+            "cwd": cwd.replace("/", "\\") if "\\" in cwd else cwd,
+            "sessionId": session_id,
+            "version": "2.1.47",  # Claude Code 版本
+            "gitBranch": git_branch,
             "type": "user",
-            "uuid": str(uuid.uuid4()),
-            "timestamp": datetime.now().isoformat(),
             "message": {
                 "role": "user",
                 "content": [{"type": "text", "text": prompt}],
             },
-            "cwd": cwd,
+            "uuid": message_uuid,
+            "timestamp": timestamp,
+            "permissionMode": permission_mode,
         }
 
         # 写入会话文件
         with open(session_file, "w", encoding="utf-8") as f:
             f.write(json.dumps(message_data, ensure_ascii=False) + "\n")
+
+        logger.info(f"已创建会话文件: {session_file}")
     except Exception as e:
         # 记录错误但不影响主流程
         logger.warning(f"保存用户消息失败: {e}")
+
+
+def check_session_file_valid(session_id: str, cwd: str) -> bool:
+    """
+    检查会话文件是否存在且格式有效
+
+    跳过 queue-operation 等非消息类型的行，找到第一条真正的用户消息或助手消息来验证。
+    兼容旧格式会话文件（第一行可能是 queue-operation）。
+
+    Args:
+        session_id: 会话 ID
+        cwd: 工作目录
+
+    Returns:
+        bool: 会话文件是否有效
+    """
+    try:
+        project_hash = get_project_dir_name(cwd)
+        session_file = CLAUDE_DIR / "projects" / project_hash / f"{session_id}.jsonl"
+
+        if not session_file.exists():
+            logger.info(f"会话文件不存在: {session_file}")
+            return False
+
+        # 检查文件是否为空
+        if session_file.stat().st_size == 0:
+            logger.info(f"会话文件为空: {session_file}")
+            return False
+
+        # 检查文件格式：读取文件，跳过非消息类型的行
+        with open(session_file, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+
+                data = json.loads(line)
+                msg_type = data.get("type")
+
+                # 跳过非消息类型的行（如 queue-operation, progress 等）
+                # 只验证 user 或 assistant 类型的消息
+                if msg_type not in ("user", "assistant"):
+                    logger.debug(f"跳过非消息行: type={msg_type}")
+                    continue
+
+                # 检查必要字段
+                required_fields = ["type", "sessionId", "uuid", "message"]
+                for field in required_fields:
+                    if field not in data:
+                        logger.info(f"会话文件消息缺少字段 {field}: {session_file}")
+                        return False
+
+                # 验证 sessionId 匹配
+                if data.get("sessionId") != session_id:
+                    logger.info(f"会话文件 sessionId 不匹配: 期望={session_id}, 实际={data.get('sessionId')}")
+                    return False
+
+                logger.info(f"会话文件有效: {session_file} (验证消息 type={msg_type})")
+                return True
+
+            # 遍历完所有行都没找到有效消息
+            logger.info(f"会话文件未找到有效的用户/助手消息: {session_file}")
+            return False
+
+    except (json.JSONDecodeError, IOError) as e:
+        logger.warning(f"检查会话文件失败: {e}")
+        return False
 
 
 class TaskRequest(BaseModel):
@@ -68,8 +196,8 @@ class TaskRequest(BaseModel):
     prompt: str
     working_dir: Optional[str] = None
     tools: Optional[list[str]] = None
-    continue_conversation: bool = False
     resume: Optional[str] = None
+    new_session: bool = False  # 是否创建新会话（忽略 resume）
     permission_mode: PermissionMode = "default"
 
 
@@ -108,6 +236,18 @@ class SessionStatusResponse(BaseModel):
     created_at: float
 
 
+class NewSessionRequest(BaseModel):
+    """新会话请求"""
+    session_id: Optional[str] = None  # 如果指定，只结束该会话；否则结束所有会话
+
+
+class NewSessionResponse(BaseModel):
+    """新会话响应"""
+    success: bool
+    message: str
+    ended_sessions: list[str] = []
+
+
 @router.post("", response_model=TaskResponse)
 async def run_task(task: TaskRequest, working_dir: str = "."):
     """
@@ -116,7 +256,6 @@ async def run_task(task: TaskRequest, working_dir: str = "."):
     client = ClaudeCodeClient(
         working_dir=task.working_dir or working_dir,
         allowed_tools=task.tools,
-        continue_conversation=task.continue_conversation,
         resume=task.resume,
         permission_mode=task.permission_mode,
     )
@@ -145,38 +284,61 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
     import time
     request_start_time = time.time()
     logger.info(f"[SSE] ==================== 新请求开始 ====================")
-    logger.info(f"[SSE] 请求详情: resume={task.resume}, working_dir={task.working_dir}, prompt长度={len(task.prompt) if task.prompt else 0}")
+    logger.info(f"[SSE] 请求详情: resume={task.resume}, new_session={task.new_session}, working_dir={task.working_dir}, prompt长度={len(task.prompt) if task.prompt else 0}")
     logger.info(f"[SSE] 当前所有会话数: {len(session_manager._sessions)}")
     logger.info(f"[SSE] 当前所有会话IDs: {list(session_manager._sessions.keys())}")
 
-    # 如果提供了 resume 参数，尝试恢复已有会话；否则生成新的会话 ID
+    # 确定工作目录
+    cwd = task.working_dir or working_dir
+
+    # 会话 ID 确定逻辑
+    # 优先级：1. new_session=True → 创建新会话
+    #         2. resume 参数有效 → 检查内存会话和文件有效性
+    #         3. 创建新会话
     existing_session = None
-    if task.resume:
+    can_resume = False  # 是否可以真正恢复会话
+
+    if task.new_session:
+        # 用户明确请求新会话，忽略 resume 参数
+        session_id = str(uuid.uuid4())
+        logger.info(f"[SSE] new_session=True，创建新会话: session_id={session_id}")
+    elif task.resume:
         # 尝试恢复已有会话
         existing_session = await session_manager.get_session(task.resume)
-        if existing_session:
+
+        # 检查会话文件是否有效
+        session_file_valid = check_session_file_valid(task.resume, cwd)
+        logger.info(f"[SSE] 会话文件有效性检查: session_id={task.resume}, valid={session_file_valid}")
+
+        if existing_session and session_file_valid:
+            # 内存会话存在且文件有效，可以恢复
             session_id = task.resume
+            can_resume = True
             logger.info(f"[SSE] 恢复已有会话: session_id={session_id}, is_waiting={existing_session.is_waiting}")
+        elif session_file_valid:
+            # 文件有效但内存会话不存在（服务重启后的情况），也可以恢复
+            session_id = task.resume
+            can_resume = True
+            logger.info(f"[SSE] 恢复文件中的会话: session_id={session_id}")
         else:
-            # 会话不存在，创建新的
+            # 会话文件无效，创建新会话
             session_id = str(uuid.uuid4())
-            logger.info(f"[SSE] resume 参数提供的会话不存在，创建新会话: session_id={session_id}")
+            existing_session = None
+            logger.info(f"[SSE] 会话文件无效，创建新会话: session_id={session_id}")
     else:
         # 生成新的会话 ID
         session_id = str(uuid.uuid4())
         logger.info(f"[SSE] 无 resume 参数，创建新会话: session_id={session_id}")
 
-    # 确定工作目录
-    cwd = task.working_dir or working_dir
-
-    # 创建客户端：如果会话不存在，将 resume 设为 None 避免传递无效值
+    # 创建客户端：只有 can_resume=True 时才传递 resume 参数
     client = ClaudeCodeClient(
         working_dir=cwd,
         allowed_tools=task.tools,
-        continue_conversation=task.continue_conversation,
-        resume=task.resume if existing_session else None,
+        resume=task.resume if can_resume else None,
         permission_mode=task.permission_mode,
     )
+
+    logger.info(f"[SSE] 客户端配置: resume={task.resume if can_resume else None}, can_resume={can_resume}")
 
     # 设置客户端的会话 ID
     client.set_session_id(session_id)
@@ -185,14 +347,18 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
     logger.info(f"[SSE] 创建会话: session_id={session_id}")
     await session_manager.create_session(session_id, client)
 
-    # 保存用户消息到会话文件
-    await save_user_message_to_session(session_id, task.prompt, cwd)
+    # 注意：不再手动创建会话文件！
+    # SDK 会自己创建和管理会话文件，手动创建可能导致格式不一致
+    # 恢复会话时，SDK 会根据 resume 参数自动查找文件系统中的会话文件
 
     # 用于控制迭代器完成
     iteration_done = asyncio.Event()
 
     async def event_generator():
         """SSE 事件生成器"""
+        # 用于跟踪 SDK 返回的真实 session_id
+        sdk_session_id = None
+
         try:
             # 流式接收消息
             async for msg in client.run_stream(task.prompt):
@@ -201,9 +367,19 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
                 session_is_waiting = session.is_waiting if session else False
                 pending_qid = client.get_pending_question_id()
 
+                # 检查是否有 SDK 返回的 session_id（在 complete 消息的 metadata 中）
+                if msg.type == MessageType.COMPLETE and msg.metadata:
+                    sdk_sid = msg.metadata.get("session_id")
+                    if sdk_sid:
+                        sdk_session_id = sdk_sid
+                        logger.info(f"[SSE] SDK 返回的 session_id: {sdk_sid}")
+
+                # 使用 SDK 的 session_id（如果有的话），否则使用后端生成的
+                effective_session_id = sdk_session_id or session_id
+
                 # ========== 调试日志：每次消息处理 ==========
                 logger.info(
-                    f"[SSE] ★★★ 消息处理: session_id={session_id}, "
+                    f"[SSE] ★★★ 消息处理: session_id={effective_session_id}, "
                     f"client.is_waiting_answer()={is_waiting}, "
                     f"session.is_waiting={session_is_waiting}, "
                     f"pending_question_id={pending_qid}, "
@@ -214,7 +390,7 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
                 # 只在客户端真正在等待答案时设置等待状态，避免重复显示对话框
                 if is_waiting:
                     # 只有当客户端真正在等待答案时才设置会话为等待状态
-                    logger.info(f"[SSE] >>>>> 会话进入等待状态: session_id={session_id}, reason=client_is_waiting={is_waiting}, msg_type={msg.type.value}")
+                    logger.info(f"[SSE] >>>>> 会话进入等待状态: session_id={effective_session_id}, reason=client_is_waiting={is_waiting}, msg_type={msg.type.value}")
                     await session_manager.set_waiting(session_id, True)
                     # 再次检查确认
                     session_after = await session_manager.get_session(session_id)
@@ -228,7 +404,7 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
                     "timestamp": msg.timestamp,
                     "tool_name": msg.tool_name,
                     "tool_input": msg.tool_input,
-                    "session_id": session_id,
+                    "session_id": effective_session_id,  # 使用 SDK 的 session_id
                     "metadata": msg.metadata,
                 }
 
@@ -290,9 +466,11 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
 
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
-            # 任务完成，清理会话
-            logger.info(f"[SSE] 任务完成，删除会话: session_id={session_id}")
-            await session_manager.remove_session(session_id)
+            # 任务完成，保留会话以支持多轮对话
+            # 不再自动删除会话，用户可以通过"新会话"按钮明确结束
+            logger.info(f"[SSE] 任务完成，保留会话: session_id={session_id}")
+            # 会话保留，支持用户继续对话
+            # 将在用户点击"新会话"或超时时清理
 
         except Exception as e:
             # 发生错误时清理会话
@@ -437,7 +615,7 @@ async def list_sessions():
     """
     列出所有活跃会话
 
-    返回当前所有等待用户回答的会话
+    返回当前所有活跃会话（包括等待回答和执行中的）
     """
     sessions = await session_manager.list_sessions()
     return [
@@ -449,3 +627,47 @@ async def list_sessions():
         )
         for s in sessions
     ]
+
+
+@router.post("/new-session", response_model=NewSessionResponse)
+async def new_session(request: NewSessionRequest):
+    """
+    创建新会话（结束当前会话）
+
+    用于用户点击"新会话"按钮，结束当前活跃会话
+    """
+    logger.info(f"[NewSession] 请求结束会话: {request.session_id}")
+
+    ended_sessions = []
+
+    if request.session_id:
+        # 结束指定会话
+        session = await session_manager.get_session(request.session_id)
+        if session:
+            await session_manager.remove_session(request.session_id)
+            ended_sessions.append(request.session_id)
+            logger.info(f"[NewSession] 已结束会话: {request.session_id}")
+    else:
+        # 结束所有会话
+        all_sessions = await session_manager.list_sessions()
+        for s in all_sessions:
+            await session_manager.remove_session(s.session_id)
+            ended_sessions.append(s.session_id)
+        logger.info(f"[NewSession] 已结束所有会话: {ended_sessions}")
+
+    return NewSessionResponse(
+        success=True,
+        message=f"已结束 {len(ended_sessions)} 个会话",
+        ended_sessions=ended_sessions,
+    )
+
+
+@router.get("/session/{session_id}/exists")
+async def session_exists(session_id: str):
+    """
+    检查会话是否存在
+
+    用于前端判断会话是否仍然活跃
+    """
+    session = await session_manager.get_session(session_id)
+    return {"exists": session is not None}

@@ -45,6 +45,8 @@ def mock_storage():
     storage.scheduled.get_all = MagicMock(return_value=[])
     storage.scheduled.get = MagicMock(return_value=None)
     storage.scheduled.delete = MagicMock(return_value=False)
+    storage.scheduled.count = MagicMock(return_value=0)
+    storage.scheduled.enabled_count = MagicMock(return_value=0)
 
     # 运行中任务存储
     storage.running = MagicMock()
@@ -62,6 +64,15 @@ def mock_storage():
     storage.history.get_failed = MagicMock(return_value=PaginatedResponse(
         items=[], total=0, page=1, limit=20, pages=1
     ))
+    storage.history.find_by_id = MagicMock(return_value=None)
+
+    # 已取消任务存储
+    storage.cancelled = MagicMock()
+    storage.cancelled.get = MagicMock(return_value=None)
+    storage.cancelled.get_paginated = MagicMock(return_value=PaginatedResponse(
+        items=[], total=0, page=1, limit=20, pages=1
+    ))
+    storage.cancelled.add = MagicMock()
 
     return storage
 
@@ -129,7 +140,7 @@ class TestTaskQueueAPI:
                 "workspace": "/test/workspace",
                 "timeout": 300000,
             }
-            response = client.post("/api/tasks", json=request_data)
+            response = client.post("/api/scheduler/tasks", json=request_data)
 
             assert response.status_code == 201
             data = response.json()
@@ -139,38 +150,43 @@ class TestTaskQueueAPI:
             mock_storage.queue.add.assert_called_once()
 
     def test_create_task_with_empty_prompt(self, client, mock_storage):
-        """测试创建任务时描述为空"""
-        with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.post("/api/tasks", json={"prompt": ""})
+        """测试创建任务时描述为空
 
-            assert response.status_code == 400
-            assert "VALIDATION_ERROR" in str(response.json())
+        Pydantic 验证返回 422 Unprocessable Entity（FastAPI 标准行为）
+        """
+        with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
+            response = client.post("/api/scheduler/tasks", json={"prompt": ""})
+
+            # Pydantic 验证失败返回 422，不是 400
+            assert response.status_code == 422
 
     def test_create_task_without_prompt(self, client, mock_storage):
         """测试创建任务时缺少描述字段"""
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.post("/api/tasks", json={})
+            response = client.post("/api/scheduler/tasks", json={})
 
-            assert response.status_code == 400
+            # Pydantic 验证失败返回 422，不是 400
+            assert response.status_code == 422
 
     def test_create_task_with_default_values(self, client, mock_storage):
         """测试创建任务时使用默认值"""
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
             request_data = {"prompt": "测试任务"}
-            response = client.post("/api/tasks", json=request_data)
+            response = client.post("/api/scheduler/tasks", json=request_data)
 
             assert response.status_code == 201
             data = response.json()
             assert data["success"] is True
             assert data["data"]["prompt"] == "测试任务"
-            assert data["data"]["workspace"] == "."  # 默认工作目录
+            # 空 workspace 返回空字符串（validate_workspace 的行为）
+            assert data["data"]["workspace"] == ""
 
     def test_list_tasks_empty(self, client, mock_storage):
         """测试获取空队列列表"""
         mock_storage.queue.get_all.return_value = []
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks")
+            response = client.get("/api/scheduler/tasks")
 
             assert response.status_code == 200
             data = response.json()
@@ -182,7 +198,7 @@ class TestTaskQueueAPI:
         mock_storage.queue.get_all.return_value = [sample_task]
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks")
+            response = client.get("/api/scheduler/tasks")
 
             assert response.status_code == 200
             data = response.json()
@@ -195,7 +211,7 @@ class TestTaskQueueAPI:
         mock_storage.queue.remove.return_value = True
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete(f"/api/tasks/{sample_task.id}")
+            response = client.delete(f"/api/scheduler/tasks/{sample_task.id}")
 
             assert response.status_code == 200
             data = response.json()
@@ -207,20 +223,112 @@ class TestTaskQueueAPI:
         mock_storage.queue.remove.return_value = False
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/tasks/00000000-0000-0000-0000-000000000000")
+            response = client.delete("/api/scheduler/tasks/00000000-0000-0000-0000-000000000000")
 
             assert response.status_code == 404
 
     def test_clear_tasks_success(self, client, mock_storage):
         """测试成功清空队列"""
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/tasks/clear")
+            response = client.delete("/api/scheduler/tasks/clear")
 
             assert response.status_code == 200
             data = response.json()
             assert data["success"] is True
             assert "已清空" in data["message"]
             mock_storage.queue.clear.assert_called_once()
+
+    def test_cancel_task_in_queue_success(self, client, mock_storage, sample_task):
+        """测试成功取消队列中的任务"""
+        mock_storage.queue.get.return_value = sample_task
+        mock_storage.queue.remove.return_value = True
+
+        with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
+            response = client.post(f"/api/scheduler/tasks/{sample_task.id}/cancel")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert "已取消" in data["message"]
+            mock_storage.queue.remove.assert_called_once_with(sample_task.id)
+            mock_storage.cancelled.add.assert_called_once()
+
+    def test_cancel_running_task_fails(self, client, mock_storage, sample_task):
+        """测试取消正在运行的任务失败"""
+        sample_task.status = TaskStatus.RUNNING
+        mock_storage.queue.get.return_value = None
+        mock_storage.running.get.return_value = sample_task
+
+        with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
+            response = client.post(f"/api/scheduler/tasks/{sample_task.id}/cancel")
+
+            assert response.status_code == 400
+            data = response.json()
+            assert "TASK_ALREADY_RUNNING" in str(data)
+
+    def test_cancel_task_not_found(self, client, mock_storage):
+        """测试取消不存在的任务"""
+        mock_storage.queue.get.return_value = None
+        mock_storage.running.get.return_value = None
+
+        with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
+            response = client.post("/api/scheduler/tasks/00000000-0000-0000-0000-000000000000/cancel")
+
+            assert response.status_code == 404
+            data = response.json()
+            assert "TASK_NOT_FOUND" in str(data)
+
+    def test_list_cancelled_tasks_empty(self, client, mock_storage):
+        """测试获取空的已取消任务列表"""
+        mock_storage.cancelled.get_paginated.return_value = PaginatedResponse(
+            items=[], total=0, page=1, limit=20, pages=1
+        )
+
+        with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
+            response = client.get("/api/scheduler/tasks/cancelled")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["data"]["items"] == []
+
+    def test_list_cancelled_tasks_with_pagination(self, client, mock_storage, sample_task):
+        """测试获取已取消任务列表的分页参数"""
+        sample_task.status = TaskStatus.CANCELLED
+        sample_task_list = [sample_task.to_dict() for _ in range(25)]
+        mock_storage.cancelled.get_paginated.return_value = PaginatedResponse(
+            items=sample_task_list[:20],
+            total=25,
+            page=1,
+            limit=20,
+            pages=2,
+        )
+
+        with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
+            response = client.get("/api/scheduler/tasks/cancelled?page=1&limit=20")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["data"]["total"] == 25
+            assert data["data"]["page"] == 1
+            assert data["data"]["limit"] == 20
+            assert data["data"]["pages"] == 2
+
+    def test_get_task_detail_from_cancelled(self, client, mock_storage, sample_task):
+        """测试从已取消列表获取任务详情"""
+        sample_task.status = TaskStatus.CANCELLED
+        mock_storage.queue.get.return_value = None
+        mock_storage.running.get.return_value = None
+        mock_storage.cancelled.get.return_value = sample_task
+
+        with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
+            response = client.get(f"/api/scheduler/tasks/{sample_task.id}")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["success"] is True
+            assert data["data"]["id"] == sample_task.id
 
 
 class TestScheduledTaskAPI:
@@ -234,7 +342,7 @@ class TestScheduledTaskAPI:
                 "prompt": "执行代码审查",
                 "cron": "0 9 * * *",
             }
-            response = client.post("/api/scheduled-tasks", json=request_data)
+            response = client.post("/api/scheduler/scheduled-tasks", json=request_data)
 
             assert response.status_code == 201
             data = response.json()
@@ -249,9 +357,9 @@ class TestScheduledTaskAPI:
                 "prompt": "测试描述",
                 "cron": "0 9 * * *",
             }
-            response = client.post("/api/scheduled-tasks", json=request_data)
+            response = client.post("/api/scheduler/scheduled-tasks", json=request_data)
 
-            assert response.status_code == 400
+            assert response.status_code == 422
 
     def test_create_scheduled_task_without_prompt(self, client, mock_storage):
         """测试创建定时任务时缺少描述"""
@@ -260,9 +368,9 @@ class TestScheduledTaskAPI:
                 "name": "定时任务",
                 "cron": "0 9 * * *",
             }
-            response = client.post("/api/scheduled-tasks", json=request_data)
+            response = client.post("/api/scheduler/scheduled-tasks", json=request_data)
 
-            assert response.status_code == 400
+            assert response.status_code == 422
 
     def test_create_scheduled_task_without_cron(self, client, mock_storage):
         """测试创建定时任务时缺少 cron 表达式"""
@@ -271,9 +379,9 @@ class TestScheduledTaskAPI:
                 "name": "定时任务",
                 "prompt": "测试描述",
             }
-            response = client.post("/api/scheduled-tasks", json=request_data)
+            response = client.post("/api/scheduler/scheduled-tasks", json=request_data)
 
-            assert response.status_code == 400
+            assert response.status_code == 422
 
     def test_create_scheduled_task_with_invalid_cron(self, client, mock_storage):
         """测试创建定时任务时使用无效的 cron 表达式"""
@@ -283,7 +391,7 @@ class TestScheduledTaskAPI:
                 "prompt": "测试描述",
                 "cron": "invalid cron",
             }
-            response = client.post("/api/scheduled-tasks", json=request_data)
+            response = client.post("/api/scheduler/scheduled-tasks", json=request_data)
 
             assert response.status_code == 400
             assert "INVALID_CRON" in str(response.json())
@@ -293,7 +401,7 @@ class TestScheduledTaskAPI:
         mock_storage.scheduled.get_all.return_value = []
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/scheduled-tasks")
+            response = client.get("/api/scheduler/scheduled-tasks")
 
             assert response.status_code == 200
             data = response.json()
@@ -305,7 +413,7 @@ class TestScheduledTaskAPI:
         mock_storage.scheduled.get_all.return_value = [sample_scheduled_task]
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/scheduled-tasks")
+            response = client.get("/api/scheduler/scheduled-tasks")
 
             assert response.status_code == 200
             data = response.json()
@@ -319,7 +427,7 @@ class TestScheduledTaskAPI:
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
             request_data = {"name": "更新后的定时任务"}
-            response = client.patch(f"/api/scheduled-tasks/{sample_scheduled_task.id}", json=request_data)
+            response = client.patch(f"/api/scheduler/scheduled-tasks/{sample_scheduled_task.id}", json=request_data)
 
             assert response.status_code == 200
             mock_storage.scheduled.save.assert_called_once()
@@ -330,7 +438,7 @@ class TestScheduledTaskAPI:
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
             request_data = {"cron": "*/10 * * * *"}
-            response = client.patch(f"/api/scheduled-tasks/{sample_scheduled_task.id}", json=request_data)
+            response = client.patch(f"/api/scheduler/scheduled-tasks/{sample_scheduled_task.id}", json=request_data)
 
             assert response.status_code == 200
             data = response.json()
@@ -342,7 +450,7 @@ class TestScheduledTaskAPI:
         mock_storage.scheduled.get.return_value = None
 
         with patch("app.routers.scheduler.get_scheduler", return_value=MagicMock()):
-            response = client.patch("/api/scheduled-tasks/00000000-0000-0000-0000-000000000000", json={"name": "更新"})
+            response = client.patch("/api/scheduler/scheduled-tasks/00000000-0000-0000-0000-000000000000", json={"name": "更新"})
 
             assert response.status_code == 404
 
@@ -351,7 +459,7 @@ class TestScheduledTaskAPI:
         mock_storage.scheduled.delete.return_value = True
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete(f"/api/scheduled-tasks/{sample_scheduled_task.id}")
+            response = client.delete(f"/api/scheduler/scheduled-tasks/{sample_scheduled_task.id}")
 
             assert response.status_code == 200
             data = response.json()
@@ -362,7 +470,7 @@ class TestScheduledTaskAPI:
         mock_storage.scheduled.delete.return_value = False
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/scheduled-tasks/00000000-0000-0000-0000-000000000000")
+            response = client.delete("/api/scheduler/scheduled-tasks/00000000-0000-0000-0000-000000000000")
 
             assert response.status_code == 404
 
@@ -372,7 +480,7 @@ class TestScheduledTaskAPI:
         mock_storage.scheduled.get.return_value = sample_scheduled_task
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.post(f"/api/scheduled-tasks/{sample_scheduled_task.id}/toggle")
+            response = client.post(f"/api/scheduler/scheduled-tasks/{sample_scheduled_task.id}/toggle")
 
             assert response.status_code == 200
             data = response.json()
@@ -384,7 +492,7 @@ class TestScheduledTaskAPI:
         mock_storage.scheduled.get.return_value = sample_scheduled_task
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.post(f"/api/scheduled-tasks/{sample_scheduled_task.id}/toggle")
+            response = client.post(f"/api/scheduler/scheduled-tasks/{sample_scheduled_task.id}/toggle")
 
             assert response.status_code == 200
             data = response.json()
@@ -395,7 +503,7 @@ class TestScheduledTaskAPI:
         mock_storage.scheduled.get.return_value = None
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.post("/api/scheduled-tasks/00000000-0000-0000-0000-000000000000/toggle")
+            response = client.post("/api/scheduler/scheduled-tasks/00000000-0000-0000-0000-000000000000/toggle")
 
             assert response.status_code == 404
 
@@ -408,7 +516,7 @@ class TestTaskStatusAPI:
         mock_storage.running.get_all.return_value = []
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks/running")
+            response = client.get("/api/scheduler/tasks/running")
 
             assert response.status_code == 200
             data = response.json()
@@ -421,7 +529,7 @@ class TestTaskStatusAPI:
         mock_storage.running.get_all.return_value = [sample_task]
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks/running")
+            response = client.get("/api/scheduler/tasks/running")
 
             assert response.status_code == 200
             data = response.json()
@@ -436,7 +544,7 @@ class TestTaskStatusAPI:
         )
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks/completed")
+            response = client.get("/api/scheduler/tasks/completed")
 
             assert response.status_code == 200
             data = response.json()
@@ -459,7 +567,7 @@ class TestTaskStatusAPI:
             pages=2,
         )
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks/completed?page=1&limit=20")
+            response = client.get("/api/scheduler/tasks/completed?page=1&limit=20")
 
             assert response.status_code == 200
             data = response.json()
@@ -479,7 +587,7 @@ class TestTaskStatusAPI:
         )
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks/failed")
+            response = client.get("/api/scheduler/tasks/failed")
 
             assert response.status_code == 200
             data = response.json()
@@ -502,7 +610,7 @@ class TestTaskStatusAPI:
             pages=2,
         )
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks/failed?page=1&limit=20")
+            response = client.get("/api/scheduler/tasks/failed?page=1&limit=20")
 
             assert response.status_code == 200
             data = response.json()
@@ -517,7 +625,7 @@ class TestTaskStatusAPI:
         mock_storage.queue.get.return_value = sample_task
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get(f"/api/tasks/{sample_task.id}")
+            response = client.get(f"/api/scheduler/tasks/{sample_task.id}")
 
             assert response.status_code == 200
             data = response.json()
@@ -531,7 +639,7 @@ class TestTaskStatusAPI:
         sample_task.status = TaskStatus.RUNNING
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get(f"/api/tasks/{sample_task.id}")
+            response = client.get(f"/api/scheduler/tasks/{sample_task.id}")
 
             assert response.status_code == 200
             data = response.json()
@@ -733,7 +841,8 @@ class TestCronValidationAPI:
         """测试验证空的 Cron 表达式"""
         response = client.post("/api/scheduler/validate-cron", json={"cron": ""})
 
-        assert response.status_code == 400
+        # Pydantic 验证失败返回 422，不是 400
+        assert response.status_code == 422
 
     def test_validate_cron_invalid(self, client):
         """测试验证无效的 Cron 表达式"""
@@ -764,7 +873,8 @@ class TestCronValidationAPI:
         """测试验证缺少 cron 字段的请求"""
         response = client.post("/api/scheduler/validate-cron", json={})
 
-        assert response.status_code == 400
+        # Pydantic 验证失败返回 422，不是 400
+        assert response.status_code == 422
 
     def test_validate_cron_with_standard_format(self, client):
         """测试验证标准 5 位格式"""
@@ -842,7 +952,7 @@ class TestTaskRunScheduledAPI:
 
         with patch("app.routers.scheduler.get_scheduler", return_value=mock_scheduler), \
              patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.post(f"/api/scheduled-tasks/{sample_scheduled_task.id}/toggle")
+            response = client.post(f"/api/scheduler/scheduled-tasks/{sample_scheduled_task.id}/toggle")
 
             assert response.status_code == 200
             data = response.json()
@@ -857,7 +967,7 @@ class TestTaskRunScheduledAPI:
         with patch("app.routers.scheduler.get_scheduler", return_value=mock_scheduler), \
              patch("app.routers.scheduler.get_storage", return_value=mock_storage):
             # 使用 toggle 端点测试
-            response = client.post(f"/api/scheduled-tasks/{sample_scheduled_task.id}/toggle")
+            response = client.post(f"/api/scheduler/scheduled-tasks/{sample_scheduled_task.id}/toggle")
 
             # 如果任务不存在，应该返回 404
             assert response.status_code == 404
@@ -869,7 +979,7 @@ class TestAPIResponseFormat:
     def test_success_response_format(self, client, mock_storage):
         """测试成功响应的格式"""
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks")
+            response = client.get("/api/scheduler/tasks")
 
             assert response.status_code == 200
             data = response.json()
@@ -883,7 +993,7 @@ class TestAPIResponseFormat:
         mock_storage.queue.remove.return_value = False
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/tasks/00000000-0000-0000-0000-000000000000")
+            response = client.delete("/api/scheduler/tasks/00000000-0000-0000-0000-000000000000")
 
             assert response.status_code == 404
             data = response.json()
@@ -894,7 +1004,7 @@ class TestAPIResponseFormat:
         mock_storage.queue.get_all.return_value = []
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.get("/api/tasks")
+            response = client.get("/api/scheduler/tasks")
 
             assert response.status_code == 200
             data = response.json()
@@ -909,7 +1019,7 @@ class TestAPIResponseFormat:
             sample_scheduled_task.enabled = True
 
             with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-                response = client.post(f"/api/scheduled-tasks/{sample_scheduled_task.id}/toggle")
+                response = client.post(f"/api/scheduler/scheduled-tasks/{sample_scheduled_task.id}/toggle")
 
             assert response.status_code == 200
             data = response.json()
@@ -922,7 +1032,7 @@ class TestAPIResponseFormat:
         mock_storage.scheduled.get.return_value = None
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/scheduled-tasks/00000000-0000-0000-0000-000000000000")
+            response = client.delete("/api/scheduler/scheduled-tasks/00000000-0000-0000-0000-000000000000")
 
             assert response.status_code == 404
             data = response.json()
@@ -931,7 +1041,7 @@ class TestAPIResponseFormat:
     def test_success_response_with_message(self, client, mock_storage):
         """测试成功响应包含消息"""
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/tasks/clear")
+            response = client.delete("/api/scheduler/tasks/clear")
 
             assert response.status_code == 200
             data = response.json()
@@ -943,7 +1053,7 @@ class TestAPIResponseFormat:
         mock_storage.queue.remove.return_value = False
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/tasks/00000000-0000-0000-0000-000000000000")
+            response = client.delete("/api/scheduler/tasks/00000000-0000-0000-0000-000000000000")
 
             assert response.status_code == 404
             data = response.json()
@@ -958,7 +1068,7 @@ class TestAPIErrorResponse:
         mock_storage.scheduled.delete.return_value = False
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/scheduled-tasks/00000000-0000-0000-0000-000000000000")
+            response = client.delete("/api/scheduler/scheduled-tasks/00000000-0000-0000-0000-000000000000")
 
             assert response.status_code == 404
             data = response.json()
@@ -969,7 +1079,7 @@ class TestAPIErrorResponse:
         mock_storage.queue.remove.return_value = False
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/tasks/00000000-0000-0000-0000-000000000000")
+            response = client.delete("/api/scheduler/tasks/00000000-0000-0000-0000-000000000000")
 
             assert response.status_code == 404
             data = response.json()
@@ -980,7 +1090,7 @@ class TestAPIErrorResponse:
         mock_storage.queue.remove.return_value = False
 
         with patch("app.routers.scheduler.get_storage", return_value=mock_storage):
-            response = client.delete("/api/tasks/00000000-0000-0000-0000-000000000000")
+            response = client.delete("/api/scheduler/tasks/00000000-0000-0000-0000-000000000000")
 
             assert response.status_code == 404
             data = response.json()

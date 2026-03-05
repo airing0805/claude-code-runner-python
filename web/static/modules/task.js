@@ -20,6 +20,8 @@ const SSE_CONFIG = {
     MAX_RETRIES: 5,               // 最大重连次数
 };
 
+
+
 // 连接状态枚举
 const ConnectionState = {
     CONNECTED: 'connected',       // 已连接
@@ -32,7 +34,6 @@ const ConnectionState = {
 const TaskStatus = {
     IDLE: 'idle',                 // 空闲
     RUNNING: 'running',           // 运行中
-    WAITING_ANSWER: 'waiting_answer', // 等待回答
     PAUSED: 'paused',             // 暂停
     COMPLETED: 'completed',       // 完成
     ERROR: 'error'                // 错误
@@ -45,8 +46,8 @@ const Task = {
     _connectionState: ConnectionState.DISCONNECTED,
     _taskContext: null, // 保存当前任务上下文用于重连
     _taskStatus: TaskStatus.IDLE, // 任务状态
-    _questionStates: new Map(),   // 问答状态跟踪
     _sessionStartTime: null,      // 会话开始时间
+    _taskTabId: null,            // 任务所属的 tab ID
 
     /**
      * 运行任务
@@ -61,10 +62,49 @@ const Task = {
 
         const workingDir = runner.workingDirInput.value.trim();
         const tools = ToolsMultiselect.getSelectedTools(runner);
-        const continueConversation = document.getElementById('continue-conversation').checked;
-        // 优先使用用户输入的 resume，否则使用当前会话 ID（如果存在）
-        const resume = runner.resumeInput.value.trim() || runner.currentSessionId || null;
+
+        // 检查"继续会话"复选框状态
+        const continueConversationChecked = runner.continueConversationCheckbox
+            ? runner.continueConversationCheckbox.checked
+            : false;
+
+        // 确定要使用的 resume 参数
+        // 优先级：1. "继续会话"复选框勾选 -> 使用 currentSessionId
+        //         2. 用户手动输入的 resumeInput 值
+        //         3. null（新会话）
+        let resume = null;
+        let newSession = false;
+        let resumeInputValue = ''; // 在作用域外声明变量
+
+        if (continueConversationChecked) {
+            // 勾选"继续会话"复选框：使用最近会话ID
+            resume = runner.currentSessionId || null;
+            newSession = false;
+            console.log('[Task] 使用"继续会话"模式:', resume);
+        } else {
+            // 未勾选复选框：使用 resumeInput 的值
+            resumeInputValue = runner.resumeInput.value.trim();
+            resume = resumeInputValue || runner.currentSessionId || null;
+
+            // new_session: 是否创建新会话
+            // 只有当 resumeInput 与 currentSessionId 不同时才创建新会话
+            // 如果 resumeInput 为空或与 currentSessionId 一致，说明是继续当前会话
+            newSession = resumeInputValue && resumeInputValue !== runner.currentSessionId;
+        }
+
         const permissionMode = runner.permissionSelect ? runner.permissionSelect.value : 'default';
+
+        // 调试日志
+        console.log('[Task] 发送消息前状态:', {
+            continueConversationChecked,
+            resumeInputValue,
+            currentSessionId: runner.currentSessionId,
+            finalResume: resume,
+            newSession,
+        });
+
+        // 记录任务所属的 tab ID
+        this._taskTabId = runner.activeTabId;
 
         // 更新 UI 状态
         this.setRunning(runner, true);
@@ -75,11 +115,11 @@ const Task = {
         // 创建新的对话轮次
         await this.startNewRound(runner, prompt);
 
-        await this.executeTask(runner, prompt, workingDir, tools, continueConversation, resume, permissionMode);
+        await this.executeTask(runner, prompt, workingDir, tools, resume, permissionMode, newSession);
     },
 
     /**
-     * 创建新的对话轮次
+     * 添加用户消息到对话
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} userPrompt - 用户输入的提示
      */
@@ -90,10 +130,9 @@ const Task = {
             placeholder.remove();
         }
 
-        // 增加轮次计数
+        // 创建新的对话轮次容器
         runner.roundCounter++;
 
-        // 创建新的对话轮次容器
         const roundEl = document.createElement('div');
         roundEl.className = 'conversation-round';
         roundEl.id = `round-${runner.roundCounter}`;
@@ -115,6 +154,7 @@ const Task = {
 
         runner.outputEl.appendChild(roundEl);
         runner.currentRoundEl = roundEl;
+        const assistantMessagesEl = roundEl.querySelector('.assistant-messages');
 
         // 滚动到底部
         Utils.scrollToBottom(runner.outputEl);
@@ -122,7 +162,21 @@ const Task = {
         // 清空输入框（在用户消息已添加到 DOM 后）
         document.getElementById('prompt').value = '';
 
-        // 保存用户消息到会话历史
+        // 保存用户消息到当前 tab
+        const currentTab = runner.tabs.find(t => t.id === runner.activeTabId);
+        if (currentTab) {
+            // 构造用户消息对象
+            const userMessage = {
+                role: 'user',
+                content: [{ type: 'text', text: userPrompt }],
+                permissionMode: runner.permissionSelect ? runner.permissionSelect.value : 'default',
+                timestamp: new Date().toISOString(),
+            };
+            currentTab.messages.push(userMessage);
+            console.log('[Task] 保存用户消息到 tab:', currentTab.id, '消息数:', currentTab.messages.length);
+        }
+
+        // 保存用户消息到会话历史（后端）
         const sessionId = runner.currentSessionId;
         if (sessionId) {
             const workingDir = runner.workingDirInput.value.trim() || null;
@@ -154,6 +208,9 @@ const Task = {
         const tools = ToolsMultiselect.getSelectedTools(runner);
         const permissionMode = runner.permissionSelect ? runner.permissionSelect.value : 'default';
 
+        // 记录任务所属的 tab ID
+        this._taskTabId = runner.activeTabId;
+
         this.setRunning(runner, true);
         this.hideStats(runner);
         this._taskStatus = TaskStatus.RUNNING;
@@ -170,14 +227,14 @@ const Task = {
      * @param {string} prompt - 提示文本
      * @param {string} workingDir - 工作目录
      * @param {Array} tools - 工具列表
-     * @param {boolean} continueConversation - 是否继续对话
      * @param {string|null} resume - 会话 ID
      * @param {string} permissionMode - 权限模式
      * @param {boolean} isReconnect - 是否为重连
+     * @param {boolean} newSession - 是否创建新会话
      */
-    async executeTask(runner, prompt, workingDir, tools, continueConversation, resume, permissionMode = 'default', isReconnect = false) {
+    async executeTask(runner, prompt, workingDir, tools, resume, permissionMode = 'default', isReconnect = false, newSession = false) {
         // 保存任务上下文用于重连
-        this._taskContext = { prompt, workingDir, tools, continueConversation, resume, permissionMode };
+        this._taskContext = { prompt, workingDir, tools, resume, permissionMode };
 
         // 更新连接状态
         this._updateConnectionState(runner, isReconnect ? ConnectionState.RECONNECTING : ConnectionState.CONNECTING);
@@ -191,7 +248,6 @@ const Task = {
                 prompt: prompt,
                 working_dir: workingDir,
                 tools,
-                continue_conversation: continueConversation,
                 resume: resume,
                 permission_mode: permissionMode,
             });
@@ -205,9 +261,9 @@ const Task = {
                     prompt,
                     working_dir: workingDir || null,
                     tools,
-                    continue_conversation: continueConversation,
                     resume: resume,
                     permission_mode: permissionMode,
+                    new_session: newSession,
                 }),
                 signal: runner.abortController.signal,
             });
@@ -274,7 +330,10 @@ const Task = {
             runner.abortController = null;
             runner.reader = null;
             this.setRunning(runner, false);
-            
+
+            // 清除任务所属的 tab ID
+            this._taskTabId = null;
+
             // 记录会话结束时间
             if (this._sessionStartTime) {
                 const duration = Date.now() - this._sessionStartTime;
@@ -319,10 +378,10 @@ const Task = {
                         ctx.prompt,
                         ctx.workingDir,
                         ctx.tools,
-                        ctx.continueConversation,
                         resumeId,
                         ctx.permissionMode,
-                        true // 标记为重连
+                        true, // 标记为重连
+                        false // 重连不创建新会话
                     );
                 }
             }, delay);
@@ -384,6 +443,9 @@ const Task = {
 
         // 移除所有状态类
         indicator.classList.remove('state-connected', 'state-connecting', 'state-disconnected', 'state-reconnecting');
+
+        // 清除内联样式，让 CSS 类控制显示
+        indicator.style.removeProperty('display');
 
         switch (state) {
             case ConnectionState.CONNECTED:
@@ -492,7 +554,6 @@ const Task = {
                 ctx.prompt,
                 ctx.workingDir,
                 ctx.tools,
-                ctx.continueConversation,
                 resumeId,
                 ctx.permissionMode,
                 true
@@ -520,8 +581,9 @@ const Task = {
         if (runner.reader) {
             runner.reader.cancel();
         }
-        // 恢复输入框
-        this._setInputEnabled(runner, true);
+
+        // 正确更新运行状态（会更新对应 tab 的状态和按钮）
+        this.setRunning(runner, false);
 
         // 更新连接状态
         this._updateConnectionState(runner, ConnectionState.DISCONNECTED);
@@ -535,17 +597,48 @@ const Task = {
     async handleStreamMessage(runner, data) {
         const { type, content, timestamp, tool_name, tool_input, metadata, question, session_id } = data;
 
+        // 获取当前任务所属的 tab（通过 currentSessionId 查找）
+        let taskTab = null;
+        if (runner.currentSessionId) {
+            taskTab = runner.tabs.find(t => t.sessionId === runner.currentSessionId);
+        }
+        // 如果找不到（新会话还没设置 sessionId），使用当前激活的 tab
+        if (!taskTab) {
+            taskTab = runner.tabs.find(t => t.id === runner.activeTabId);
+        }
+
         // 更新 session_id（始终更新，以确保与服务器同步）
         if (session_id) {
             if (runner.currentSessionId && runner.currentSessionId !== session_id) {
                 console.log('[Task] session_id 变化:', runner.currentSessionId, '->', session_id);
             }
             runner.currentSessionId = session_id;
+
+            // 回显会话 ID 到 UI
+            runner.resumeInput.value = session_id;
+            runner.resumeInput.title = session_id;
+            runner.resumeInput.removeAttribute('readonly'); // 允许编辑（如果需要）
+            runner.resumeInput.classList.add('editable');
+
+            // 同时更新任务所属标签的标题和 sessionId
+            if (taskTab) {
+                taskTab.sessionId = session_id;
+                const tabEl = runner.tabsBar.querySelector(`[data-tab="${taskTab.id}"]`);
+                if (tabEl) {
+                    const titleEl = tabEl.querySelector('.tab-title');
+                    if (titleEl) {
+                        titleEl.textContent = `会话 ${session_id.substring(0, 8)}...`;
+                        titleEl.title = session_id;
+                    }
+                }
+            }
+
+            console.log('[Task] 回显会话 ID:', session_id);
         }
 
         switch (type) {
             case 'text':
-                MessageRenderer.addAssistantMessage(runner, 'text', content, timestamp);
+                this._saveMessageToTab(runner, taskTab, 'text', content, timestamp);
                 break;
 
             case 'tool_use':
@@ -554,30 +647,13 @@ const Task = {
                     const inputStr = JSON.stringify(tool_input, null, 2);
                     toolInfo += `\n${inputStr}`;
                 }
-                MessageRenderer.addAssistantMessage(runner, 'tool_use', toolInfo, timestamp);
+                this._saveMessageToTab(runner, taskTab, 'tool_use', toolInfo, timestamp);
                 break;
 
             case 'ask_user_question':
-                // 显示问答对话框时，禁用输入框和发送按钮
-                this._setInputEnabled(runner, false);
-                this._taskStatus = TaskStatus.WAITING_ANSWER;
-
-                // 显示问答对话框
-                if (question) {
-                    // 优先使用根级别的 session_id，否则使用 runner 中的
-                    const sessionId = session_id || runner.currentSessionId;
-                    console.log('[Task] 显示问答对话框, session_id:', session_id, 'runner.currentSessionId:', runner.currentSessionId);
-                    
-                    // 记录问答状态
-                    this._recordQuestionState(question.question_id, 'showing', {
-                        question_data: question,
-                        session_id: sessionId,
-                        timestamp: Date.now()
-                    });
-                    
-                    AskUserQuestionDialog.show(runner, question, sessionId);
-                } else {
-                    MessageRenderer.addAssistantMessage(runner, 'text', content, timestamp);
+                // 问答消息，显示为普通文本
+                if (content) {
+                    this._saveMessageToTab(runner, taskTab, 'text', content, timestamp);
                 }
                 break;
 
@@ -585,14 +661,14 @@ const Task = {
                 // 错误时，恢复输入框
                 this._setInputEnabled(runner, true);
                 this._taskStatus = TaskStatus.ERROR;
-                
+
                 // 显示完整错误信息
                 let errorMessage = content;
                 if (data.error_detail) {
                     errorMessage = `${content}\n\n详细错误信息:\n${data.error_detail}`;
                     console.error('[Task] ★ 完整错误堆栈:', data.error_detail);
                 }
-                MessageRenderer.addAssistantMessage(runner, 'error', errorMessage, timestamp);
+                this._saveMessageToTab(runner, taskTab, 'error', errorMessage, timestamp);
                 break;
 
             case 'complete':
@@ -600,13 +676,15 @@ const Task = {
                 this._setInputEnabled(runner, true);
                 this._taskStatus = TaskStatus.COMPLETED;
 
-                // 清理问答对话框状态
-                AskUserQuestionDialog.hide();
-
-                // 显示统计信息
+                // 显示统计信息（包含会话ID和继续会话按钮）
                 if (metadata) {
                     this.showStats(runner, metadata);
                     runner.currentSessionId = metadata.session_id || runner.currentSessionId;
+
+                    // 更新最近会话ID缓存
+                    if (metadata.session_id && typeof runner.cacheLatestSessionId === 'function') {
+                        runner.cacheLatestSessionId(metadata.session_id);
+                    }
                 }
                 break;
 
@@ -617,18 +695,38 @@ const Task = {
     },
 
     /**
-     * 记录问答状态
-     * @param {string} questionId - 问题ID
-     * @param {string} status - 状态
-     * @param {Object} data - 附加数据
+     * 将消息保存到 tab，并根据当前激活 tab 决定是否渲染
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {Object} tab - 目标 tab 对象
+     * @param {string} type - 消息类型
+     * @param {string} content - 消息内容
+     * @param {string} timestamp - 时间戳
      */
-    _recordQuestionState(questionId, status, data = {}) {
-        this._questionStates.set(questionId, {
-            status: status,
-            timestamp: Date.now(),
-            ...data
-        });
-        console.log(`[Question State] ${questionId} -> ${status}`, data);
+    _saveMessageToTab(runner, tab, type, content, timestamp) {
+        if (!tab) return;
+
+        // 保存消息到 tab 的 messages 数组
+        // 暂时简单保存文本消息，避免复杂的消息结构
+        const messageObj = {
+            role: 'assistant',
+            type: type,
+            content: type === 'text' ? content : '',
+            timestamp: timestamp || new Date().toISOString(),
+        };
+
+        // 如果是 tool_use，需要特殊处理
+        if (type === 'tool_use') {
+            messageObj.content = content;
+        }
+
+        tab.messages.push(messageObj);
+
+        // 只有当前激活的 tab 是该任务对应的 tab 时才渲染
+        if (runner.activeTabId === tab.id) {
+            MessageRenderer.addAssistantMessage(runner, type, content, timestamp);
+        }
+        // 注意：如果当前激活的tab不是目标tab，消息不会实时显示
+        // 但会在切换到该tab时通过历史消息重新渲染
     },
 
     /**
@@ -640,34 +738,35 @@ const Task = {
     },
 
     /**
-     * 获取问答状态
-     * @param {string} questionId - 问题ID
-     * @returns {Object|null} 状态对象
-     */
-    getQuestionState(questionId) {
-        return this._questionStates.get(questionId) || null;
-    },
-
-    /**
-     * 获取所有问答状态
-     * @returns {Map} 所有问答状态
-     */
-    getAllQuestionStates() {
-        return new Map(this._questionStates);
-    },
-
-    /**
      * 设置运行状态
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {boolean} running - 是否运行中
      */
     setRunning(runner, running) {
-        runner.isRunning = running;
         const sendBtn = document.getElementById('send-btn');
         const stopBtn = document.getElementById('stop-btn');
-        
-        if (sendBtn) sendBtn.disabled = running;
-        if (stopBtn) stopBtn.style.display = running ? 'inline-block' : 'none';
+
+        // 优先使用任务所属的 tab ID，否则使用当前激活的 tab
+        const targetTabId = this._taskTabId || runner.activeTabId;
+        const targetTab = runner.tabs.find(t => t.id === targetTabId);
+
+        // 更新目标 tab 的运行状态
+        if (targetTab) {
+            targetTab.isRunning = running;
+        }
+
+        // 检查是否有任何 tab 在运行
+        const anyTabRunning = runner.tabs.some(t => t.isRunning);
+
+        // 更新全局状态
+        runner.isRunning = anyTabRunning;
+
+        // 根据当前激活 tab 的运行状态决定按钮状态
+        const currentTab = runner.tabs.find(t => t.id === runner.activeTabId);
+        const currentTabRunning = currentTab ? currentTab.isRunning : false;
+
+        if (sendBtn) sendBtn.disabled = currentTabRunning;
+        if (stopBtn) stopBtn.style.display = currentTabRunning ? 'inline-block' : 'none';
     },
 
     /**
@@ -678,9 +777,14 @@ const Task = {
     _setInputEnabled(runner, enabled) {
         const promptInput = document.getElementById('prompt');
         const sendBtn = document.getElementById('send-btn');
-        
+
+        // 获取当前激活 tab 的运行状态
+        const currentTab = runner.tabs.find(t => t.id === runner.activeTabId);
+        const tabIsRunning = currentTab ? currentTab.isRunning : false;
+
         if (promptInput) promptInput.disabled = !enabled;
-        if (sendBtn) sendBtn.disabled = !enabled || runner.isRunning;
+        // 只有当前 tab 在运行时才禁用发送按钮（其他 tab 可以正常发送）
+        if (sendBtn) sendBtn.disabled = tabIsRunning;
     },
 
     /**
@@ -696,6 +800,9 @@ const Task = {
         const duration = metadata.duration_ms ? `${(metadata.duration_ms / 1000).toFixed(1)}s` : 'N/A';
         const sessionId = metadata.session_id || 'N/A';
 
+        // 显示会话ID短版本
+        const shortSessionId = sessionId !== 'N/A' ? sessionId.substring(0, 8) + '...' : 'N/A';
+
         statsEl.innerHTML = `
             <div class="stat-item">
                 <span class="stat-label">耗时:</span>
@@ -705,9 +812,9 @@ const Task = {
                 <span class="stat-label">费用:</span>
                 <span class="stat-value">${cost}</span>
             </div>
-            <div class="stat-item">
-                <span class="stat-label">会话:</span>
-                <span class="stat-value session-id-display" title="点击复制">${sessionId}</span>
+            <div class="stat-item session-id-item">
+                <span class="stat-label">会话ID:</span>
+                <span class="stat-value session-id-display" title="点击复制完整ID: ${sessionId}">${shortSessionId}</span>
             </div>
         `;
 
@@ -720,7 +827,7 @@ const Task = {
                 navigator.clipboard.writeText(sessionId).then(() => {
                     sessionIdDisplay.textContent = '✓ 已复制';
                     setTimeout(() => {
-                        sessionIdDisplay.textContent = sessionId;
+                        sessionIdDisplay.textContent = shortSessionId;
                     }, 2000);
                 });
             });

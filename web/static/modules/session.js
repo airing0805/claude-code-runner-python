@@ -23,6 +23,13 @@ const Session = {
             resumeInput.classList.remove('editable');
             workingDirInput.disabled = true;
         }
+
+        // 同时更新"继续会话"复选框状态
+        runner.updateContinueConversationCheckbox(editable);
+        // 取消勾选复选框
+        if (runner.continueConversationCheckbox && !editable) {
+            runner.continueConversationCheckbox.checked = false;
+        }
     },
 
     /**

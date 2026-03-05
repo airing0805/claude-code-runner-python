@@ -6,7 +6,9 @@
 import asyncio
 import logging
 import random
+import time
 import traceback
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -14,8 +16,16 @@ from typing import Any, Optional
 
 from app.claude_runner.client import ClaudeCodeClient
 from app.scheduler.config import DEFAULT_TIMEOUT, MAX_RETRIES
-from app.scheduler.models import Task, TaskStatus
-from app.scheduler.storage import TaskStorage
+from app.scheduler.models import Task, TaskStatus, TaskLog
+from app.scheduler.storage import TaskStorage, get_storage
+from app.scheduler.security import (
+    validate_workspace,
+    validate_allowed_tools,
+    validate_prompt_length,
+    validate_timeout,
+    SecurityError,
+)
+from app.scheduler.timezone_utils import now_iso, now_shanghai, format_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +70,7 @@ class ExecutionError:
     severity: ErrorSeverity      # 严重级别
     retryable: bool              # 是否可重试
     timestamp: str = field(
-        default_factory=lambda: datetime.now().isoformat()
+        default_factory=lambda: now_iso()
     )
     stack_trace: Optional[str] = None  # 堆栈信息
     context: dict = field(default_factory=dict)  # 上下文信息
@@ -226,6 +236,7 @@ class TaskExecutor:
     - 任务状态跟踪
     - 失败重试机制
     - 错误信息收集
+    - 任务执行日志记录
     """
 
     def __init__(self, storage: TaskStorage) -> None:
@@ -233,6 +244,31 @@ class TaskExecutor:
         self._current_task: Optional[Task] = None
         self._is_executing: bool = False
         self._error_collector = ErrorCollector()
+
+    def _log(
+        self,
+        task_id: str,
+        level: str,
+        message: str,
+        context: dict | None = None,
+    ) -> None:
+        """记录任务执行日志
+
+        Args:
+            task_id: 任务 ID
+            level: 日志级别 (INFO, WARNING, ERROR)
+            message: 日志消息
+            context: 上下文信息
+        """
+        log_entry = {
+            "id": str(uuid.uuid4()),
+            "task_id": task_id,
+            "timestamp": now_iso(),
+            "level": level,
+            "message": message,
+            "context": context or {},
+        }
+        self.storage.logs.append(log_entry)
 
     def is_executing(self) -> bool:
         """检查是否正在执行任务"""
@@ -254,6 +290,12 @@ class TaskExecutor:
         """
         # 验证任务
         if not self._validate_task(task):
+            self._log(
+                task.id,
+                "ERROR",
+                "任务验证失败",
+                {"prompt_preview": task.prompt[:50]},
+            )
             return ExecutionResult(
                 success=False,
                 message="任务验证失败",
@@ -267,10 +309,23 @@ class TaskExecutor:
 
         # 更新任务状态为运行中
         task.status = TaskStatus.RUNNING
-        task.started_at = datetime.now().isoformat()
+        task.started_at = now_iso()
         self.storage.running.add(task)
 
         logger.info(f"Task {task.id} started: {task.prompt[:50]}...")
+
+        # 记录任务开始日志
+        self._log(
+            task.id,
+            "INFO",
+            "任务开始执行",
+            {
+                "prompt": task.prompt,
+                "workspace": task.workspace,
+                "timeout": task.timeout,
+                "source": task.source.value,
+            },
+        )
 
         try:
             # 执行任务（带超时控制）
@@ -295,14 +350,37 @@ class TaskExecutor:
             self._current_task = None
 
     def _validate_task(self, task: Task) -> bool:
-        """验证任务有效性"""
-        if not task.prompt or not task.prompt.strip():
-            logger.error(f"Task {task.id} validation failed: empty prompt")
+        """验证任务有效性
+
+        检查:
+        - 提示词非空且长度在限制内
+        - 超时时间在有效范围
+        - 工作目录安全
+        - 工具白名单验证
+        """
+        try:
+            # 1. 验证提示词
+            validate_prompt_length(task.prompt)
+
+            # 2. 验证超时时间
+            validate_timeout(task.timeout)
+
+            # 3. 验证工作目录
+            validate_workspace(task.workspace)
+
+            # 4. 验证工具白名单
+            validate_allowed_tools(task.allowed_tools)
+
+            return True
+
+        except SecurityError as e:
+            logger.error(
+                f"Task {task.id} validation failed: {e.message} (code: {e.code})"
+            )
             return False
-        if task.timeout < 1000 or task.timeout > 3600000:
-            logger.error(f"Task {task.id} validation failed: invalid timeout")
+        except Exception as e:
+            logger.error(f"Task {task.id} validation failed: {e}")
             return False
-        return True
 
     async def _execute_with_client(self, task: Task) -> ExecutionResult:
         """使用 ClaudeCodeClient 执行任务"""
@@ -341,7 +419,7 @@ class TaskExecutor:
 
     def _handle_success(self, task: Task, result: ExecutionResult) -> ExecutionResult:
         """处理执行成功"""
-        task.finished_at = datetime.now().isoformat()
+        task.finished_at = now_iso()
         task.status = TaskStatus.COMPLETED
         task.result = {
             "success": True,
@@ -351,6 +429,20 @@ class TaskExecutor:
         # 从运行中移除，保存到已完成历史
         self.storage.running.remove(task.id)
         self.storage.history.add_completed(task)
+
+        # 记录成功日志
+        self._log(
+            task.id,
+            "INFO",
+            "任务执行成功",
+            {
+                "duration_ms": task.duration_ms,
+                "cost_usd": task.cost_usd,
+                "files_changed": task.files_changed,
+                "tools_used": task.tools_used,
+                "message": result.message,
+            },
+        )
 
         logger.info(
             f"Task {task.id} completed in {task.duration_ms}ms, "
@@ -372,6 +464,13 @@ class TaskExecutor:
             severity=ErrorSeverity.MEDIUM,
             context={"timeout_ms": task.timeout},
         )
+        # 记录超时日志
+        self._log(
+            task.id,
+            "ERROR",
+            "任务执行超时",
+            {"timeout_ms": task.timeout},
+        )
         return self._handle_retry(task, error)
 
     def _handle_error(self, task: Task, error: Exception) -> ExecutionResult:
@@ -390,7 +489,7 @@ class TaskExecutor:
         # 判断是否可重试
         if not should_retry(task, error_type):
             # 不可重试，标记失败
-            task.finished_at = datetime.now().isoformat()
+            task.finished_at = now_iso()
             task.status = TaskStatus.FAILED
             task.error = str(error)
             task.result = {
@@ -403,11 +502,39 @@ class TaskExecutor:
             self.storage.running.remove(task.id)
             self.storage.history.add_failed(task)
 
+            # 记录失败日志
+            self._log(
+                task.id,
+                "ERROR",
+                "任务执行失败",
+                {
+                    "error": str(error),
+                    "error_type": error_type.value,
+                    "retries": task.retries,
+                    "errors": [e.to_dict() for e in self._error_collector.get_all()],
+                },
+            )
+
             logger.error(f"Task {task.id} failed permanently: {error}")
             return ExecutionResult(
                 success=False,
                 message="任务执行失败，已达到最大重试次数",
                 error=str(error),
+            )
+
+        # 检查任务是否已被取消
+        current_task = self.storage.queue.get(task.id)
+        if current_task and current_task.status == TaskStatus.CANCELLED:
+            task.status = TaskStatus.CANCELLED
+            task.finished_at = now_iso()
+            task.error = "任务已被用户取消"
+            self.storage.running.remove(task.id)
+            self.storage.cancelled.add(task)
+            logger.info(f"Task {task.id} was cancelled by user")
+            return ExecutionResult(
+                success=False,
+                message="任务已被取消",
+                error="Task cancelled by user",
             )
 
         # 可重试
@@ -420,9 +547,25 @@ class TaskExecutor:
         task.finished_at = None
         task.error = f"重试 {task.retries}/{MAX_RETRIES}: {str(error)}"
 
-        # 从运行中移除，重新加入队列
+        # 从运行中移除，重新加入队列（插入队首以优先处理）
+        # 添加重试延迟，避免立即重试失败
+        logger.info(f"等待重试延迟: {retry_delay:.1f}s")
+        time.sleep(retry_delay)
         self.storage.running.remove(task.id)
-        self.storage.queue.add(task)
+        self.storage.queue.add_to_front(task)
+
+        # 记录重试日志
+        self._log(
+            task.id,
+            "WARNING",
+            f"任务将重试（第 {task.retries} 次）",
+            {
+                "error": str(error),
+                "error_type": error_type.value,
+                "retry_count": task.retries,
+                "retry_delay": retry_delay,
+            },
+        )
 
         logger.info(
             f"Task {task.id} scheduled for retry "
@@ -460,7 +603,7 @@ class TaskExecutor:
 
         old_status = task.status
         task.status = new_status
-        task.finished_at = datetime.now().isoformat()
+        task.finished_at = now_iso()
 
         if error:
             task.error = error
@@ -472,6 +615,9 @@ class TaskExecutor:
         elif new_status == TaskStatus.FAILED:
             self.storage.running.remove(task.id)
             self.storage.history.add_failed(task)
+        elif new_status == TaskStatus.CANCELLED:
+            self.storage.running.remove(task.id)
+            self.storage.cancelled.add(task)
         elif new_status == TaskStatus.PENDING:
             # 重试：重新加入队列
             self.storage.running.remove(task.id)
@@ -479,6 +625,41 @@ class TaskExecutor:
 
         logger.info(f"Task {task.id}: {old_status.value} -> {new_status.value}")
         return True
+
+    def cancel_task(self, task_id: str) -> bool:
+        """
+        取消任务
+
+        Args:
+            task_id: 任务 ID
+
+        Returns:
+            bool: 是否取消成功
+        """
+        # 1. 检查队列中的任务
+        task = self.storage.queue.get(task_id)
+        if task:
+            if task.status == TaskStatus.PENDING:
+                task.status = TaskStatus.CANCELLED
+                task.finished_at = now_iso()
+                task.error = "用户取消"
+                self.storage.queue.remove(task_id)
+                self.storage.cancelled.add(task)
+                logger.info(f"Task {task_id} cancelled from queue")
+                return True
+
+        # 2. 检查运行中的任务
+        task = self.storage.running.get(task_id)
+        if task:
+            # 运行中的任务标记为取消，执行器会在下次检查时处理
+            task.status = TaskStatus.CANCELLED
+            task.error = "用户取消"
+            self.storage.running.update(task)
+            logger.info(f"Task {task_id} marked for cancellation")
+            return True
+
+        logger.warning(f"Task {task_id} not found for cancellation")
+        return False
 
 
 # 全局执行器实例
@@ -489,6 +670,5 @@ def get_executor() -> TaskExecutor:
     """获取执行器实例"""
     global _executor
     if _executor is None:
-        from app.scheduler.storage import get_storage
         _executor = TaskExecutor(get_storage())
     return _executor

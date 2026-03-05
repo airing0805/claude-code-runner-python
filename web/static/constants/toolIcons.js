@@ -32,9 +32,6 @@ export const TOOL_ICONS = {
     websearch: '🌐',     // Globe
     webfetch: '🌐',      // Globe
 
-    // 用户交互
-    askuserquestion: '💬', // MessageSquare
-
     // MCP 工具
     mcp__sequential-thinking__sequentialthinking: '🧠', // Brain
 };
@@ -45,7 +42,6 @@ export const TOOL_ICONS = {
  */
 export const TOOL_ICON_PATTERNS = [
     { patterns: ['web', 'fetch', 'url'], icon: '🌐' },      // Globe
-    { patterns: ['ask', 'question'], icon: '💬' },          // MessageSquare
     { patterns: ['git', 'commit'], icon: '🔀' },            // GitBranch
     { patterns: ['sql', 'database', 'query'], icon: '🗄️' }, // Database
     { patterns: ['file', 'disk'], icon: '💾' },             // HardDrive

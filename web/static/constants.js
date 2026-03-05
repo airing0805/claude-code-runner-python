@@ -11,9 +11,11 @@ const AVAILABLE_TOOLS = [
     { name: 'Bash', description: '执行命令', selected: true },
     { name: 'Glob', description: '查找文件', selected: true },
     { name: 'Grep', description: '搜索内容', selected: true },
-    { name: 'WebSearch', description: '网络搜索', selected: false },
-    { name: 'WebFetch', description: '获取网页', selected: false },
-    { name: 'Task', description: '子代理任务', selected: false },
+    { name: 'WebSearch', description: '网络搜索', selected: true },
+    { name: 'WebFetch', description: '获取网页', selected: true },
+    { name: 'Task', description: '子代理任务', selected: true },
+    { name: 'TodoWrite', description: '写入TODO列表', selected: true },
+    { name: 'NotebookEdit', description: 'Jupyter notebook编辑', selected: true },
 ];
 
 // 视图名称常量
@@ -28,7 +30,8 @@ const Views = {
     MCP_SERVERS: 'mcp-servers',
     PLUGINS: 'plugins',
     HOOKS_CONFIG: 'hooks-config',
-    SCHEDULER: 'scheduler'  // v0.6.4: 任务调度视图
+    SCHEDULER: 'scheduler',  // v0.6.4: 任务调度视图
+    QUESTIONS: 'questions'   // v8.0.2: 提问历史记录视图
 };
 
 // 消息类型常量

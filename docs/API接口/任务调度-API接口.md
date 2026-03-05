@@ -5,10 +5,16 @@
 ## 概述
 
 任务调度系统提供以下核心功能：
-- 任务队列管理：添加、查询、删除、清空待执行任务
+- 任务队列管理：添加、查询、删除、清空、取消、重试任务
+- 任务搜索筛选：按状态、时间、关键词筛选和搜索任务
+- 批量操作：批量删除任务、批量启用/禁用定时任务
 - 定时任务管理：创建、修改、删除、启用/禁用定时任务
 - 任务状态查询：查询运行中、已完成、失败任务
+- 任务日志查看：查看任务执行日志
 - 调度器控制：启动/停止调度器，查看调度器状态
+
+> **版本**: v1.2 (2026-03-05 更新)
+> **说明**: 标记为 ❌ 不开发的接口当前不提供
 
 ## 基础信息
 
@@ -118,13 +124,22 @@
 
 **GET** `/api/tasks`
 
-获取所有待执行的任务队列。
+获取所有待执行的任务队列（支持搜索筛选）。
 
 **查询参数**
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| 无 | - | - | - |
+| status | string | - | 按状态筛选 (pending, running, completed, failed, cancelled) |
+| search | string | - | 按描述关键词搜索 |
+| scheduled | boolean | - | 是否来自定时任务 |
+| priority | integer | - | 按优先级筛选 (0-3) |
+| start_date | string | - | 创建时间开始 (ISO 8601) |
+| end_date | string | - | 创建时间结束 (ISO 8601) |
+| sort | string | created_at | 排序字段 (created_at, finished_at, duration_ms, priority) |
+| order | string | desc | 排序方向 (asc, desc) |
+| page | integer | 1 | 页码 |
+| limit | integer | 20 | 每页数量（最大 100） |
 
 **响应** `200 OK`
 
@@ -193,6 +208,193 @@
   "message": "队列已清空"
 }
 ```
+
+### 取消任务
+
+**POST** `/api/tasks/{id}/cancel`
+
+取消正在运行的任务。
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | string | 任务 ID |
+
+**前置条件**
+- 任务状态必须为 `running`
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "cancelled",
+    "cancelled_at": "2024-01-01T00:05:00"
+  },
+  "message": "任务已取消"
+}
+```
+
+**错误响应** `400 Bad Request`
+
+```json
+{
+  "success": false,
+  "error": "任务不在运行状态，无法取消",
+  "code": "TASK_NOT_RUNNING"
+}
+```
+
+### 重试失败任务
+
+**POST** `/api/tasks/{id}/retry`
+
+~~重试失败的定时任务，将任务重新加入队列。~~
+
+> **状态**: ❌ 不开发
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | string | 任务 ID |
+
+**前置条件**
+- 任务状态必须为 `failed`
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "pending",
+    "retries": 0,
+    "retry_of": "660e8400-e29b-41d4-a716-446655440001"
+  },
+  "message": "任务已重新加入队列"
+}
+```
+
+**错误响应** `400 Bad Request`
+
+```json
+{
+  "success": false,
+  "error": "任务未失败，无法重试",
+  "code": "TASK_NOT_FAILED"
+}
+```
+
+### 批量删除任务
+
+**POST** `/api/tasks/batch-delete`
+
+批量删除多个任务。
+
+> **状态**: ❌ 不开发
+
+**请求体**
+
+```json
+{
+  "ids": ["id1", "id2", "id3"]
+}
+```
+
+**参数说明**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| ids | array[string] | 是 | 要删除的任务 ID 列表（最多 100 个） |
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "deleted": 3,
+    "not_found": [],
+    "cannot_delete": []
+  },
+  "message": "已删除 3 个任务"
+}
+```
+
+**响应字段说明**
+
+| 字段 | 说明 |
+|------|------|
+| deleted | 成功删除的任务数量 |
+| not_found | 不存在的任务 ID 列表 |
+| cannot_delete | 无法删除的任务 ID 列表（如正在运行） |
+
+### 获取任务日志
+
+**GET** `/api/tasks/{id}/logs`
+
+获取指定任务的执行日志。
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | string | 任务 ID |
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "task_id": "550e8400-e29b-41d4-a716-446655440000",
+    "logs": [
+      {
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "level": "info",
+        "message": "任务开始执行"
+      },
+      {
+        "timestamp": "2024-01-01T00:00:05.123Z",
+        "level": "info",
+        "message": "使用工具: Read",
+        "details": {
+          "tool": "Read",
+          "file_path": "/path/to/file.py"
+        }
+      },
+      {
+        "timestamp": "2024-01-01T00:00:10.456Z",
+        "level": "info",
+        "message": "使用工具: Edit",
+        "details": {
+          "tool": "Edit",
+          "file_path": "/path/to/file.py"
+        }
+      },
+      {
+        "timestamp": "2024-01-01T00:05:00.789Z",
+        "level": "info",
+        "message": "任务执行完成"
+      }
+    ]
+  }
+}
+```
+
+**日志级别说明**
+
+| 级别 | 说明 |
+|------|------|
+| debug | 调试信息 |
+| info | 一般信息 |
+| warn | 警告信息 |
+| error | 错误信息 |
 
 ---
 
@@ -422,6 +624,63 @@
   "message": "任务已添加到队列"
 }
 ```
+
+### 批量启用/禁用定时任务
+
+**POST** `/api/scheduled-tasks/batch-toggle`
+
+批量启用或禁用多个定时任务。
+
+> **状态**: ❌ 不开发
+
+**请求体**
+
+```json
+{
+  "ids": ["id1", "id2", "id3"],
+  "enabled": false
+}
+```
+
+**参数说明**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| ids | array[string] | 是 | 要操作的定时任务 ID 列表（最多 100 个） |
+| enabled | boolean | 是 | true=启用, false=禁用 |
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "updated": 3,
+    "not_found": [],
+    "updated_tasks": [
+      {
+        "id": "id1",
+        "enabled": false,
+        "next_run": null
+      },
+      {
+        "id": "id2",
+        "enabled": false,
+        "next_run": null
+      }
+    ]
+  },
+  "message": "已禁用 3 个定时任务"
+}
+```
+
+**响应字段说明**
+
+| 字段 | 说明 |
+|------|------|
+| updated | 成功更新的任务数量 |
+| not_found | 不存在的任务 ID 列表 |
+| updated_tasks | 更新后的任务信息列表 |
 
 ---
 
@@ -787,9 +1046,14 @@
 | 错误码 | HTTP 状态码 | 说明 |
 |--------|-------------|------|
 | TASK_NOT_FOUND | 404 | 任务不存在 |
-| INVALID_CRON | 400 | Cron 表达式无效 |
 | SCHEDULED_TASK_NOT_FOUND | 404 | 定时任务不存在 |
+| INVALID_CRON | 400 | Cron 表达式无效 |
+| WORKSPACE_NOT_ALLOWED | 403 | 工作目录不在允许范围 |
+| INVALID_TIMEOUT | 400 | 超时时间无效（超出范围） |
+| TASK_NOT_RUNNING | 400 | 任务不在运行状态，无法取消 |
+| TASK_NOT_FAILED | 400 | 任务未失败，无法重试 |
 | SCHEDULER_NOT_RUNNING | 400 | 调度器未运行 |
+| BATCH_LIMIT_EXCEEDED | 400 | 批量操作超过数量限制 |
 | VALIDATION_ERROR | 400 | 请求参数验证失败 |
 | STORAGE_ERROR | 500 | 存储操作失败 |
 

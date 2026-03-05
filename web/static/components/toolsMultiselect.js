@@ -45,7 +45,7 @@ const ToolsMultiselect = {
         dropdown.innerHTML = `
             <div class="tools-grid">
                 ${runner.availableTools.map((tool, index) => `
-                    <div class="tool-option" data-index="${index}">
+                    <div class="tools-option" data-index="${index}">
                         <input type="checkbox" id="tool-${tool.name}" ${tool.selected ? 'checked' : ''}>
                         <span class="tool-name" title="${tool.description}">${tool.name}</span>
                     </div>
@@ -54,7 +54,7 @@ const ToolsMultiselect = {
         `;
 
         // 绑定点击事件
-        dropdown.querySelectorAll('.tool-option').forEach(option => {
+        dropdown.querySelectorAll('.tools-option').forEach(option => {
             option.addEventListener('click', (e) => {
                 const index = parseInt(option.dataset.index);
                 const checkbox = option.querySelector('input[type="checkbox"]');
