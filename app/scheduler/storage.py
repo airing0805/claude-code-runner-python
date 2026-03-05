@@ -159,6 +159,43 @@ class QueueStorage(BaseStorage):
         if not self.filepath.exists():
             self._write_raw({"tasks": []})
 
+    def _read(self) -> dict:
+        """读取数据，每次读取时自动修复数据一致性问题"""
+        data = self._read_raw()
+        tasks = data.get("tasks", [])
+        tasks, changed = self._sanitize_tasks(tasks)
+        if changed:
+            self._write_raw({"tasks": tasks})
+            logger.info("[QueueStorage] 数据一致性修复完成，已回写文件")
+        return {"tasks": tasks}
+
+    def _sanitize_tasks(self, tasks: list) -> tuple[list, bool]:
+        """修复队列任务列表中的数据一致性问题，返回 (修复后的列表, 是否有变更)
+
+        修复规则：
+        1. 重复 ID：同一 ID 出现多次时，为后续重复条目重新生成 UUID
+           注意：只修改 id 字段，绝对不修改 prompt 及其他业务字段
+        """
+        import uuid as _uuid
+
+        changed = False
+        seen_ids: set[str] = set()
+
+        for task in tasks:
+            task_id = task.get("id", "")
+            if task_id in seen_ids:
+                new_id = str(_uuid.uuid4())
+                logger.warning(
+                    f"[QueueStorage] 发现重复ID，自动重新生成: '{task_id}' -> '{new_id}' "
+                    f"(prompt前缀={str(task.get('prompt', ''))[:30]})"
+                )
+                task["id"] = new_id
+                changed = True
+            else:
+                seen_ids.add(task_id)
+
+        return tasks, changed
+
     def add(self, task: Task) -> None:
         """添加任务到队列"""
         data = self._read()
