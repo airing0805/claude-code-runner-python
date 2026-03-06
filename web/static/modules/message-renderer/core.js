@@ -4,6 +4,7 @@
  *
  * v0.5.3.6: 完善工具渲染器集成
  * v0.5.4: 消息渲染增强 - 内容截断、动画、思考块、工具图标/预览系统
+ * v9.0.1: 添加轮次折叠/展开状态管理
  */
 
 const MessageRendererCore = {
@@ -22,6 +23,109 @@ const MessageRendererCore = {
     _autoExpandTools: ['todowrite', 'task'],
 
     /**
+     * 轮次折叠状态存储 (按会话ID区分)
+     */
+    _collapseState: {},
+
+    /**
+     * 默认折叠状态（对于较旧的轮次）
+     */
+    _defaultCollapseOlderRounds: true,
+
+    /**
+     * 获取轮次折叠状态
+     * @param {string} sessionId - 会话ID
+     * @param {number} roundNumber - 轮次编号
+     * @returns {boolean} 是否折叠
+     */
+    _getRoundCollapseState(sessionId, roundNumber) {
+        const key = sessionId || 'default';
+        if (!this._collapseState[key]) {
+            // 默认：较新的轮次展开，较旧的轮次折叠
+            return this._defaultCollapseOlderRounds && roundNumber > 2;
+        }
+        return this._collapseState[key][roundNumber] ?? (this._defaultCollapseOlderRounds && roundNumber > 2);
+    },
+
+    /**
+     * 设置轮次折叠状态
+     * @param {string} sessionId - 会话ID
+     * @param {number} roundNumber - 轮次编号
+     * @param {boolean} collapsed - 是否折叠
+     */
+    _setRoundCollapseState(sessionId, roundNumber, collapsed) {
+        const key = sessionId || 'default';
+        if (!this._collapseState[key]) {
+            this._collapseState[key] = {};
+        }
+        this._collapseState[key][roundNumber] = collapsed;
+    },
+
+    /**
+     * 保存折叠状态到本地存储
+     * @param {string} sessionId - 会话ID
+     */
+    _saveCollapseState(sessionId) {
+        try {
+            const key = sessionId || 'default';
+            if (this._collapseState[key]) {
+                localStorage.setItem(`claude_round_collapse_${key}`, JSON.stringify(this._collapseState[key]));
+            }
+        } catch (error) {
+            console.warn('[MessageRenderer] 保存折叠状态失败:', error);
+        }
+    },
+
+    /**
+     * 从本地存储加载折叠状态
+     * @param {string} sessionId - 会话ID
+     */
+    _loadCollapseState(sessionId) {
+        try {
+            const key = sessionId || 'default';
+            const saved = localStorage.getItem(`claude_round_collapse_${key}`);
+            if (saved) {
+                this._collapseState[key] = JSON.parse(saved);
+            }
+        } catch (error) {
+            console.warn('[MessageRenderer] 加载折叠状态失败:', error);
+        }
+    },
+
+    /**
+     * 切换轮次折叠/展开状态
+     * @param {string} roundId - 轮次元素ID
+     */
+    _toggleRoundCollapse(roundId) {
+        const roundEl = document.getElementById(roundId);
+        if (!roundEl) return;
+
+        const content = roundEl.querySelector('.round-content');
+        const toggle = roundEl.querySelector('.round-toggle-icon');
+        const isCollapsed = roundEl.classList.contains('collapsed');
+
+        if (isCollapsed) {
+            // 展开
+            roundEl.classList.remove('collapsed');
+            if (content) content.style.display = '';
+            if (toggle) toggle.textContent = '▼';
+        } else {
+            // 折叠
+            roundEl.classList.add('collapsed');
+            if (content) content.style.display = 'none';
+            if (toggle) toggle.textContent = '▶';
+        }
+
+        // 保存状态
+        const roundNumber = parseInt(roundId.replace('round-', ''));
+        const runner = window.runner;
+        if (runner && runner.currentSessionId) {
+            this._setRoundCollapseState(runner.currentSessionId, roundNumber, !isCollapsed);
+            this._saveCollapseState(runner.currentSessionId);
+        }
+    },
+
+    /**
      * 显示历史消息
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {Array} messages - 消息数组
@@ -29,6 +133,9 @@ const MessageRendererCore = {
     displayHistoryMessages(runner, messages) {
         console.log('[displayHistoryMessages] 开始渲染历史消息:', messages.length, '条消息');
         console.log('[displayHistoryMessages] 消息详情:', messages);
+
+        // v9.0.1: 加载折叠状态
+        this._loadCollapseState(runner.currentSessionId);
 
         // 清空输出区并显示历史消息
         runner.outputEl.innerHTML = '';
@@ -70,6 +177,11 @@ const MessageRendererCore = {
             console.warn(`[MessageRenderer] 未找到tab ${tabId}的输出容器`);
             return;
         }
+
+        // v9.0.1: 加载折叠状态（使用 tab 对应的 sessionId）
+        const tabData = runner.tabs.find(t => t.id === tabId);
+        const sessionId = tabData ? tabData.sessionId : null;
+        this._loadCollapseState(sessionId);
 
         // 清空容器
         outputContainer.innerHTML = '';
@@ -168,6 +280,10 @@ const MessageRendererCore = {
         roundEl.className = 'conversation-round message-fade-in';
         roundEl.id = `round-${roundNumber}`;
 
+        // v9.0.1: 获取折叠状态
+        const sessionId = runner.currentSessionId;
+        const isCollapsed = this._getRoundCollapseState(sessionId, roundNumber);
+
         // 渲染用户消息
         const userContent = MessageRendererContent._renderUserContent(round.user);
         console.log('[_createRoundElement] 用户内容渲染结果:', userContent);
@@ -176,19 +292,32 @@ const MessageRendererCore = {
         const assistantContent = MessageRendererContent._renderAssistantMessages(round.assistant);
         console.log('[_createRoundElement] 助手内容渲染结果:', assistantContent);
 
+        // v9.0.1: 添加折叠/展开功能
+        const collapseIcon = isCollapsed ? '▶' : '▼';
+
         roundEl.innerHTML = `
             <div class="round-header">
+                <button class="round-toggle" onclick="MessageRendererCore._toggleRoundCollapse('round-${roundNumber}')">
+                    <span class="round-toggle-icon">${collapseIcon}</span>
+                </button>
                 <span class="round-number">第 ${roundNumber} 轮</span>
             </div>
-            <div class="round-user">
-                <div class="message-role user-role">👤 用户</div>
-                <div class="message-content user-content">${userContent}</div>
-            </div>
-            <div class="round-assistant">
-                <div class="message-role assistant-role">🤖 Claude</div>
-                <div class="assistant-messages">${assistantContent}</div>
+            <div class="round-content" style="display: ${isCollapsed ? 'none' : ''};">
+                <div class="round-user">
+                    <div class="message-role user-role">👤 用户</div>
+                    <div class="message-content user-content">${userContent}</div>
+                </div>
+                <div class="round-assistant">
+                    <div class="message-role assistant-role">🤖 Claude</div>
+                    <div class="assistant-messages">${assistantContent}</div>
+                </div>
             </div>
         `;
+
+        // 如果初始状态为折叠，添加 collapsed 类
+        if (isCollapsed) {
+            roundEl.classList.add('collapsed');
+        }
 
         return roundEl;
     },

@@ -4,6 +4,7 @@
  *
  * v0.5.3.6: 完善工具渲染器集成
  * v0.5.4: 消息渲染增强 - 内容截断、动画、思考块、工具图标/预览系统
+ * v9.0.1: 添加轮次折叠/展开状态管理
  */
 
 // 确保所有依赖模块已加载
@@ -36,20 +37,25 @@ const MessageRenderer = {
     displayHistoryMessages: MessageRendererCore.displayHistoryMessages.bind(MessageRendererCore),
     addAssistantMessage: MessageRendererCore.addAssistantMessage.bind(MessageRendererCore),
     displayHistoryMessagesToTab: MessageRendererCore.displayHistoryMessagesToTab.bind(MessageRendererCore),
-    
+
+    // v9.0.1: 代理轮次折叠/展开功能
+    _toggleRoundCollapse: MessageRendererCore._toggleRoundCollapse.bind(MessageRendererCore),
+    _getRoundCollapseState: MessageRendererCore._getRoundCollapseState.bind(MessageRendererCore),
+    _setRoundCollapseState: MessageRendererCore._setRoundCollapseState.bind(MessageRendererCore),
+
     // 代理配置访问
     get truncationConfig() {
         return MessageRendererCore._truncationConfig;
     },
-    
+
     set truncationConfig(config) {
         Object.assign(MessageRendererCore._truncationConfig, config);
     },
-    
+
     get autoExpandTools() {
         return MessageRendererCore._autoExpandTools;
     },
-    
+
     set autoExpandTools(tools) {
         MessageRendererCore._autoExpandTools = tools;
     },

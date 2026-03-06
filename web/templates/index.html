@@ -115,12 +115,26 @@
                     <div class="session-info-bar">
                         <span class="info-item">
                             <span class="info-label">工作目录</span>
-                            <input type="text" id="working-dir" class="info-input info-input-working-dir" list="working-dir-list" value="{{ working_dir }}" title="选择或输入工作目录" placeholder="选择或输入路径">
+                            <input type="text" id="working-dir" class="info-input info-input-working-dir" list="working-dir-list" value="{{ working_dir }}" title="选择或输入工作目录" placeholder="选择或输入路径" aria-label="工作目录">
                             <datalist id="working-dir-list"></datalist>
                         </span>
                         <span class="info-item">
                             <span class="info-label">会话ID</span>
-                            <input type="text" id="resume" placeholder="新会话" class="info-input info-input-session" readonly title="会话ID">
+                            <input type="text" id="resume" placeholder="新会话" class="info-input info-input-session" readonly title="点击复制会话ID" data-copyable="true" aria-label="会话ID - 点击复制">
+                            <span class="info-copy-hint">点击复制</span>
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">消息</span>
+                            <span class="info-stat" id="session-message-count">
+                                <span class="info-stat-value">0</span>
+                                <span>条</span>
+                            </span>
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">创建时间</span>
+                            <span class="info-stat" id="session-created-time">
+                                <span class="info-stat-value">-</span>
+                            </span>
                         </span>
                         <span class="info-item">
                             <span class="info-label">工具权限</span>
@@ -178,7 +192,7 @@
                         <!-- 对话输入区 -->
                         <div class="session-input-container">
                             <div class="session-input">
-                                <textarea id="prompt" rows="2" placeholder="描述你希望 Claude Code 执行的任务... (Enter 发送, Ctrl+Enter 换行)"></textarea>
+                                <textarea id="prompt" rows="2" placeholder="描述你希望 Claude Code 执行的任务... (Enter 发送, Ctrl+Enter 换行)" aria-label="任务描述输入框"></textarea>
                             </div>
                             <div class="input-toolbar">
                                 <div class="toolbar-left">
@@ -1217,6 +1231,8 @@
     <script src="/static/modules/navigation.js"></script>
     <script src="/static/modules/task.js"></script>
     <script src="/static/modules/session.js"></script>
+    <!-- 会话组件 -->
+    <script src="/static/components/sessionComponents.js"></script>
     <script src="/static/modules/history.js"></script>
     <script src="/static/modules/workingDir.js"></script>
     <script src="/static/modules/agentMonitor.js"></script>

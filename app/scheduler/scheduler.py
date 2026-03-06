@@ -174,6 +174,12 @@ class Scheduler:
 
                 # 添加到 APScheduler
                 self.apscheduler.add_scheduled_task(scheduled)
+
+                # 保存计算出的 next_run 到存储（APScheduler 内部已计算）
+                if scheduled.next_run:
+                    self.storage.scheduled.save(scheduled)
+                    logger.info(f"已保存任务下次执行时间: {scheduled.name}, next_run: {scheduled.next_run}")
+
                 logger.info(f"定时任务已加载: {scheduled.name} ({scheduled.id})")
             except Exception as e:
                 logger.error(f"加载定时任务失败: {scheduled.id}, 错误: {e}")

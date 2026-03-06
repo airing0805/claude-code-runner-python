@@ -9,6 +9,7 @@ import os
 import re
 import tempfile
 import time
+import uuid
 import msvcrt
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -118,13 +119,44 @@ def atomic_write(filepath: Path, data: dict) -> None:
         raise
 
 
+def _normalize_datetime_field(task: dict, field: str) -> bool:
+    """将 task 字典中指定时间字段统一格式化为 'YYYY-MM-DD HH:MM:SS'
+
+    支持的输入格式：
+    - ISO 8601 带时区: "2026-03-06T09:00:00+08:00"
+    - ISO 8601 无时区: "2026-03-06T09:00:00"
+    - ISO 带毫秒:     "2026-03-06T09:00:00.123456"
+    - 空格分隔:       "2026-03-06 09:00:00.034541"
+
+    不修改 None 或无法解析的值，绝对不修改 prompt 等非时间字段。
+
+    Returns:
+        是否发生了变更
+    """
+    from app.scheduler.timezone_utils import parse_datetime, format_datetime
+
+    value = task.get(field)
+    if not value:
+        return False
+
+    dt = parse_datetime(str(value))
+    if dt is None:
+        return False
+
+    normalized = format_datetime(dt)
+    if normalized != value:
+        task[field] = normalized
+        return True
+    return False
+
+
 class BaseStorage:
     """JSON 文件存储基类"""
 
-    def __init__(self, filepath: Path):
+    def __init__(self, filepath: Path) -> None:
         self.filepath = filepath
 
-    def _read_raw(self) -> dict:
+    def _read_raw(self) -> dict[str, Any]:
         """读取原始数据（不加锁）"""
         if not self.filepath.exists():
             return {"tasks": []}
@@ -133,16 +165,16 @@ class BaseStorage:
             return {"tasks": []}
         return json.loads(content)
 
-    def _read(self) -> dict:
+    def _read(self) -> dict[str, Any]:
         """读取数据（加锁）"""
         return self._read_raw()
 
-    def _write_raw(self, data: dict) -> None:
+    def _write_raw(self, data: dict[str, Any]) -> None:
         """写入原始数据（不加锁）"""
         self.filepath.parent.mkdir(parents=True, exist_ok=True)
         atomic_write(self.filepath, data)
 
-    def _write(self, data: dict) -> None:
+    def _write(self, data: dict[str, Any]) -> None:
         """写入数据（加锁和原子操作）"""
         self._write_raw(data)
 
@@ -175,16 +207,15 @@ class QueueStorage(BaseStorage):
         修复规则：
         1. 重复 ID：同一 ID 出现多次时，为后续重复条目重新生成 UUID
            注意：只修改 id 字段，绝对不修改 prompt 及其他业务字段
+        2. 时间字段格式：将 created_at/started_at/finished_at 统一为 'YYYY-MM-DD HH:MM:SS'
         """
-        import uuid as _uuid
-
         changed = False
         seen_ids: set[str] = set()
 
         for task in tasks:
             task_id = task.get("id", "")
             if task_id in seen_ids:
-                new_id = str(_uuid.uuid4())
+                new_id = str(uuid.uuid4())
                 logger.warning(
                     f"[QueueStorage] 发现重复ID，自动重新生成: '{task_id}' -> '{new_id}' "
                     f"(prompt前缀={str(task.get('prompt', ''))[:30]})"
@@ -193,6 +224,12 @@ class QueueStorage(BaseStorage):
                 changed = True
             else:
                 seen_ids.add(task_id)
+
+            # --- 规则2: 统一时间字段格式 ---
+            for field in ("created_at", "started_at", "finished_at"):
+                if _normalize_datetime_field(task, field):
+                    logger.debug(f"[QueueStorage] 时间格式已修正: id={task.get('id')}, field={field}")
+                    changed = True
 
         return tasks, changed
 
@@ -276,6 +313,7 @@ class ScheduledStorage(BaseStorage):
         修复规则：
         1. 重复 ID：同一 ID 出现多次时，从第 2 条起追加 -2、-3 ... 后缀，使每条记录拥有唯一 ID
         2. 过期 next_run：next_run 非空且时间早于当前时间时，清空为 null，由调度器重新计算
+        3. 时间字段格式：将 created_at/updated_at/last_run/next_run 统一为 'YYYY-MM-DD HH:MM:SS'
         """
         from app.scheduler.timezone_utils import parse_datetime, now_shanghai
 
@@ -317,6 +355,12 @@ class ScheduledStorage(BaseStorage):
                         f"id={task.get('id')}, name={task.get('name', '')}, next_run={next_run_str}"
                     )
                     task["next_run"] = None
+                    changed = True
+
+            # --- 规则3: 统一时间字段格式 ---
+            for field in ("created_at", "updated_at", "last_run", "next_run"):
+                if _normalize_datetime_field(task, field):
+                    logger.debug(f"[ScheduledStorage] 时间格式已修正: id={task.get('id')}, field={field}")
                     changed = True
 
         return tasks, changed

@@ -517,7 +517,7 @@ const History = {
     },
 
     /**
-     * 继续会话
+     * 继续会话（支持分页加载）
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} sessionId - 会话 ID
      */
@@ -532,9 +532,12 @@ const History = {
             return;
         }
 
-        // 加载会话历史消息
+        // v9.0.2: 显示加载提示
+        const loadingMessage = this._showLoadingMessage(runner, '正在加载会话...');
+
+        // 加载会话历史消息（第一页）
         try {
-            const response = await fetch(`/api/sessions/${sessionId}/messages`);
+            const response = await fetch(`/api/sessions/${sessionId}/messages?page=1&limit=100`);
 
             // 检查 HTTP 状态
             if (!response.ok) {
@@ -553,6 +556,16 @@ const History = {
             }
 
             const projectPath = data.project_path || '';
+            const pagination = data.pagination || { total: messages.length, has_more: false };
+
+            // v9.0.2: 如果有更多消息，分页加载
+            if (pagination.has_more) {
+                this._updateLoadingMessage(runner, loadingMessage, `正在加载消息 (${messages.length}/${pagination.total})...`);
+                messages = await this._loadAllMessages(runner, sessionId, messages, pagination, loadingMessage);
+            }
+
+            // 移除加载提示
+            this._removeLoadingMessage(runner, loadingMessage);
 
             // 从第一条用户消息的 content 数组中提取文本标题，排除 ide_selection 标签
             let title = `会话 ${sessionId.substring(0, 8)}`;
@@ -573,6 +586,14 @@ const History = {
             runner.resumeInput.value = sessionId;
             runner.resumeInput.title = sessionId;
 
+            // 更新会话信息栏（消息计数、创建时间）
+            if (typeof SessionInfoBar !== 'undefined') {
+                SessionInfoBar.updateSessionInfo({
+                    messageCount: messages.length,
+                    createdTime: null
+                });
+            }
+
             // 设置工作目录并禁用编辑
             if (projectPath) {
                 WorkingDir.setWorkingDir(runner, projectPath);
@@ -580,6 +601,8 @@ const History = {
             Session.setSessionEditable(runner, false);
         } catch (error) {
             console.error('加载会话历史失败:', error);
+            // 移除加载提示
+            this._removeLoadingMessage(runner, loadingMessage);
             // 即使加载失败也创建标签
             Navigation.switchView(runner, Views.CURRENT_SESSION);
             Tabs.createSessionTab(runner, sessionId, `会话 ${sessionId.substring(0, 8)}`, [], '');
@@ -587,6 +610,93 @@ const History = {
             runner.resumeInput.title = sessionId;
             Session.setSessionEditable(runner, false);
         }
+    },
+
+    /**
+     * 显示加载消息提示（v9.0.2）
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {string} text - 提示文本
+     * @returns {HTMLElement} 加载提示元素
+     */
+    _showLoadingMessage(runner, text) {
+        const outputEl = runner.outputEl;
+        if (!outputEl) return null;
+
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'loading-messages message-fade-in';
+        loadingEl.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span class="loading-text">${text}</span>
+        `;
+        outputEl.appendChild(loadingEl);
+        Utils.scrollToBottom(outputEl);
+        return loadingEl;
+    },
+
+    /**
+     * 更新加载消息提示（v9.0.2）
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {HTMLElement} loadingEl - 加载提示元素
+     * @param {string} text - 新提示文本
+     */
+    _updateLoadingMessage(runner, loadingEl, text) {
+        if (loadingEl) {
+            const textEl = loadingEl.querySelector('.loading-text');
+            if (textEl) {
+                textEl.textContent = text;
+            }
+        }
+    },
+
+    /**
+     * 移除加载消息提示（v9.0.2）
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {HTMLElement} loadingEl - 加载提示元素
+     */
+    _removeLoadingMessage(runner, loadingEl) {
+        if (loadingEl && loadingEl.parentNode) {
+            loadingEl.parentNode.removeChild(loadingEl);
+        }
+    },
+
+    /**
+     * 加载所有消息（分页加载 v9.0.2）
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {string} sessionId - 会话 ID
+     * @param {Array} messages - 已加载的消息
+     * @param {Object} pagination - 分页信息
+     * @param {HTMLElement} loadingEl - 加载提示元素
+     * @returns {Promise<Array>} 所有消息
+     */
+    async _loadAllMessages(runner, sessionId, messages, pagination, loadingEl) {
+        const totalPages = pagination.pages;
+        const pageSize = pagination.limit;
+
+        for (let page = 2; page <= totalPages; page++) {
+            try {
+                this._updateLoadingMessage(
+                    runner,
+                    loadingEl,
+                    `正在加载消息 (${messages.length}/${pagination.total})...`
+                );
+
+                const response = await fetch(`/api/sessions/${sessionId}/messages?page=${page}&limit=${pageSize}`);
+                if (!response.ok) {
+                    console.warn(`加载第 ${page} 页失败，继续使用已加载的消息`);
+                    break;
+                }
+
+                const data = await response.json();
+                if (Array.isArray(data.messages)) {
+                    messages = messages.concat(data.messages);
+                }
+            } catch (error) {
+                console.warn(`加载第 ${page} 页出错:`, error);
+                break;
+            }
+        }
+
+        return messages;
     }
 };
 

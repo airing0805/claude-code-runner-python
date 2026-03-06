@@ -1,9 +1,258 @@
 /**
  * 标签页组件模块
  * 处理标签页的创建、切换和关闭
+ * v9.0.1: 添加快捷键切换和拖拽排序
  */
 
 const Tabs = {
+    // 拖拽状态
+    _dragState: {
+        draggedTab: null,
+        draggedIndex: -1,
+        placeholder: null
+    },
+
+    /**
+     * 初始化标签页快捷键和拖拽功能
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     */
+    init(runner) {
+        this._initKeyboardShortcuts(runner);
+        this._initDragAndDrop(runner);
+    },
+
+    /**
+     * 初始化键盘快捷键 (Ctrl+Tab, Ctrl+1-9)
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     */
+    _initKeyboardShortcuts(runner) {
+        document.addEventListener('keydown', (e) => {
+            // 忽略在输入框中的快捷键（除了 Ctrl+Enter 发送任务）
+            const target = e.target;
+            const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+
+            // Ctrl+Tab: 切换到下一个标签
+            if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
+                e.preventDefault();
+                const tabs = runner.tabsBar.querySelectorAll('.tab-item');
+                if (tabs.length <= 1) return;
+
+                const currentIndex = Array.from(tabs).findIndex(tab => tab.classList.contains('active'));
+                const nextIndex = (currentIndex + 1) % tabs.length;
+                const nextTabId = tabs[nextIndex].dataset.tab;
+                if (nextTabId) {
+                    this.switchToTab(runner, nextTabId);
+                }
+                return;
+            }
+
+            // Ctrl+Shift+Tab: 切换到上一个标签
+            if (e.ctrlKey && e.key === 'Tab' && e.shiftKey) {
+                e.preventDefault();
+                const tabs = runner.tabsBar.querySelectorAll('.tab-item');
+                if (tabs.length <= 1) return;
+
+                const currentIndex = Array.from(tabs).findIndex(tab => tab.classList.contains('active'));
+                const prevIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+                const prevTabId = tabs[prevIndex].dataset.tab;
+                if (prevTabId) {
+                    this.switchToTab(runner, prevTabId);
+                }
+                return;
+            }
+
+            // Ctrl+1-9: 切换到对应位置的标签
+            if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
+                e.preventDefault();
+                const tabIndex = parseInt(e.key) - 1;
+                const tabs = runner.tabsBar.querySelectorAll('.tab-item');
+                if (tabIndex < tabs.length) {
+                    const tabId = tabs[tabIndex].dataset.tab;
+                    if (tabId) {
+                        this.switchToTab(runner, tabId);
+                    }
+                }
+                return;
+            }
+
+            // Ctrl+W: 关闭当前标签
+            if (e.ctrlKey && e.key === 'w') {
+                e.preventDefault();
+                if (runner.activeTabId && runner.activeTabId !== 'new') {
+                    this.closeTab(runner, runner.activeTabId);
+                }
+                return;
+            }
+
+            // Ctrl+T: 创建新标签
+            if (e.ctrlKey && e.key === 't') {
+                e.preventDefault();
+                this.createNewSession(runner);
+                return;
+            }
+        });
+    },
+
+    /**
+     * 初始化拖拽排序功能
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     */
+    _initDragAndDrop(runner) {
+        let draggedTab = null;
+        let draggedIndex = -1;
+        let placeholder = null;
+
+        runner.tabsBar.addEventListener('dragstart', (e) => {
+            const tabItem = e.target.closest('.tab-item');
+            if (!tabItem) return;
+
+            draggedTab = tabItem;
+            draggedIndex = Array.from(runner.tabsBar.children).indexOf(tabItem);
+            tabItem.classList.add('dragging');
+
+            // 创建占位符
+            placeholder = document.createElement('div');
+            placeholder.className = 'tab-placeholder';
+            placeholder.style.width = tabItem.offsetWidth + 'px';
+            placeholder.style.height = tabItem.offsetHeight + 'px';
+
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', tabItem.dataset.tab);
+        });
+
+        runner.tabsBar.addEventListener('dragend', (e) => {
+            const tabItem = e.target.closest('.tab-item');
+            if (tabItem) {
+                tabItem.classList.remove('dragging');
+            }
+
+            // 移除占位符
+            if (placeholder) {
+                placeholder.remove();
+                placeholder = null;
+            }
+
+            // 更新 tabs 数组顺序
+            if (draggedTab && draggedIndex >= 0) {
+                const newIndex = Array.from(runner.tabsBar.children).indexOf(placeholder || draggedTab);
+                if (newIndex !== draggedIndex && newIndex >= 0) {
+                    this._reorderTabs(runner, draggedIndex, newIndex);
+                }
+            }
+
+            draggedTab = null;
+            draggedIndex = -1;
+        });
+
+        runner.tabsBar.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const tabItem = e.target.closest('.tab-item');
+            if (!tabItem || tabItem === draggedTab) return;
+
+            // 获取容器和占位符
+            const afterElement = this._getDragAfterElement(runner.tabsBar, e.clientX);
+
+            if (afterElement == null) {
+                runner.tabsBar.appendChild(placeholder);
+            } else {
+                runner.tabsBar.insertBefore(placeholder, afterElement);
+            }
+        });
+
+        runner.tabsBar.addEventListener('drop', (e) => {
+            e.preventDefault();
+        });
+    },
+
+    /**
+     * 获取拖拽放置位置的元素
+     * @param {HTMLElement} container - 容器元素
+     * @param {number} x - 鼠标 X 坐标
+     * @returns {HTMLElement|null} 放置位置后的元素
+     */
+    _getDragAfterElement(container, x) {
+        const draggableElements = [...container.querySelectorAll('.tab-item:not(.dragging)')];
+
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = x - box.left - box.width / 2;
+
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    },
+
+    /**
+     * 重新排序 tabs 数组
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {number} fromIndex - 原索引
+     * @param {number} toIndex - 新索引
+     */
+    _reorderTabs(runner, fromIndex, toIndex) {
+        // 重新排列 runner.tabs 数组
+        const tab = runner.tabs.splice(fromIndex, 1)[0];
+        runner.tabs.splice(toIndex, 0, tab);
+
+        // 保存排序到本地存储
+        this._saveTabOrder(runner);
+    },
+
+    /**
+     * 保存标签页排序到本地存储
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     */
+    _saveTabOrder(runner) {
+        try {
+            const tabOrder = runner.tabs.map(t => t.id);
+            localStorage.setItem('claude_tabs_order', JSON.stringify(tabOrder));
+        } catch (error) {
+            console.warn('[Tabs] 保存标签排序失败:', error);
+        }
+    },
+
+    /**
+     * 从本地存储恢复标签页排序
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     */
+    _restoreTabOrder(runner) {
+        try {
+            const savedOrder = localStorage.getItem('claude_tabs_order');
+            if (!savedOrder) return;
+
+            const tabOrder = JSON.parse(savedOrder);
+            if (!Array.isArray(tabOrder) || tabOrder.length === 0) return;
+
+            // 按照保存的顺序重新排列 DOM 元素和 tabs 数组
+            const currentTabs = [...runner.tabs];
+            const orderedTabs = [];
+
+            tabOrder.forEach(tabId => {
+                const tab = currentTabs.find(t => t.id === tabId);
+                if (tab) {
+                    orderedTabs.push(tab);
+                    const tabEl = runner.tabsBar.querySelector(`[data-tab="${tabId}"]`);
+                    if (tabEl) {
+                        runner.tabsBar.appendChild(tabEl);
+                    }
+                }
+            });
+
+            // 添加新标签（不在保存的顺序中）
+            currentTabs.forEach(tab => {
+                if (!orderedTabs.find(t => t.id === tab.id)) {
+                    orderedTabs.push(tab);
+                }
+            });
+
+            runner.tabs = orderedTabs;
+        } catch (error) {
+            console.warn('[Tabs] 恢复标签排序失败:', error);
+        }
+    },
+
     /**
      * 创建新的任务标签页
      * @param {Object} runner - ClaudeCodeRunner 实例
@@ -41,6 +290,7 @@ const Tabs = {
         const tabEl = document.createElement('button');
         tabEl.className = 'tab-item';
         tabEl.dataset.tab = tabId;
+        tabEl.draggable = true; // 启用拖拽
         tabEl.innerHTML = `
             <span class="tab-icon">➕</span>
             <span class="tab-title">新任务</span>
@@ -127,6 +377,7 @@ const Tabs = {
         tabEl.className = 'tab-item';
         tabEl.dataset.tab = tabId;
         tabEl.dataset.sessionId = sessionId;
+        tabEl.draggable = true; // 启用拖拽
         tabEl.innerHTML = `
             <span class="tab-icon">💬</span>
             <span class="tab-title" title="${Utils.escapeHtml(title)}">${Utils.escapeHtml(title.substring(0, 15))}${title.length > 15 ? '...' : ''}</span>

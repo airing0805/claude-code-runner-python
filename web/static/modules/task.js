@@ -137,18 +137,26 @@ const Task = {
         roundEl.className = 'conversation-round';
         roundEl.id = `round-${runner.roundCounter}`;
 
+        // v9.0.1: 新轮次默认展开
+        const collapseIcon = '▼';
+
         roundEl.innerHTML = `
             <div class="round-header">
+                <button class="round-toggle" onclick="MessageRendererCore._toggleRoundCollapse('round-${runner.roundCounter}')">
+                    <span class="round-toggle-icon">${'▼'}</span>
+                </button>
                 <span class="round-number">第 ${runner.roundCounter} 轮</span>
                 <span class="round-timestamp">${new Date().toLocaleString()}</span>
             </div>
-            <div class="round-user">
-                <div class="message-role user-role">👤 用户</div>
-                <div class="message-content user-content">${Utils.escapeHtml(userPrompt)}</div>
-            </div>
-            <div class="round-assistant">
-                <div class="message-role assistant-role">🤖 Claude</div>
-                <div class="assistant-messages"></div>
+            <div class="round-content">
+                <div class="round-user">
+                    <div class="message-role user-role">👤 用户</div>
+                    <div class="message-content user-content">${Utils.escapeHtml(userPrompt)}</div>
+                </div>
+                <div class="round-assistant">
+                    <div class="message-role assistant-role">🤖 Claude</div>
+                    <div class="assistant-messages"></div>
+                </div>
             </div>
         `;
 
@@ -356,6 +364,21 @@ const Task = {
         runner.reader = null;
         runner.abortController = null;
 
+        // v9.0.2: 生成错误详情
+        let errorDetail = '网络连接中断';
+        if (error.message) {
+            // 简化错误信息，避免泄露技术细节
+            if (error.message.includes('network') || error.message.includes('fetch')) {
+                errorDetail = '网络连接失败，请检查网络';
+            } else if (error.message.includes('timeout')) {
+                errorDetail = '连接超时，请稍后重试';
+            } else if (error.message.includes('abort')) {
+                errorDetail = '请求被中止';
+            } else {
+                errorDetail = '服务器连接中断';
+            }
+        }
+
         // 检查是否可以重连
         if (this._retryCount < SSE_CONFIG.MAX_RETRIES) {
             const delay = this._calculateRetryDelay();
@@ -366,6 +389,9 @@ const Task = {
 
             // 显示重连提示
             this._showReconnectNotification(runner, delay, this._retryCount);
+
+            // v9.0.2: 显示更友好的错误提示
+            this.addMessage(runner, 'info', `${errorDetail}，正在尝试重连 (${this._retryCount}/${SSE_CONFIG.MAX_RETRIES})...`);
 
             // 设置重连定时器
             this._retryTimeout = setTimeout(() => {
@@ -389,7 +415,16 @@ const Task = {
             // 超过最大重连次数
             this._updateConnectionState(runner, ConnectionState.DISCONNECTED);
             this._showMaxRetriesExceeded(runner);
-            this.addMessage(runner, 'error', `连接已断开，重试 ${SSE_CONFIG.MAX_RETRIES} 次后仍失败。请手动重试。`);
+
+            // v9.0.2: 更详细的错误提示，包含可能的原因和建议
+            let errorMsg = `连接失败：重试 ${SSE_CONFIG.MAX_RETRIES} 次后仍无法连接到服务器。`;
+            errorMsg += '\n可能原因：';
+            errorMsg += '\n- 网络连接不稳定';
+            errorMsg += '\n- 服务器暂时不可用';
+            errorMsg += '\n- 防火墙或代理设置';
+            errorMsg += '\n\n建议：请检查网络连接后，点击右上角的"重新连接"按钮重试。';
+
+            this.addMessage(runner, 'error', errorMsg);
             this._taskContext = null;
             this._taskStatus = TaskStatus.ERROR;
         }

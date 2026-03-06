@@ -449,17 +449,23 @@ def parse_content_blocks(message_content: list | str) -> list[dict[str, Any]]:
 
     # 处理字符串类型的 content（简单的文本消息）
     if isinstance(message_content, str):
-        if message_content.strip():
-            blocks.append({
-                "type": "text",
-                "text": message_content,
-            })
+        # v9.0.2: 即使内容为空字符串，也保留消息结构
+        # 用于保持消息链完整（空消息可能是 tool_use/tool_result 链的一部分）
+        blocks.append({
+            "type": "text",
+            "text": message_content,
+        })
         return blocks
 
     if not isinstance(message_content, list):
+        # v9.0.2: 保留空内容块，用于消息链完整性
+        blocks.append({
+            "type": "text",
+            "text": "",
+        })
         return blocks
 
-    # 第一遍：收集 tool_use 的 ID 到名称的映射
+    # 第一遍：收集 tool_use 的 ID 到名称的映射（包括空名称的情况）
     tool_use_map: dict[str, str] = {}
     for item in message_content:
         if not isinstance(item, dict):
@@ -468,7 +474,8 @@ def parse_content_blocks(message_content: list | str) -> list[dict[str, Any]]:
         if item_type == "tool_use":
             tool_use_id = item.get("id", "")
             tool_name = item.get("name", "")
-            if tool_use_id and tool_name:
+            # v9.0.2: 即使 tool_name 为空也保存映射，用于关联 tool_result
+            if tool_use_id:
                 tool_use_map[tool_use_id] = tool_name
 
     # 第二遍：解析所有块
@@ -479,22 +486,23 @@ def parse_content_blocks(message_content: list | str) -> list[dict[str, Any]]:
         item_type = item.get("type")
 
         if item_type == "text":
+            # v9.0.2: 即使 text 为空也保留，用于消息链完整性
             text = item.get("text", "")
-            if text:
-                blocks.append({
-                    "type": "text",
-                    "text": text,
-                })
+            blocks.append({
+                "type": "text",
+                "text": text,
+            })
 
         elif item_type == "thinking":
             thinking = item.get("thinking", "")
-            if thinking:
-                blocks.append({
-                    "type": "thinking",
-                    "thinking": thinking,
-                })
+            # v9.0.2: 即使 thinking 为空也保留
+            blocks.append({
+                "type": "thinking",
+                "thinking": thinking,
+            })
 
         elif item_type == "tool_use":
+            # v9.0.2: 即使 tool_input 为空也保留 tool_use，用于消息链完整
             blocks.append({
                 "type": "tool_use",
                 "tool_name": item.get("name", ""),
@@ -505,6 +513,7 @@ def parse_content_blocks(message_content: list | str) -> list[dict[str, Any]]:
         elif item_type == "tool_result":
             tool_use_id = item.get("tool_use_id", "")
             tool_name = tool_use_map.get(tool_use_id, "")
+            # v9.0.2: 即使 content 为空也保留，用于消息链完整
             blocks.append({
                 "type": "tool_result",
                 "tool_use_id": tool_use_id,
@@ -513,12 +522,27 @@ def parse_content_blocks(message_content: list | str) -> list[dict[str, Any]]:
                 "is_error": item.get("is_error", False),
             })
 
+    # v9.0.2: 如果所有块都被过滤掉了，添加一个空文本块以保持消息结构
+    if not blocks:
+        blocks.append({
+            "type": "text",
+            "text": "",
+        })
+
     return blocks
 
 
 @router.get("/sessions/{session_id}/messages")
-async def get_session_messages(session_id: str):
-    """获取会话的消息历史"""
+async def get_session_messages(
+    session_id: str,
+    page: int = Query(1, ge=1, description="页码"),
+    limit: int = Query(100, ge=1, le=500, description="每页数量"),
+):
+    """
+    获取会话的消息历史（支持分页）
+
+    v9.0.2: 添加分页支持，用于优化大文件会话加载性能
+    """
     session_file = find_session_file(session_id)
 
     if not session_file:
@@ -529,7 +553,8 @@ async def get_session_messages(session_id: str):
     encoded_name = project_dir.name
     fallback_path = decode_project_name(encoded_name)
 
-    messages = []
+    # v9.0.2: 第一遍扫描获取总消息数和项目路径
+    all_messages = []
     project_path: str | None = None
 
     try:
@@ -552,16 +577,15 @@ async def get_session_messages(session_id: str):
                             message.get("content", [])
                         )
 
-                        # 只有当有内容块时才添加消息
-                        if content_blocks:
-                            messages.append({
-                                "role": "user",
-                                "content": content_blocks,
-                                "timestamp": data.get("timestamp"),
-                                "uuid": data.get("uuid"),
-                                # 添加 permissionMode 用于前端识别新会话轮次
-                                "permissionMode": data.get("permissionMode"),
-                            })
+                        # v9.0.2: 始终添加消息，即使内容为空（用于保持消息链完整）
+                        all_messages.append({
+                            "role": "user",
+                            "content": content_blocks,
+                            "timestamp": data.get("timestamp"),
+                            "uuid": data.get("uuid"),
+                            # 添加 permissionMode 用于前端识别新会话轮次
+                            "permissionMode": data.get("permissionMode"),
+                        })
 
                     elif msg_type == "assistant":
                         message = data.get("message", {})
@@ -569,16 +593,15 @@ async def get_session_messages(session_id: str):
                             message.get("content", [])
                         )
 
-                        # 只有当有内容块时才添加消息
-                        if content_blocks:
-                            messages.append({
-                                "role": "assistant",
-                                "content": content_blocks,
-                                "timestamp": data.get("timestamp"),
-                                "uuid": data.get("uuid"),
-                                "stop_reason": message.get("stop_reason"),
-                                "usage": message.get("usage"),
-                            })
+                        # v9.0.2: 始终添加消息，即使内容为空（用于保持消息链完整）
+                        all_messages.append({
+                            "role": "assistant",
+                            "content": content_blocks,
+                            "timestamp": data.get("timestamp"),
+                            "uuid": data.get("uuid"),
+                            "stop_reason": message.get("stop_reason"),
+                            "usage": message.get("usage"),
+                        })
                 except json.JSONDecodeError:
                     continue
     except Exception as e:
@@ -587,10 +610,26 @@ async def get_session_messages(session_id: str):
     # 使用真实路径，如果无法获取则使用解码后的目录名
     final_path = project_path if project_path else fallback_path
 
+    # v9.0.2: 计算分页
+    total = len(all_messages)
+    pages = (total + limit - 1) // limit if limit > 0 else 0
+    start = (page - 1) * limit
+    end = start + limit
+    paginated_messages = all_messages[start:end]
+
+    # v9.0.2: 返回分页信息和完整数据
     return {
         "session_id": session_id,
         "project_path": final_path,
-        "messages": messages,
+        "messages": paginated_messages,
+        # v9.0.2: 分页元数据
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "pages": pages,
+            "has_more": page < pages,
+        }
     }
 
 

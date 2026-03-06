@@ -80,6 +80,21 @@ class ClaudeCodeRunner {
         // 初始化工具多选组件
         ToolsMultiselect.init(this);
 
+        // 初始化会话信息栏组件
+        if (typeof SessionInfoBar !== 'undefined') {
+            SessionInfoBar.init(this);
+        }
+
+        // 初始化任务输入框组件
+        if (typeof TaskInput !== 'undefined') {
+            TaskInput.init(this);
+        }
+
+        // 初始化权限模式下拉组件
+        if (typeof PermissionModeSelect !== 'undefined') {
+            PermissionModeSelect.init(this);
+        }
+
         // 绑定示例任务按钮
         this.initExampleButtons();
 
@@ -159,6 +174,12 @@ class ClaudeCodeRunner {
         // 创建默认的"新任务"标签页
         Tabs.createNewSession(this);
 
+        // v9.0.1: 初始化标签页快捷键和拖拽排序功能
+        Tabs.init(this);
+
+        // 恢复标签页排序
+        Tabs._restoreTabOrder(this);
+
         // 快捷键
         document.addEventListener('keydown', (e) => {
             if (e.ctrlKey && e.key === 'Enter') {
@@ -171,11 +192,15 @@ class ClaudeCodeRunner {
 
     /**
      * 获取最近的会话ID
+     * @param {string} workingDir - 工作目录（可选，默认使用当前输入的工作目录）
      * @returns {Promise<string|null>} 最近会话ID或null
      */
-    async getLatestSessionId() {
+    async getLatestSessionId(workingDir = null) {
         try {
-            const response = await fetch('/api/sessions?limit=1');
+            // v9.0.2: 使用传入的工作目录或当前输入的工作目录
+            const dir = workingDir || this.workingDirInput?.value || '.';
+            const encodedDir = encodeURIComponent(dir);
+            const response = await fetch(`/api/sessions?working_dir=${encodedDir}&limit=1`);
             if (!response.ok) {
                 console.warn('[继续会话] 获取最近会话失败:', response.status, response.statusText);
                 return null;
@@ -272,9 +297,9 @@ class ClaudeCodeRunner {
             latestSessionId = this.getCachedLatestSessionId();
         }
 
-        // 如果缓存不存在或已过期，从API获取
+        // v9.0.2: 如果缓存不存在或已过期，从API获取（传递工作目录）
         if (!latestSessionId) {
-            latestSessionId = await this.getLatestSessionId();
+            latestSessionId = await this.getLatestSessionId(workingDir);
             if (latestSessionId) {
                 this.cacheLatestSessionId(latestSessionId);
             }
@@ -304,10 +329,14 @@ class ClaudeCodeRunner {
      */
     async handleContinueConversationChange(checked) {
         if (checked) {
+            // v9.0.2: 获取当前工作目录
+            const workingDir = this.workingDirInput?.value || '.';
+
             // 勾选时，获取最近会话ID并填充 resume 字段
             let latestSessionId = this.getCachedLatestSessionId();
             if (!latestSessionId) {
-                latestSessionId = await this.getLatestSessionId();
+                // v9.0.2: 传递工作目录参数
+                latestSessionId = await this.getLatestSessionId(workingDir);
                 if (latestSessionId) {
                     this.cacheLatestSessionId(latestSessionId);
                 }

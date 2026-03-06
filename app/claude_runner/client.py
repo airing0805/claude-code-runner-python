@@ -167,6 +167,7 @@ class ClaudeCodeClient:
             cwd=self.working_dir,
             resume=self.resume,
             env=env_override,
+            max_buffer_size=1024 * 1024,  # 限制缓冲区为 1MB，防止 Windows 崩溃
         )
 
     async def _track_tool_use(self, tool_name: str, tool_input: dict) -> None:

@@ -37,12 +37,21 @@ const Session = {
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string|null} sessionId - 会话 ID
      * @param {string|null} tabTitle - 标签标题
+     * @param {Object|null} sessionData - 会话数据（包含 messageCount, createdTime 等）
      */
-    updateSessionDisplay(runner, sessionId, tabTitle) {
+    updateSessionDisplay(runner, sessionId, tabTitle, sessionData = null) {
         // 更新会话ID输入框
         runner.resumeInput.value = sessionId || '';
         runner.resumeInput.title = sessionId || '';
         runner.currentSessionId = sessionId;
+
+        // 更新会话信息栏（消息计数、创建时间）
+        if (typeof SessionInfoBar !== 'undefined') {
+            SessionInfoBar.updateSessionInfo({
+                messageCount: sessionData?.messageCount || 0,
+                createdTime: sessionData?.createdTime || null
+            });
+        }
 
         // 更新当前标签标题
         if (tabTitle && runner.activeTabId !== 'new') {
@@ -83,6 +92,11 @@ const Session = {
         const tabData = runner.tabs.find(t => t.id === tabId);
         if (tabData) {
             tabData.workingDir = projectPath;
+        }
+
+        // 重置会话信息栏
+        if (typeof SessionInfoBar !== 'undefined') {
+            SessionInfoBar.reset();
         }
 
         // 聚焦到任务输入框

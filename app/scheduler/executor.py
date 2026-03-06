@@ -335,15 +335,15 @@ class TaskExecutor:
             )
 
             if result.success:
-                return self._handle_success(task, result)
+                return await self._handle_success(task, result)
             else:
-                return self._handle_failure(task, result)
+                return await self._handle_failure(task, result)
 
         except asyncio.TimeoutError:
-            return self._handle_timeout(task)
+            return await self._handle_timeout(task)
 
         except Exception as e:
-            return self._handle_error(task, e)
+            return await self._handle_error(task, e)
 
         finally:
             self._is_executing = False
@@ -417,7 +417,7 @@ class TaskExecutor:
             )
             raise
 
-    def _handle_success(self, task: Task, result: ExecutionResult) -> ExecutionResult:
+    async def _handle_success(self, task: Task, result: ExecutionResult) -> ExecutionResult:
         """处理执行成功"""
         task.finished_at = now_iso()
         task.status = TaskStatus.COMPLETED
@@ -451,12 +451,12 @@ class TaskExecutor:
         )
         return result
 
-    def _handle_failure(self, task: Task, result: ExecutionResult) -> ExecutionResult:
+    async def _handle_failure(self, task: Task, result: ExecutionResult) -> ExecutionResult:
         """处理执行失败"""
         error = Exception(result.error or "Unknown error")
-        return self._handle_retry(task, error)
+        return await self._handle_retry(task, error)
 
-    def _handle_timeout(self, task: Task) -> ExecutionResult:
+    async def _handle_timeout(self, task: Task) -> ExecutionResult:
         """处理超时"""
         error = asyncio.TimeoutError(f"Task execution timeout ({task.timeout}ms)")
         self._error_collector.add(
@@ -471,18 +471,18 @@ class TaskExecutor:
             "任务执行超时",
             {"timeout_ms": task.timeout},
         )
-        return self._handle_retry(task, error)
+        return await self._handle_retry(task, error)
 
-    def _handle_error(self, task: Task, error: Exception) -> ExecutionResult:
+    async def _handle_error(self, task: Task, error: Exception) -> ExecutionResult:
         """处理异常"""
         self._error_collector.add(
             error,
             severity=ErrorSeverity.MEDIUM,
             context={"task_id": task.id},
         )
-        return self._handle_retry(task, error)
+        return await self._handle_retry(task, error)
 
-    def _handle_retry(self, task: Task, error: Exception) -> ExecutionResult:
+    async def _handle_retry(self, task: Task, error: Exception) -> ExecutionResult:
         """处理重试逻辑"""
         error_type = classify_error(error)
 
@@ -550,7 +550,7 @@ class TaskExecutor:
         # 从运行中移除，重新加入队列（插入队首以优先处理）
         # 添加重试延迟，避免立即重试失败
         logger.info(f"等待重试延迟: {retry_delay:.1f}s")
-        time.sleep(retry_delay)
+        await asyncio.sleep(retry_delay)
         self.storage.running.remove(task.id)
         self.storage.queue.add_to_front(task)
 

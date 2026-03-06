@@ -540,10 +540,42 @@
     border-bottom: 1px solid var(--border-color);
     font-size: 0.8rem;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* v9.0.1: 轮次折叠/展开按钮 */
+.round-toggle {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.round-toggle:hover {
+    background: var(--card-bg);
+    color: var(--text-color);
+}
+
+.round-toggle-icon {
+    font-size: 0.7rem;
 }
 
 .round-number {
     font-weight: 500;
+}
+
+/* v9.0.1: 折叠状态 */
+.conversation-round.collapsed .round-header {
+    border-bottom-color: transparent;
 }
 
 .round-user {

@@ -4,6 +4,8 @@ import asyncio
 import hashlib
 import json
 import logging
+import subprocess
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -61,8 +63,6 @@ async def save_user_message_to_session(
     生成与 Claude Agent SDK 兼容的会话文件格式。
     注意：此函数仅在创建新会话时调用，恢复会话时不应该覆盖已有文件。
     """
-    import subprocess
-
     try:
         # 获取项目目录
         project_hash = get_project_dir_name(cwd)
@@ -120,8 +120,10 @@ async def save_user_message_to_session(
 
         logger.info(f"已创建会话文件: {session_file}")
     except Exception as e:
-        # 记录错误但不影响主流程
-        logger.warning(f"保存用户消息失败: {e}")
+        # 注意：这里记录错误但不影响主流程，因为会话文件保存失败
+        # 不会影响 Claude Code SDK 自身的会话管理功能
+        # 用户仍可以通过 SDK 继续会话，只是本地没有备份
+        logger.error(f"保存用户消息失败: {e}")
 
 
 def check_session_file_valid(session_id: str, cwd: str) -> bool:
@@ -281,7 +283,6 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
     当遇到需要用户回答的问题时，会暂停并等待用户通过 /answer 接口提交答案
     """
     # ========== 调试日志：入口 ==========
-    import time
     request_start_time = time.time()
     logger.info(f"[SSE] ==================== 新请求开始 ====================")
     logger.info(f"[SSE] 请求详情: resume={task.resume}, new_session={task.new_session}, working_dir={task.working_dir}, prompt长度={len(task.prompt) if task.prompt else 0}")
@@ -507,7 +508,6 @@ async def submit_answer(answer: QuestionAnswerRequest):
 
     用户回答问答问题后调用此接口继续任务执行
     """
-    import time
     logger.info(f"[Answer] ★★★★★ 收到答案提交 ★★★★★")
     logger.info(f"[Answer] 提交的数据: session_id={answer.session_id}, question_id={answer.question_id}, answer={answer.answer}")
     logger.info(f"[Answer] 当前所有会话数: {len(session_manager._sessions)}")
