@@ -183,23 +183,24 @@
       "bases:新建数据库": false
     }
   },
-  "active": "0d0d4ce0e37b5f33",
+  "active": "18379033e6b168d8",
   "lastOpenFiles": [
-    "docs/blog",
-    "docs/落地实践/与nanobot对比.md.tmp.595228.1772858871202",
+    "app/scheduler/__pycache__/storage_logs.cpython-314.pyc",
+    "app/scheduler/__pycache__/storage_cancelled.cpython-314.pyc",
+    "app/scheduler/__pycache__/storage_history.cpython-314.pyc",
+    "app/scheduler/__pycache__/storage_running.cpython-314.pyc",
+    "app/scheduler/__pycache__/storage_scheduled.cpython-314.pyc",
+    "app/scheduler/__pycache__/storage_base.cpython-314.pyc",
+    "app/scheduler/__pycache__/storage_queue.cpython-314.pyc",
+    "app/scheduler/storage_logs.py",
+    "app/scheduler/storage_cancelled.py",
+    "app/scheduler/storage_history.py",
+    "app/scheduler/storage_running.py",
     "docs/0落地实践/与nanobot对比.md",
-    "docs/0落地实践",
-    "docs/实践",
     "docs/images/与nanobot对比.png",
     "docs/images/流程时序图.png",
     "docs/images/image.png",
-    "docs/参考数据格式/多轮对话AskUserQuestion会话记录格式.jsonl",
-    "docs/参考数据格式/不正常的流程.jsonl",
     "docs/参考数据格式/AskUserQuestion对话框数据格式.md",
-    "docs/参考数据格式/sample-session.jsonl",
-    "docs/参考数据格式/edacc3d8-ce4a-493a-8fb1-713607672839.jsonl",
-    "docs/参考数据格式/d9eb61b6-5eb1-42f7-974c-832e54859911.jsonl",
-    "docs/参考数据格式/AskUserQuestion对话框介绍.md",
-    "docs/参考数据格式"
+    "docs/参考数据格式/AskUserQuestion对话框介绍.md"
   ]
 }
