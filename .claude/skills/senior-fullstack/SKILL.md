@@ -1,7 +1,7 @@
 ---
 name: senior-fullstack
 description: 负责代码质量评审、功能完整性检查、全栈开发指导
-argument-hint: /senior-fullstack,/高级全栈工程师, 代码评审, 功能检查, 全栈开发, 质量把控
+argument-hint: /senior-fullstack, /高级全栈工程师, 代码评审, 功能检查, 全栈开发, 质量把控
 metadata:
   版本: "1.1"
   类型: 全栈开发与评审

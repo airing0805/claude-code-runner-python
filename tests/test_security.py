@@ -287,13 +287,13 @@ class TestValidateTimeout:
 
     def test_valid_timeout(self):
         """测试有效超时时间"""
-        result = validate_timeout(60000)  # 1 分钟
-        assert result == 60000
+        result = validate_timeout(60)  # 60 秒 = 1 分钟
+        assert result == 60
 
     def test_timeout_too_small(self):
         """测试过小的超时时间被拒绝"""
         with pytest.raises(SecurityError) as exc_info:
-            validate_timeout(500)  # 小于最小值
+            validate_timeout(0)  # 小于最小值 1 秒
         assert exc_info.value.code == "TIMEOUT_TOO_SMALL"
 
     def test_timeout_at_min_limit(self):
@@ -583,7 +583,7 @@ class TestSecurityIntegration:
         # 验证所有字段
         prompt = validate_prompt_length("Test prompt")
         workspace = validate_workspace("/tmp/project")
-        timeout = validate_timeout(60000)
+        timeout = validate_timeout(60)  # 60 秒
         name = validate_task_name("Test Task")
         tools = validate_allowed_tools(["Read", "Write"])
         task_id = validate_task_id("task-123")
@@ -592,7 +592,7 @@ class TestSecurityIntegration:
         assert prompt == "Test prompt"
         # 工作目录路径在不同平台上可能不同
         assert "tmp" in workspace and "project" in workspace
-        assert timeout == 60000
+        assert timeout == 60
         assert name == "Test Task"
         assert tools == ["Read", "Write"]
         assert task_id == "task-123"

@@ -1016,7 +1016,7 @@ const Scheduler = {
         // 工具使用
         const toolsEl = document.getElementById('detail-task-tools');
         if (task.tools_used && task.tools_used.length > 0) {
-            toolsEl.innerHTML = task.tools_used.map(t => `<span class="tool-tag">${t}</span>`).join('');
+            toolsEl.innerHTML = task.tools_used.map(t => `<span class="tool-tag">${this.escapeHtml(t)}</span>`).join('');
         } else {
             toolsEl.innerHTML = '<span class="empty-text">无</span>';
         }
@@ -1024,7 +1024,7 @@ const Scheduler = {
         // 文件变更
         const filesEl = document.getElementById('detail-task-files');
         if (task.files_changed && task.files_changed.length > 0) {
-            filesEl.innerHTML = task.files_changed.map(f => `<div class="file-item">${f}</div>`).join('');
+            filesEl.innerHTML = task.files_changed.map(f => `<div class="file-item">${this.escapeHtml(f)}</div>`).join('');
         } else {
             filesEl.innerHTML = '<span class="empty-text">无</span>';
         }
@@ -1150,7 +1150,7 @@ const Scheduler = {
                         <tr>
                             <td class="task-prompt" data-label="描述">${this.truncate(task.prompt, 50)}</td>
                             <td data-label="来源">${this.getSourceBadge(task.source, task.scheduled_name)}</td>
-                            <td data-label="工作空间">${task.workspace || '默认工作空间'}</td>
+                            <td data-label="工作空间">${task.workspace ? this.escapeHtml(task.workspace) : '默认工作空间'}</td>
                             <td data-label="创建时间">${this.formatDateTime(task.created_at)}</td>
                             <td class="actions" data-label="操作">
                                 <button class="btn btn-small btn-danger" onclick="Scheduler.deleteTask('${task.id}')">🗑 删除</button>
@@ -1191,7 +1191,7 @@ const Scheduler = {
                         <tr>
                             <td data-label="名称">${this.escapeHtml(task.name)}</td>
                             <td data-label="工作空间"><span class="workspace-badge">${task.workspace === '.' ? '默认工作空间' : this.escapeHtml(task.workspace)}</span></td>
-                            <td data-label="Cron"><code>${task.cron}</code></td>
+                            <td data-label="Cron"><code>${this.escapeHtml(task.cron)}</code></td>
                             <td data-label="下次运行">${task.next_run ? this.formatDateTime(task.next_run) : '-'}</td>
                             <td data-label="状态">
                                 <span class="status-badge ${task.enabled ? 'enabled' : 'disabled'}">
@@ -1531,6 +1531,15 @@ const Scheduler = {
  * 后端路由前缀为 /api/scheduler
  */
 const SchedulerAPI = {
+    // 通用方法：处理API响应
+    async handleResponse(response) {
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || `请求失败 (${response.status})`);
+        }
+        return response.json();
+    },
+
     // 调度器控制
     getStatus: () => fetch('/api/scheduler/status').then(r => r.json()),
     start: () => fetch('/api/scheduler/start', { method: 'POST' }).then(r => {
@@ -1551,36 +1560,102 @@ const SchedulerAPI = {
     }),
 
     // 任务队列
-    getQueue: () => fetch('/api/scheduler/tasks').then(r => r.json()),
+    getQueue: () => fetch('/api/scheduler/tasks').then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '获取队列失败');
+        return data;
+    }),
     addTask: (task) => fetch('/api/scheduler/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task)
-    }).then(r => r.json()),
-    deleteTask: (id) => fetch(`/api/scheduler/tasks/${id}`, { method: 'DELETE' }),
-    clearQueue: () => fetch('/api/scheduler/tasks/clear', { method: 'DELETE' }),
+    }).then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '添加任务失败');
+        return data;
+    }),
+    deleteTask: (id) => fetch(`/api/scheduler/tasks/${id}`, {
+        method: 'DELETE'
+    }).then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || '删除任务失败');
+        return data;
+    }),
+    clearQueue: () => fetch('/api/scheduler/tasks/clear', {
+        method: 'DELETE'
+    }).then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || '清空队列失败');
+        return data;
+    }),
 
     // 定时任务
-    getScheduled: () => fetch('/api/scheduler/scheduled-tasks').then(r => r.json()),
+    getScheduled: () => fetch('/api/scheduler/scheduled-tasks').then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '获取定时任务失败');
+        return data;
+    }),
     addScheduled: (task) => fetch('/api/scheduler/scheduled-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(task)
-    }).then(r => r.json()),
+    }).then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '创建定时任务失败');
+        return data;
+    }),
     updateScheduled: (id, updates) => fetch(`/api/scheduler/scheduled-tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
-    }).then(r => r.json()),
-    deleteScheduled: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}`, { method: 'DELETE' }),
-    toggleScheduled: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}/toggle`, { method: 'POST' }),
-    runScheduledNow: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}/run`, { method: 'POST' }),
+    }).then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '更新定时任务失败');
+        return data;
+    }),
+    deleteScheduled: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}`, {
+        method: 'DELETE'
+    }).then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || '删除定时任务失败');
+        return data;
+    }),
+    toggleScheduled: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}/toggle`, {
+        method: 'POST'
+    }).then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '切换状态失败');
+        return data;
+    }),
+    runScheduledNow: (id) => fetch(`/api/scheduler/scheduled-tasks/${id}/run`, {
+        method: 'POST'
+    }).then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '执行失败');
+        return data;
+    }),
 
     // 任务状态
-    getRunning: () => fetch('/api/scheduler/tasks/running').then(r => r.json()),
-    getCompleted: (page = 1, limit = 20) => fetch(`/api/scheduler/tasks/completed?page=${page}&limit=${limit}`).then(r => r.json()),
-    getFailed: (page = 1, limit = 20) => fetch(`/api/scheduler/tasks/failed?page=${page}&limit=${limit}`).then(r => r.json()),
-    getTaskDetail: (id) => fetch(`/api/scheduler/tasks/${id}`).then(r => r.json()),
+    getRunning: () => fetch('/api/scheduler/tasks/running').then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '获取运行中任务失败');
+        return data;
+    }),
+    getCompleted: (page = 1, limit = 20) => fetch(`/api/scheduler/tasks/completed?page=${page}&limit=${limit}`).then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '获取已完成任务失败');
+        return data;
+    }),
+    getFailed: (page = 1, limit = 20) => fetch(`/api/scheduler/tasks/failed?page=${page}&limit=${limit}`).then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '获取失败任务失败');
+        return data;
+    }),
+    getTaskDetail: (id) => fetch(`/api/scheduler/tasks/${id}`).then(async r => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || '获取任务详情失败');
+        return data;
+    }),
 
     // Cron 验证
     validateCron: (expr) => fetch('/api/scheduler/validate-cron', {

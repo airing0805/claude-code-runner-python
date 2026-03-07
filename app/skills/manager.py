@@ -18,7 +18,8 @@ from app.skills.schemas import (
 class SkillManager:
     """技能管理器"""
 
-    SKILLS_DIR = Path.home() / ".claude" / "skills"
+    # 用户级 skills 目录
+    USER_SKILLS_DIR = Path.home() / ".claude" / "skills"
     CONFIG_FILE = Path.home() / ".claude" / "skills-config.json"
 
     # 技能元数据文件名
@@ -46,14 +47,42 @@ class SkillManager:
         "default": "其他",
     }
 
-    def __init__(self):
+    def __init__(self, project_path: str | Path | None = None):
+        """
+        初始化技能管理器
+
+        Args:
+            project_path: 项目路径，用于定位项目级 .claude/skills/ 目录
+        """
+        # 先设置项目路径
+        if project_path:
+            self._project_path = Path(project_path).resolve()
+        else:
+            self._project_path = None
+
         self._ensure_config_dir()
         self._skills_cache: list[Skill] = []
         self._categories_cache: list[SkillCategory] = []
 
+    def set_project_path(self, project_path: str | Path | None) -> None:
+        """设置项目路径"""
+        if project_path:
+            self._project_path = Path(project_path).resolve()
+        else:
+            self._project_path = None
+
+    def get_project_skills_dir(self) -> Path | None:
+        """获取项目级 skills 目录"""
+        if self._project_path:
+            return self._project_path / ".claude" / "skills"
+        return None
+
     def _ensure_config_dir(self):
         """确保配置目录存在"""
-        self.SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+        self.USER_SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+        if self._project_path:
+            project_skills_dir = self._project_path / ".claude" / "skills"
+            project_skills_dir.mkdir(parents=True, exist_ok=True)
         self.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     def _load_user_config(self) -> SkillConfig:
@@ -236,6 +265,22 @@ class SkillManager:
 
         return "其他"
 
+    def _scan_skills_dir(self, skills_dir: Path) -> list[Skill]:
+        """扫描指定目录下的 skills"""
+        skills: list[Skill] = []
+        if not skills_dir.exists():
+            return skills
+
+        for item in skills_dir.iterdir():
+            if not item.is_dir():
+                continue
+
+            skill = self._parse_metadata(item)
+            if skill:
+                skills.append(skill)
+
+        return skills
+
     def get_skills(
         self, category: Optional[str] = None, enabled_only: bool = False
     ) -> SkillListResponse:
@@ -243,23 +288,30 @@ class SkillManager:
         config = self._load_user_config()
         enabled_skills = set(config.enabled_skills)
 
-        # 扫描技能目录
+        # 扫描技能目录（用户级 + 项目级）
         skills: list[Skill] = []
         categories_set: set[str] = set()
 
-        if not self.SKILLS_DIR.exists():
+        # 扫描用户级 skills
+        user_skills = self._scan_skills_dir(self.USER_SKILLS_DIR)
+        skills.extend(user_skills)
+
+        # 扫描项目级 skills
+        project_skills_dir = self.get_project_skills_dir()
+        project_skills = self._scan_skills_dir(project_skills_dir) if project_skills_dir else []
+        # 合并，去重（项目级优先）
+        existing_ids = {s.skill_id for s in skills}
+        for skill in project_skills:
+            if skill.skill_id not in existing_ids:
+                skills.append(skill)
+
+        if not skills:
             return SkillListResponse(skills=[], categories=[], total=0)
 
-        for item in self.SKILLS_DIR.iterdir():
-            if not item.is_dir():
-                continue
-
-            skill = self._parse_metadata(item)
-            if skill:
-                # 应用用户配置：如果在 enabled_skills 列表中则启用，否则禁用
-                skill.is_enabled = skill.skill_id in enabled_skills
-                skills.append(skill)
-                categories_set.add(skill.category)
+        # 应用用户配置并收集分类
+        for skill in skills:
+            skill.is_enabled = skill.skill_id in enabled_skills
+            categories_set.add(skill.category)
 
         # 预先计算所有分类的计数（不过滤）
         all_category_counts: dict[str, int] = {}
@@ -288,8 +340,17 @@ class SkillManager:
 
     def get_skill(self, skill_id: str) -> Optional[SkillDetail]:
         """获取技能详情"""
-        skill_dir = self.SKILLS_DIR / skill_id
-        if not skill_dir.exists():
+        # 先检查项目级，再检查用户级
+        project_skills_dir = self.get_project_skills_dir()
+        if project_skills_dir:
+            skill_dir = project_skills_dir / skill_id
+        else:
+            skill_dir = None
+
+        if not skill_dir or not skill_dir.exists():
+            skill_dir = self.USER_SKILLS_DIR / skill_id
+
+        if not skill_dir or not skill_dir.exists():
             return None
 
         skill = self._parse_metadata(skill_dir)
@@ -407,9 +468,23 @@ class SkillManager:
 _skill_manager: Optional[SkillManager] = None
 
 
-def get_skill_manager() -> SkillManager:
-    """获取技能管理器单例"""
+def get_skill_manager(project_path: str | Path | None = None) -> SkillManager:
+    """
+    获取技能管理器单例
+
+    Args:
+        project_path: 项目路径，用于定位项目级 .claude/skills/ 目录
+    """
     global _skill_manager
     if _skill_manager is None:
-        _skill_manager = SkillManager()
+        _skill_manager = SkillManager(project_path)
+    elif project_path is not None:
+        # 如果传入了新的项目路径，更新它
+        _skill_manager.set_project_path(project_path)
     return _skill_manager
+
+
+def reset_skill_manager() -> None:
+    """重置技能管理器单例"""
+    global _skill_manager
+    _skill_manager = None

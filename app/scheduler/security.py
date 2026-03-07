@@ -11,6 +11,7 @@ from .security_constants import (
     MAX_NAME_LENGTH,
     MIN_TIMEOUT,
     MAX_TIMEOUT,
+    VALID_NAME_PATTERN,
 )
 from .security_validators import (
     validate_workspace,

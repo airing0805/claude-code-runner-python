@@ -1,7 +1,7 @@
 ---
 name: tech-manager
 description: 负责技术任务规划、代码设计执行、代码修复与实现
-argument-hint: /tech-manager,/技术经理, 代码设计, 代码实现, 代码修复, 技术规划
+argument-hint: /tech-manager, /技术经理, 代码设计, 代码实现, 代码修复, 技术规划
 metadata:
   版本: "2.0"
   类型: 技术管理与执行

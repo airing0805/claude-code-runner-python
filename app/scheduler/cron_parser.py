@@ -5,7 +5,7 @@
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Tuple
 
 # 字段范围定义
 RANGES: dict[str, tuple[int, int]] = {
@@ -379,3 +379,17 @@ class CronParser:
             return int(value)
 
         raise ValueError(f"无效的 {field_type} 值: {value}")
+
+    def validate(self, cron: str) -> Tuple[bool, Optional[str]]:
+        """
+        验证 Cron 表达式（向后兼容委托）
+
+        Args:
+            cron: Cron 表达式字符串
+
+        Returns:
+            (is_valid, error_message) 元组
+        """
+        from .cron_validator import CronValidator
+        validator = CronValidator(self)
+        return validator.validate(cron)

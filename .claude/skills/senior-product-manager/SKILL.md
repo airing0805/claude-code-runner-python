@@ -1,7 +1,7 @@
 ---
 name: senior-product-manager
 description: 具备产品全局视野，负责产品从战略到落地的全流程管理，融合需求分析、用户研究、产品设计、数据分析等核心能力
-argument-hint: /senior-product-manager,/产品经理, /高级产品经理, 产品设计, 产品规划, 产品战略
+argument-hint: /senior-product-manager, /产品经理, /高级产品经理, 产品设计, 产品规划, 产品战略
 metadata:
   版本: "1.0"
   类型: 产品战略与管理

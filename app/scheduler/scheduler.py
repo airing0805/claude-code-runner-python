@@ -148,29 +148,51 @@ class Scheduler:
         """
         加载所有启用的定时任务到 APScheduler
         并检查过期任务立即执行
+
+        触发条件：
+        1. next_run 已过期（is_due 返回 True）
+        2. next_run 为 None 或空（服务运行期间新增的任务）
         """
         from app.scheduler.cron import CronParser, is_due
 
         scheduled_tasks = self.storage.scheduled.get_enabled()
         logger.info(f"加载 {len(scheduled_tasks)} 个启用的定时任务")
 
+        # 调试：打印所有任务的 next_run 状态
+        for task in scheduled_tasks:
+            logger.debug(f"任务状态: id={task.id}, name={task.name}, next_run={task.next_run!r}, enabled={task.enabled}")
+
         cron_parser = CronParser()
 
         for scheduled in scheduled_tasks:
             try:
-                # 检查 next_run 是否过期
-                if is_due(scheduled.next_run):
-                    logger.info(f"检测到过期任务，准备执行: {scheduled.name} ({scheduled.id}), next_run: {scheduled.next_run}")
+                # 检查是否需要触发任务执行
+                should_trigger = False
+                trigger_reason = ""
 
-                    # 立即触发任务
+                if is_due(scheduled.next_run):
+                    # next_run 存在且已过期
+                    should_trigger = True
+                    trigger_reason = f"任务已过期 (next_run={scheduled.next_run})"
+                elif not scheduled.next_run or scheduled.next_run.strip() == "":
+                    # next_run 为 None 或空（服务运行期间新增的任务）
+                    should_trigger = True
+                    trigger_reason = f"任务 next_run 为空 (当前值: {scheduled.next_run!r})"
+
+                logger.info(f"检查任务: {scheduled.name}, should_trigger={should_trigger}, reason={trigger_reason}")
+
+                if should_trigger:
+                    logger.info(f"检测到需要执行的任务: {scheduled.name} ({scheduled.id}), 原因: {trigger_reason}")
+
+                    # 立即触发任务（加入队列）
                     await self.apscheduler.trigger_scheduled_task(scheduled.id)
 
-                    # 更新下次执行时间
-                    next_run = cron_parser.calculate_next_run(scheduled.cron)
-                    if next_run:
-                        scheduled.next_run = format_datetime(next_run)
-                        self.storage.scheduled.save(scheduled)
-                        logger.info(f"已更新任务下次执行时间: {scheduled.name}, next_run: {scheduled.next_run}")
+                    # 注意：trigger_scheduled_task 内部已经会更新 next_run，
+                    # 这里不需要重复更新（避免覆盖已保存的值）
+                    # 重新获取任务以确保获取最新的 next_run
+                    updated_task = self.storage.scheduled.get(scheduled.id)
+                    if updated_task:
+                        logger.info(f"触发后任务状态: id={updated_task.id}, next_run={updated_task.next_run}")
 
                 # 添加到 APScheduler
                 self.apscheduler.add_scheduled_task(scheduled)
@@ -182,7 +204,7 @@ class Scheduler:
 
                 logger.info(f"定时任务已加载: {scheduled.name} ({scheduled.id})")
             except Exception as e:
-                logger.error(f"加载定时任务失败: {scheduled.id}, 错误: {e}")
+                logger.error(f"加载定时任务失败: {scheduled.id}, 错误: {e}", exc_info=True)
 
     async def _recover_running_tasks(self) -> None:
         """
@@ -218,7 +240,9 @@ class Scheduler:
         """队列处理循环
 
         定期从队列中取出任务并执行。
-        这是解决"队列任务无法自动执行"问题的关键方法。
+        同时每隔 POLL_INTERVAL 检查 scheduled.json 中的任务，
+        当 next_run 为 null 或为空时触发执行。
+        只有当没有运行中的任务时，才从队列取任务执行。
         """
         # 延迟导入避免循环依赖
         from app.scheduler.executor import TaskExecutor
@@ -229,23 +253,32 @@ class Scheduler:
 
         while self._status == SchedulerStatus.RUNNING:
             try:
-                # 从队列获取任务
-                task = self.storage.queue.pop()
+                # === 检查 scheduled.json 中的任务 ===
+                # 触发条件：next_run 为 null 或空（适用于服务运行期间新增的任务）
+                self._check_scheduled_tasks_on_loop()
 
-                if task:
-                    logger.info(f"从队列取出任务: {task.id}, prompt: {task.prompt[:50]}...")
+                # 检查是否有运行中的任务
+                if self.storage.running.count() == 0:
+                    # 没有运行中的任务，从队列获取任务
+                    task = self.storage.queue.pop()
 
-                    # 执行任务
-                    try:
-                        result = await executor.execute(task)
+                    if task:
+                        logger.info(f"从队列取出任务: {task.id}, prompt: {task.prompt[:50]}...")
 
-                        if result.success:
-                            logger.info(f"任务执行成功: {task.id}")
-                        else:
-                            logger.warning(f"任务执行失败: {task.id}, 错误: {result.error}")
+                        # 执行任务
+                        try:
+                            result = await executor.execute(task)
 
-                    except Exception as e:
-                        logger.error(f"执行任务时发生异常: {task.id}, 错误: {e}", exc_info=True)
+                            if result.success:
+                                logger.info(f"任务执行成功: {task.id}")
+                            else:
+                                logger.warning(f"任务执行失败: {task.id}, 错误: {result.error}")
+
+                        except Exception as e:
+                            logger.error(f"执行任务时发生异常: {task.id}, 错误: {e}", exc_info=True)
+                else:
+                    # 有运行中的任务，跳过本次检查
+                    logger.debug(f"有运行中的任务，等待执行完成")
 
                 # 等待一段时间
                 await asyncio.sleep(POLL_INTERVAL)
@@ -256,6 +289,46 @@ class Scheduler:
             except Exception as e:
                 logger.error(f"队列处理循环错误: {e}", exc_info=True)
                 await asyncio.sleep(POLL_INTERVAL)
+
+    def _check_scheduled_tasks_on_loop(self) -> None:
+        """在队列处理循环中检查定时任务
+
+        检查 scheduled.json 中的任务，当 next_run 为 null 或空时触发执行。
+        这个方法在每次 POLL_INTERVAL 执行一次。
+        """
+        # 延迟导入避免循环依赖
+        from app.scheduler.cron import is_due
+
+        try:
+            scheduled_tasks = self.storage.scheduled.get_enabled()
+
+            for scheduled in scheduled_tasks:
+                # 检查是否需要触发任务执行
+                should_trigger = False
+                trigger_reason = ""
+
+                if is_due(scheduled.next_run):
+                    # next_run 存在且已过期
+                    should_trigger = True
+                    trigger_reason = f"任务已过期 (next_run={scheduled.next_run})"
+                elif not scheduled.next_run or scheduled.next_run.strip() == "":
+                    # next_run 为 None 或空（适用于服务运行期间新增的任务）
+                    should_trigger = True
+                    trigger_reason = f"任务 next_run 为空 (当前值: {scheduled.next_run!r})"
+
+                if should_trigger:
+                    logger.info(f"[循环检查] 检测到需要执行的任务: {scheduled.name} ({scheduled.id}), 原因: {trigger_reason}")
+
+                    # 使用 APScheduler 触发任务（异步执行）
+                    asyncio.create_task(self.apscheduler.trigger_scheduled_task(scheduled.id))
+
+                    # 触发后重新获取任务，打印最新的 next_run 状态
+                    updated_task = self.storage.scheduled.get(scheduled.id)
+                    if updated_task:
+                        logger.info(f"[循环检查] 触发后任务状态: id={updated_task.id}, next_run={updated_task.next_run}")
+
+        except Exception as e:
+            logger.error(f"[循环检查] 检查定时任务失败: {e}", exc_info=True)
 
     def add_scheduled_task(self, scheduled: ScheduledTask) -> bool:
         """

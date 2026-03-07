@@ -256,7 +256,7 @@ class TestScheduledTask:
             prompt="任务描述",
             cron="0 8 * * *",
             workspace="/project",
-            timeout=1800000,
+            timeout=1800,  # 30 分钟
             auto_approve=True,
             allowed_tools=["Read", "Edit", "Glob", "Bash"],
             enabled=True,

@@ -1,12 +1,15 @@
 """任务执行器重试机制模块"""
 
+import asyncio
 import random
+import uuid
 from typing import Optional
 
 from .config import MAX_RETRIES
 from .executor_errors import ErrorType, should_retry
 from .models import Task, TaskStatus
 from .storage import TaskStorage
+from .timezone_utils import now_iso
 
 
 # 重试延迟配置
@@ -47,7 +50,6 @@ async def handle_retry(
 ) -> dict:
     """处理重试逻辑"""
     from .executor_errors import classify_error
-    from .timezone_utils import now_iso
     
     error_type = classify_error(error)
 

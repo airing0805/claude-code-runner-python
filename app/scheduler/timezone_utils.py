@@ -41,7 +41,7 @@ def to_shanghai(dt: datetime) -> datetime:
 def parse_datetime(s: str) -> Optional[datetime]:
     """解析时间字符串，返回带上海时区的 datetime
 
-    支持多种格式：
+    支持格式：
     - ISO 8601 with timezone: "2026-03-06T09:00:00+08:00"
     - ISO 8601 without timezone: "2026-03-06T09:00:00"
     - Space separator: "2026-03-06 09:00:00"
@@ -56,13 +56,8 @@ def parse_datetime(s: str) -> Optional[datetime]:
         return None
 
     try:
-        # 统一替换空格分隔符为 T
         s_normalized = s.strip().replace(" ", "T")
-
-        # 尝试解析
         dt = datetime.fromisoformat(s_normalized)
-
-        # 统一转为上海时区
         return to_shanghai(dt)
     except (ValueError, AttributeError):
         return None

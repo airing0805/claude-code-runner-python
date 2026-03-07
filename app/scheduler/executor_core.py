@@ -17,7 +17,7 @@ from .security import (
     SecurityError,
 )
 from .timezone_utils import now_iso, format_datetime
-from .executor_errors import ErrorCollector, classify_error
+from .executor_errors import ErrorCollector, classify_error, ErrorSeverity
 from .executor_retry import handle_retry
 
 
@@ -166,7 +166,7 @@ class TaskExecutor:
             # 执行任务（带超时控制）
             result = await asyncio.wait_for(
                 self._execute_with_client(task),
-                timeout=task.timeout / 1000.0,  # 转换为秒
+                timeout=task.timeout,  # timeout 单位为秒
             )
 
             if result.success:

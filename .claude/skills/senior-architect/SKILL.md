@@ -1,7 +1,7 @@
 ---
 name: senior-architect
 description: 负责系统架构设计、技术方案评审、代码设计质量把控
-argument-hint: /senior-architect,/高级架构师, 代码设计评审, 架构设计, 技术评审, 设计审查
+argument-hint: /senior-architect, /高级架构师, 代码设计评审, 架构设计, 技术评审, 设计审查
 metadata:
   版本: "2.0"
   类型: 架构设计与评审

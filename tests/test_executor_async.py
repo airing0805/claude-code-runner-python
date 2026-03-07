@@ -8,7 +8,8 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.scheduler.executor import TaskExecutor
-from app.scheduler.models import Task, TaskStatus, ExecutionResult
+from app.scheduler.models import Task, TaskStatus
+from app.scheduler.executor_core import ExecutionResult
 from app.scheduler.storage import get_storage
 
 

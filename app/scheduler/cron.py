@@ -6,7 +6,7 @@
 
 from datetime import datetime
 from typing import Optional, Tuple, List
-from .cron_parser import CronParser, CronExpression, CronField
+from .cron_parser import CronParser, CronExpression, CronField, RANGES, MONTH_ALIASES, WEEKDAY_ALIASES, CRON_ALIASES
 from .cron_validator import CronValidator
 from .cron_calculator import CronCalculator
 
@@ -88,3 +88,17 @@ def get_next_runs(
 ) -> List[datetime]:
     """获取未来 n 个执行时间"""
     return get_cron_calculator().get_next_runs(cron, count, from_time)
+
+
+def format_next_run(dt: datetime) -> str:
+    """
+    格式化下次执行时间
+
+    Args:
+        dt: 日期时间对象
+
+    Returns:
+        格式化的时间字符串（带上海时区）
+    """
+    from .timezone_utils import format_datetime
+    return format_datetime(dt)

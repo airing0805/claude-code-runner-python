@@ -7,9 +7,34 @@ import asyncio
 import logging
 from typing import Optional
 
-from .models import Task, ExecutionResult
+from .models import Task, TaskStatus
+from .executor_core import ExecutionResult, VALID_TRANSITIONS, can_transition
+from .executor_errors import (
+    ErrorCollector,
+    ExecutionError,
+    ErrorType,
+    ErrorSeverity,
+    classify_error,
+    should_retry_error,
+    RETRYABLE_ERRORS,
+)
+from .executor_retry import (
+    BASE_DELAY,
+    MAX_DELAY,
+    JITTER,
+    calculate_retry_delay,
+)
 from .storage import TaskStorage
 from .executor_core import TaskExecutor as _TaskExecutor
+from .executor_retry import should_retry as _should_retry
+
+# 重新导出
+TaskExecutor = _TaskExecutor
+
+
+def should_retry(task, error_type: ErrorType) -> bool:
+    """重试判断"""
+    return _should_retry(task, error_type)
 
 logger = logging.getLogger(__name__)
 

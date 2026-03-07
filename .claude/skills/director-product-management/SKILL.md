@@ -1,7 +1,7 @@
 ---
 name: director-product-management
 description: 负责产品战略规划、任务规划与分配、对产品经理产出进行评审
-argument-hint: /director-product-management,/产品总监, 产品规划, 产品评审, 任务分配, 产出评审
+argument-hint: /director-product-management, /产品总监, 产品规划, 产品评审, 任务分配, 产出评审
 metadata:
   type: director-product-management
   version: 2.0.0
