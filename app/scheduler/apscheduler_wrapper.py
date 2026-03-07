@@ -26,6 +26,7 @@ from app.scheduler.models import ScheduledTask, Task, TaskStatus, TaskSource
 from app.scheduler.storage import TaskStorage, get_storage
 from app.scheduler.security import validate_workspace
 from app.scheduler.timezone_utils import SHANGHAI_TZ, now_shanghai, format_datetime
+from app.scheduler.cron import calculate_next_run
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +125,12 @@ class APSchedulerWrapper:
         )
         self.storage.queue.add(new_task)
 
-        # 更新定时任务的 last_run
+        # 更新定时任务的 last_run 和 next_run
         scheduled.last_run = format_datetime(now_shanghai())
+        # 计算并更新下次执行时间
+        next_run = calculate_next_run(scheduled.cron)
+        if next_run:
+            scheduled.next_run = format_datetime(next_run)
         self.storage.scheduled.save(scheduled)
 
         logger.info(
@@ -144,9 +149,9 @@ class APSchedulerWrapper:
             不再往队列添加占位任务（由 trigger_scheduled_task 负责）。
         """
         # 计算下次执行时间
-        from app.scheduler.cron import CronParser
-        parser = CronParser()
-        next_run = parser.calculate_next_run(scheduled.cron)
+        from app.scheduler.cron import calculate_next_run
+        from app.scheduler.timezone_utils import format_datetime
+        next_run = calculate_next_run(scheduled.cron)
         if next_run:
             scheduled.next_run = format_datetime(next_run)
 
@@ -181,7 +186,7 @@ class APSchedulerWrapper:
                 args=[scheduled.id],
                 max_instances=1,
                 replace_existing=True,
-                coalesce=True,
+                coalesce=False,
             )
             logger.info(
                 f"[APScheduler] 定时任务已添加: {scheduled.id} ({scheduled.name}), "
