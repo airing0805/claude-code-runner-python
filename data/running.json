@@ -1,26 +1,6 @@
 {
   "tasks": [
-    {
-      "id": "5839f510-e2eb-479e-9cab-fda9809451b6",
-      "prompt": " /director-product-management \n\n依次读取  \n \n\"docs\\plan\\功能规划\\v9开发计划-当前会话.md \"、\n\n文档里面的开发任务，一个会话 提取没有完成的一组任务，将任务分组安排给对应的角色进行任务执行，按 项目级 skills 的方式分配给角色 。 不能使用 skills 就使用 subagent ，将skill 的 提示词加入到subagent 。  一个会话一次只安排一个任务分组的内容给到一个角色，执行完后不再分配任务。 \n\n注意：不要将所有的任务全部获取出来分配处理。 全程你做决策，不要与用户沟通，用户不在线。",
-      "workspace": "E:\\workspaces_2026_python\\claude-code-runner",
-      "timeout": 1800,
-      "auto_approve": true,
-      "allowed_tools": null,
-      "created_at": "2026-03-07 22:06:00",
-      "started_at": "2026-03-07 22:20:47",
-      "finished_at": null,
-      "retries": 0,
-      "status": "running",
-      "source": "scheduled",
-      "scheduled_id": "director-product-management-execution-2",
-      "scheduled_name": "产品总监 任务执行(v9)",
-      "result": null,
-      "error": null,
-      "files_changed": [],
-      "tools_used": [],
-      "cost_usd": null,
-      "duration_ms": null
-    }
+    
+    
   ]
 }
