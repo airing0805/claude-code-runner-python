@@ -331,7 +331,7 @@ class TaskExecutor:
             # 执行任务（带超时控制）
             result = await asyncio.wait_for(
                 self._execute_with_client(task),
-                timeout=task.timeout / 1000.0,
+                timeout=task.timeout,
             )
 
             if result.success:

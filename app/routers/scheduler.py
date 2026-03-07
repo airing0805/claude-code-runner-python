@@ -67,7 +67,7 @@ class CreateTaskRequest(BaseModel):
     """创建任务请求"""
     prompt: str = Field(..., min_length=1, max_length=MAX_PROMPT_LENGTH, description="任务描述")
     workspace: Optional[str] = Field(None, description="工作目录")
-    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, le=MAX_TIMEOUT, description="超时时间(毫秒)")
+    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, le=MAX_TIMEOUT, description="超时时间(秒)")
     auto_approve: bool = Field(False, description="是否自动批准工具操作")
     allowed_tools: Optional[list[str]] = Field(None, description="允许使用的工具列表")
 
@@ -78,7 +78,7 @@ class CreateScheduledTaskRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=MAX_PROMPT_LENGTH, description="任务描述")
     cron: str = Field(..., description="Cron 表达式")
     workspace: Optional[str] = Field(None, description="工作目录")
-    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, le=MAX_TIMEOUT, description="超时时间(毫秒)")
+    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, le=MAX_TIMEOUT, description="超时时间(秒)")
     auto_approve: bool = Field(False, description="是否自动批准")
     allowed_tools: Optional[list[str]] = Field(None, description="允许使用的工具列表")
     enabled: bool = Field(True, description="是否启用")

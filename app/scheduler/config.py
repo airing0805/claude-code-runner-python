@@ -18,12 +18,12 @@ FAILED_FILE = DATA_DIR / "failed.json"
 CANCELLED_FILE = DATA_DIR / "cancelled.json"
 LOGS_FILE = DATA_DIR / "logs.jsonl"
 
-# 默认超时时间（毫秒）
-DEFAULT_TIMEOUT = 600000  # 10 分钟
+# 默认超时时间（秒）
+DEFAULT_TIMEOUT = 600  # 10 分钟
 
-# 最小/最大超时时间（毫秒）
-MIN_TIMEOUT = 1000  # 1 秒
-MAX_TIMEOUT = 3600000  # 1 小时
+# 最小/最大超时时间（秒）
+MIN_TIMEOUT = 1  # 1 秒
+MAX_TIMEOUT = 3600  # 1 小时
 
 # 轮询间隔（秒）
 POLL_INTERVAL = 10

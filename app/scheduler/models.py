@@ -146,7 +146,7 @@ class ScheduledTask:
     prompt: str  # 任务描述/提示词
     cron: str  # Cron 表达式
     workspace: str = "."  # 工作目录
-    timeout: int = 600000  # 超时时间（毫秒）
+    timeout: int = 600  # 超时时间（秒）
     auto_approve: bool = False  # 是否自动批准工具操作
     allowed_tools: Optional[list[str]] = None  # 允许使用的工具列表
     enabled: bool = True  # 是否启用
