@@ -22,3 +22,5 @@ Git多远程仓库推送.md
 # 日志文件
 logs/
 *.log
+
+.obsidian
