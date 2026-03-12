@@ -1,21 +1,42 @@
 """认证相关 API"""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
 
 from app.auth import (
     ACCESS_TOKEN_EXPIRE_HOURS,
     authenticate_user,
     create_access_token,
+    create_refresh_token,
     create_user,
     generate_api_key,
+    get_rate_limiter,
     get_current_user,
     update_user_password,
     validate_password_strength,
+    verify_token,
 )
+from app.models.token import LoginResult
 from app.models.user import Token, User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def get_client_ip(request: Request) -> str:
+    """
+    获取客户端 IP 地址
+    支持代理头 X-Forwarded-For 和 X-Real-IP
+    """
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        # X-Forwarded-For 可能包含多个 IP，取第一个
+        return forwarded_for.split(",")[0].strip()
+
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip
+
+    return request.client.host if request.client else "unknown"
 
 
 # ============== 请求模型 ==============
@@ -64,6 +85,11 @@ class PasswordUpdateRequest(BaseModel):
         return v
 
 
+class RefreshTokenRequest(BaseModel):
+    """刷新令牌请求"""
+    refresh_token: str = Field(..., description="刷新令牌")
+
+
 class RegisterResponse(BaseModel):
     """注册响应"""
     user_id: str
@@ -77,11 +103,13 @@ class UserResponse(BaseModel):
     username: str
     name: str
     api_key: str | None = None
+    is_admin: bool = False
 
 
 class TokenResponse(BaseModel):
     """Token 响应"""
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     expires_in: int = ACCESS_TOKEN_EXPIRE_HOURS * 3600
 
@@ -135,7 +163,10 @@ async def register(request: RegisterRequest):
     summary="用户登录",
     description="登录并获取访问令牌",
 )
-async def login(request: LoginRequest):
+async def login(
+    request: LoginRequest,
+    http_request: Request,
+):
     """
     用户登录
 
@@ -144,22 +175,44 @@ async def login(request: LoginRequest):
 
     返回:
     - **access_token**: JWT 访问令牌
+    - **refresh_token**: 刷新令牌
     - **token_type**: bearer
     - **expires_in**: 过期时间（秒）
     """
+    from datetime import datetime, timezone
+
+    # 获取客户端 IP
+    client_ip = get_client_ip(http_request)
+    rate_limiter = get_rate_limiter()
+
+    # 检查限流
+    await rate_limiter.check(client_ip)
+
+    # 验证用户凭据
     user = authenticate_user(request.username, request.password)
 
     if user is None:
+        # 记录失败尝试
+        await rate_limiter.record(client_ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # 更新最后登录时间
+    user.last_login = datetime.now(timezone.utc)
+
+    # 创建访问令牌和刷新令牌
     access_token = create_access_token(user)
+    refresh_token, _ = create_refresh_token(user.id)
+
+    # 登录成功，重置限流
+    rate_limiter.reset(client_ip)
 
     return TokenResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         expires_in=ACCESS_TOKEN_EXPIRE_HOURS * 3600,
     )
@@ -185,6 +238,63 @@ async def get_me(current_user: User = Depends(get_current_user)):
         username=current_user.username,
         name=current_user.name,
         api_key=api_key,
+    )
+
+
+@router.post(
+    "/refresh",
+    response_model=TokenResponse,
+    summary="刷新令牌",
+    description="使用刷新令牌获取新的访问令牌",
+)
+async def refresh_token(request: RefreshTokenRequest):
+    """
+    刷新访问令牌
+
+    - **refresh_token**: 刷新令牌
+
+    返回:
+    - **access_token**: 新的 JWT 访问令牌
+    - **refresh_token**: 新的刷新令牌
+    - **token_type**: bearer
+    - **expires_in**: 过期时间（秒）
+    """
+    from app.auth import get_user_by_id
+
+    # 验证刷新令牌
+    payload = verify_token(request.refresh_token, expected_type="refresh")
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的刷新令牌",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = payload.get("sub")
+    user = get_user_by_id(user_id)
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="用户不存在",
+        )
+
+    # 检查用户状态
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="用户已被禁用",
+        )
+
+    # 创建新的访问令牌和刷新令牌
+    access_token = create_access_token(user)
+    new_refresh_token, _ = create_refresh_token(user.id)
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=new_refresh_token,
+        token_type="bearer",
+        expires_in=ACCESS_TOKEN_EXPIRE_HOURS * 3600,
     )
 
 

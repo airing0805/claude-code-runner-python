@@ -316,6 +316,7 @@ class TestAuthAPI:
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
+        assert "refresh_token" in data
         assert data["token_type"] == "bearer"
         assert "expires_in" in data
 
@@ -459,6 +460,336 @@ class TestAuthAPI:
         )
 
         assert response.status_code == 400
+
+    def test_refresh_token(self, client):
+        """测试刷新令牌接口"""
+        # 先注册并登录
+        client.post(
+            "/api/auth/register",
+            json={
+                "username": "test@example.com",
+                "password": "Password123",
+                "name": "Test User",
+            },
+        )
+
+        login_response = client.post(
+            "/api/auth/login",
+            json={
+                "username": "test@example.com",
+                "password": "Password123",
+            },
+        )
+
+        refresh_token = login_response.json()["refresh_token"]
+
+        # 刷新令牌
+        response = client.post(
+            "/api/auth/refresh",
+            json={
+                "refresh_token": refresh_token,
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "access_token" in data
+        assert "refresh_token" in data
+        assert data["token_type"] == "bearer"
+
+    def test_refresh_token_invalid(self, client):
+        """测试刷新无效令牌"""
+        response = client.post(
+            "/api/auth/refresh",
+            json={
+                "refresh_token": "invalid-refresh-token",
+            },
+        )
+
+        assert response.status_code == 401
+
+    def test_login_rate_limit(self, client):
+        """测试登录限流"""
+        from app.auth import get_rate_limiter
+
+        # 先注册用户
+        client.post(
+            "/api/auth/register",
+            json={
+                "username": "test@example.com",
+                "password": "Password123",
+                "name": "Test User",
+            },
+        )
+
+        # 尝试多次错误登录
+        rate_limiter = get_rate_limiter()
+
+        # 设置较小的限制以便测试
+        original_max_attempts = rate_limiter.max_attempts
+        rate_limiter.max_attempts = 3
+
+        try:
+            # 尝试 3 次错误登录
+            for i in range(3):
+                response = client.post(
+                    "/api/auth/login",
+                    json={
+                        "username": "test@example.com",
+                        "password": f"WrongPassword{i}",
+                    },
+                )
+                assert response.status_code == 401
+
+            # 第 4 次应该被限流
+            response = client.post(
+                "/api/auth/login",
+                json={
+                    "username": "test@example.com",
+                    "password": "WrongPassword3",
+                },
+            )
+            assert response.status_code == 429
+            assert "频繁" in response.json()["detail"]
+
+        finally:
+            # 恢复原始设置
+            rate_limiter.max_attempts = original_max_attempts
+            rate_limiter.reset("127.0.0.1")
+
+
+class TestAdminAPI:
+    """管理员 API 测试"""
+
+    @pytest.fixture
+    def client(self):
+        """创建测试客户端"""
+        from app.main import app
+
+        # 清空用户数据库
+        import app.auth.core as auth_core
+
+        auth_core._users_db.clear()
+
+        return TestClient(app)
+
+    @pytest.fixture(autouse=True)
+    def clear_users_after(self):
+        """测试后清空用户"""
+        yield
+        import app.auth.core as auth_core
+
+        auth_core._users_db.clear()
+
+    def test_list_users_requires_admin(self, client):
+        """测试获取用户列表需要管理员权限"""
+        # 创建普通用户并登录
+        client.post(
+            "/api/auth/register",
+            json={
+                "username": "user@example.com",
+                "password": "Password123",
+                "name": "Normal User",
+            },
+        )
+
+        login_response = client.post(
+            "/api/auth/login",
+            json={
+                "username": "user@example.com",
+                "password": "Password123",
+            },
+        )
+
+        token = login_response.json()["access_token"]
+
+        # 尝试访问管理员接口
+        response = client.get(
+            "/api/admin/users",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 403
+
+    def test_list_users_as_admin(self, client):
+        """测试管理员获取用户列表"""
+        from app.auth import _users_db
+
+        # 创建管理员用户
+        from app.models.user import User
+
+        admin = User(
+            username="admin@example.com",
+            hashed_password="",
+            name="Admin",
+            is_admin=True,
+            is_active=True,
+        )
+        _users_db["admin@example.com"] = admin
+
+        # 设置密码
+        from app.auth.core import hash_password, authenticate_user
+
+        admin.hashed_password = hash_password("AdminPass123")
+
+        # 创建普通用户
+        client.post(
+            "/api/auth/register",
+            json={
+                "username": "user@example.com",
+                "password": "Password123",
+                "name": "Normal User",
+            },
+        )
+
+        # 管理员登录
+        login_response = client.post(
+            "/api/auth/login",
+            json={
+                "username": "admin@example.com",
+                "password": "AdminPass123",
+            },
+        )
+
+        token = login_response.json()["access_token"]
+
+        # 获取用户列表
+        response = client.get(
+            "/api/admin/users",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "users" in data
+        assert data["total"] >= 2
+        # 应该有管理员和普通用户
+        usernames = [u["username"] for u in data["users"]]
+        assert "admin@example.com" in usernames
+        assert "user@example.com" in usernames
+
+    def test_disable_user(self, client):
+        """测试禁用用户"""
+        from app.auth import _users_db
+        from app.models.user import User
+
+        # 创建管理员
+        admin = User(
+            username="admin@example.com",
+            hashed_password="",
+            name="Admin",
+            is_admin=True,
+            is_active=True,
+        )
+        admin.hashed_password = "dummy"  # 不会被验证
+        _users_db["admin@example.com"] = admin
+
+        # 创建普通用户
+        user_response = client.post(
+            "/api/auth/register",
+            json={
+                "username": "user@example.com",
+                "password": "Password123",
+                "name": "Normal User",
+            },
+        )
+        user_id = user_response.json()["user_id"]
+
+        # 模拟管理员登录（跳过密码验证）
+        from app.auth.core import create_access_token
+
+        admin_token = create_access_token(admin)
+
+        # 禁用用户
+        response = client.patch(
+            f"/api/admin/users/{user_id}/status",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"is_active": False},
+        )
+
+        assert response.status_code == 204
+
+        # 验证用户被禁用
+        user = _users_db.get("user@example.com")
+        assert user is not None
+        assert user.is_active is False
+
+    def test_cannot_disable_self(self, client):
+        """测试不能禁用自己"""
+        from app.auth import _users_db
+        from app.models.user import User
+
+        # 创建管理员
+        admin = User(
+            username="admin@example.com",
+            hashed_password="",
+            name="Admin",
+            is_admin=True,
+            is_active=True,
+        )
+        admin.hashed_password = "dummy"
+        _users_db["admin@example.com"] = admin
+
+        # 模拟管理员登录
+        from app.auth.core import create_access_token
+
+        admin_token = create_access_token(admin)
+
+        # 尝试禁用自己
+        response = client.patch(
+            f"/api/admin/users/{admin.id}/status",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"is_active": False},
+        )
+
+        assert response.status_code == 400
+
+    def test_reset_user_password(self, client):
+        """测试重置用户密码"""
+        from app.auth import _users_db, authenticate_user
+        from app.models.user import User
+
+        # 创建管理员
+        admin = User(
+            username="admin@example.com",
+            hashed_password="",
+            name="Admin",
+            is_admin=True,
+            is_active=True,
+        )
+        admin.hashed_password = "dummy"
+        _users_db["admin@example.com"] = admin
+
+        # 创建普通用户
+        user_response = client.post(
+            "/api/auth/register",
+            json={
+                "username": "user@example.com",
+                "password": "Password123",
+                "name": "Normal User",
+            },
+        )
+        user_id = user_response.json()["user_id"]
+
+        # 模拟管理员登录
+        from app.auth.core import create_access_token
+
+        admin_token = create_access_token(admin)
+
+        # 重置密码
+        response = client.post(
+            f"/api/admin/users/{user_id}/reset-password",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={"new_password": "NewPassword456"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "密码重置成功"
+
+        # 验证新密码可以使用
+        user = authenticate_user("user@example.com", "NewPassword456")
+        assert user is not None
 
 
 if __name__ == "__main__":

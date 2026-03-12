@@ -468,4 +468,22 @@
     .scheduler-tab .tab-icon {
         font-size: 1rem;
     }
+
+    /* 工具多选 - 移动端 */
+    .tools-multiselect {
+        width: 100%;
+    }
+
+    .tools-dropdown {
+        max-height: 200px;
+    }
+
+    .tools-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tools-select-btn {
+        width: 100%;
+        justify-content: space-between;
+    }
 }

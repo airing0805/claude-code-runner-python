@@ -1,6 +1,8 @@
 /**
  * 工作目录管理模块
  * 处理工作目录的加载、选择和设置
+ *
+ * v12.0.0.3.2 - 更新支持 WorkspaceCombo 组件
  */
 
 const WorkingDir = {
@@ -23,15 +25,22 @@ const WorkingDir = {
                 runner.workingDirs.unshift(defaultDir);
             }
 
-            this.renderWorkingDirOptions(runner);
+            // 更新 WorkspaceCombo 组件的历史记录
+            if (runner.workspaceCombo) {
+                runner.workspaceCombo.setHistory(runner.workingDirs);
+            } else {
+                // 回退：渲染传统的 datalist 选项
+                this.renderWorkingDirOptions(runner);
+            }
         } catch (error) {
             console.error('加载工作目录失败:', error);
         }
     },
 
     /**
-     * 渲染工作目录选项
+     * 渲染工作目录选项（传统 datalist 方式 - 仅在 WorkspaceCombo 不可用时使用）
      * @param {Object} runner - ClaudeCodeRunner 实例
+     * @deprecated v12.0.0.3.2 - 请使用 WorkspaceCombo 组件
      */
     renderWorkingDirOptions(runner) {
         if (!runner.workingDirInput || !runner.workingDirList) return;
@@ -47,7 +56,7 @@ const WorkingDir = {
         // 恢复选中值
         if (currentValue && runner.workingDirs.includes(currentValue)) {
             runner.workingDirInput.value = currentValue;
-        }
+            }
     },
 
     /**
@@ -59,10 +68,21 @@ const WorkingDir = {
         // 如果路径不在列表中，添加到列表开头
         if (path && !runner.workingDirs.includes(path)) {
             runner.workingDirs.unshift(path);
-            this.renderWorkingDirOptions(runner);
+            // 更新 WorkspaceCombo 组件的历史记录
+            if (runner.workspaceCombo) {
+                runner.workspaceCombo.setHistory(runner.workingDirs);
+            } else {
+                this.renderWorkingDirOptions(runner);
+            }
         }
-        runner.workingDirInput.value = path;
-        runner.workingDirInput.title = path;  // 更新 tooltip
+
+        // 更新 WorkspaceCombo 的值
+        if (runner.workspaceCombo) {
+            runner.workspaceCombo.setValue(path);
+        } else {
+            runner.workingDirInput.value = path;
+            runner.workingDirInput.title = path;  // 更新 tooltip
+        }
     }
 };
 

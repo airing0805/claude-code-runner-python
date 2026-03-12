@@ -518,19 +518,14 @@ const History = {
 
     /**
      * 继续会话（支持分页加载）
+     * v12.0.0.3: 简化为单会话模式，移除 Tab 系统
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} sessionId - 会话 ID
      */
     async continueSession(runner, sessionId) {
         runner.currentSessionId = sessionId;
 
-        // 检查是否已有该会话的标签
-        const existingTab = runner.tabs.find(t => t.sessionId === sessionId);
-        if (existingTab) {
-            Navigation.switchView(runner, Views.CURRENT_SESSION);
-            Tabs.switchToTab(runner, existingTab.id);
-            return;
-        }
+        // v12: 单会话模式，不需要检查现有 Tab
 
         // v9.0.2: 显示加载提示
         const loadingMessage = this._showLoadingMessage(runner, '正在加载会话...');
@@ -579,8 +574,11 @@ const History = {
             // 切换到当前会话视图
             Navigation.switchView(runner, Views.CURRENT_SESSION);
 
-            // 创建新标签页
-            Tabs.createSessionTab(runner, sessionId, title, messages, projectPath);
+            // v12: 不再需要创建 Tab，直接渲染消息
+            // 渲染历史消息
+            if (typeof MessageRenderer !== 'undefined' && messages.length > 0) {
+                MessageRenderer.renderMessages(runner, messages);
+            }
 
             // 填充会话信息
             runner.resumeInput.value = sessionId;
@@ -597,15 +595,18 @@ const History = {
             // 设置工作目录并禁用编辑
             if (projectPath) {
                 WorkingDir.setWorkingDir(runner, projectPath);
+                // v12: 更新工作空间组合控件
+                if (runner.workspaceCombo) {
+                    runner.workspaceCombo.setValue(projectPath);
+                }
             }
             Session.setSessionEditable(runner, false);
         } catch (error) {
             console.error('加载会话历史失败:', error);
             // 移除加载提示
             this._removeLoadingMessage(runner, loadingMessage);
-            // 即使加载失败也创建标签
+            // v12: 不再需要创建 Tab，直接设置会话信息
             Navigation.switchView(runner, Views.CURRENT_SESSION);
-            Tabs.createSessionTab(runner, sessionId, `会话 ${sessionId.substring(0, 8)}`, [], '');
             runner.resumeInput.value = sessionId;
             runner.resumeInput.title = sessionId;
             Session.setSessionEditable(runner, false);

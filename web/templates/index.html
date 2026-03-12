@@ -3,9 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claude Code Runner</title>
+    <title>Claude Runner</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
+<script src="/static/components/toolsMultiselect.js"></script>
+    <script src="/static/components/workspaceCombo.js"></script>
+<script src="/static/components/historyDrawer.js"></script>
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/css/auth.css">
+    <link rel="stylesheet" href="/static/css/workspaceCombo.css">
+    <link rel="stylesheet" href="/static/css/historyDrawer.css">
+    <link rel="stylesheet" href="/static/css/migration.css">
 
     <!-- v0.5.2: Markdown 渲染库 (本地) -->
     <script src="/static/vendor/marked/marked.min.js"></script>
@@ -33,7 +40,7 @@
         <nav class="nav-menu" id="nav-menu">
             <div class="nav-header">
                 <span class="nav-logo">🤖</span>
-                <span class="nav-title">Claude Code</span>
+                <span class="nav-title">Claude Runner</span>
             </div>
 
             <div class="nav-items">
@@ -44,6 +51,10 @@
                 <div class="nav-item" data-view="history">
                     <span class="nav-icon">📜</span>
                     <span class="nav-text">历史记录</span>
+                </div>
+                <div class="nav-item" data-view="scheduler">
+                    <span class="nav-icon">📅</span>
+                    <span class="nav-text">任务调度</span>
                 </div>
                 <div class="nav-item" data-view="examples">
                     <span class="nav-icon">📋</span>
@@ -77,10 +88,6 @@
                     <span class="nav-icon">⚓</span>
                     <span class="nav-text">钩子配置</span>
                 </div>
-                <div class="nav-item" data-view="scheduler">
-                    <span class="nav-icon">📋</span>
-                    <span class="nav-text">任务调度</span>
-                </div>
                 <div class="nav-item" data-view="questions">
                     <span class="nav-icon">❓</span>
                     <span class="nav-text">提问历史</span>
@@ -88,6 +95,10 @@
             </div>
 
             <div class="nav-footer">
+                <div class="auth-section" id="auth-section">
+                    <button class="auth-btn" id="auth-login-btn">登录</button>
+                    <button class="auth-btn auth-btn-primary" id="auth-register-btn">注册</button>
+                </div>
                 <button class="nav-toggle" id="nav-toggle" title="收起/展开菜单">◀</button>
             </div>
         </nav>
@@ -103,20 +114,14 @@
                         <div class="session-title">💬 当前会话</div>
                     </div>
 
-                    <!-- 标签页栏 -->
-                    <div class="tabs-bar" id="tabs-bar">
-                        <button class="tab-item active" data-tab="new" onclick="if(window.runner) Tabs.switchToTab(window.runner, 'new')">
-                            <span class="tab-icon">➕</span>
-                            <span class="tab-title">新任务</span>
-                        </button>
-                    </div>
-
                     <!-- 信息栏 -->
                     <div class="session-info-bar">
+                        <!-- v12:0.0.3.2 - 工作空间组合控件 -->
                         <span class="info-item">
                             <span class="info-label">工作目录</span>
-                            <input type="text" id="working-dir" class="info-input info-input-working-dir" list="working-dir-list" value="{{ working_dir }}" title="选择或输入工作目录" placeholder="选择或输入路径" aria-label="工作目录">
-                            <datalist id="working-dir-list"></datalist>
+                            <div id="workspace-combo-container" class="workspace-combo-container">
+                                <!-- WorkspaceCombo 组件将在此动态创建 -->
+                            </div>
                         </span>
                         <span class="info-item">
                             <span class="info-label">会话ID</span>
@@ -1168,7 +1173,24 @@
                         <span class="collapse-icon">▼</span>
                     </div>
                     <div class="detail-section-content collapsible-content" id="detail-task-output">
-                        <span class="empty-text">暂无日志</span>
+                        <!-- 日志标签页 (v7.1.0) -->
+                        <div class="log-tabs">
+                            <button class="log-tab-btn active" data-log-tab="normal">正常日志</button>
+                            <button class="log-tab-btn" data-log-tab="error">错误日志</button>
+                            <button class="log-tab-btn" data-log-tab="realtime" id="btn-realtime-logs">
+                                <span class="realtime-icon">●</span> 实时
+                            </button>
+                        </div>
+                        <div class="log-content-wrapper">
+                            <div class="log-list" id="detail-task-logs">
+                                <span class="empty-text">暂无日志</span>
+                            </div>
+                            <div class="log-search-bar">
+                                <input type="text" class="log-search-input" placeholder="搜索日志..." id="log-search-input">
+                                <button class="log-search-btn" id="log-search-btn">搜索</button>
+                                <span class="log-search-info" id="log-search-info"></span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1222,15 +1244,121 @@
         </div>
     </div>
 
+    <!-- 登录对话框 -->
+    <div class="auth-dialog" id="login-dialog">
+        <div class="auth-dialog-content">
+            <div class="auth-dialog-header">
+                <h2 class="auth-dialog-title">登录</h2>
+                <button class="auth-dialog-close" id="login-dialog-close">&times;</button>
+            </div>
+            <div class="auth-dialog-body">
+                <div class="auth-error" id="login-error"></div>
+                <form class="auth-form" id="login-form">
+                    <div class="auth-form-group">
+                        <label class="auth-form-label" for="login-username">用户名（邮箱）</label>
+                        <input
+                            type="text"
+                            id="login-username"
+                            class="auth-form-input"
+                            placeholder="请输入邮箱"
+                            required
+                            autocomplete="username"
+                        >
+                    </div>
+                    <div class="auth-form-group">
+                        <label class="auth-form-label" for="login-password">密码</label>
+                        <input
+                            type="password"
+                            id="login-password"
+                            class="auth-form-input"
+                            placeholder="请输入密码"
+                            required
+                            autocomplete="current-password"
+                        >
+                    </div>
+                    <button type="submit" class="auth-submit-btn" id="login-submit">登录</button>
+                </form>
+                <div class="auth-switch-link">
+                    还没有账号？<a href="#" id="login-to-register">立即注册</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 注册对话框 -->
+    <div class="auth-dialog" id="register-dialog">
+        <div class="auth-dialog-content">
+            <div class="auth-dialog-header">
+                <h2 class="auth-dialog-title">注册</h2>
+                <button class="auth-dialog-close" id="register-dialog-close">&times;</button>
+            </div>
+            <div class="auth-dialog-body">
+                <div class="auth-error" id="register-error"></div>
+                <form class="auth-form" id="register-form">
+                    <div class="auth-form-group">
+                        <label class="auth-form-label" for="register-username">用户名（邮箱）</label>
+                        <input
+                            type="email"
+                            id="register-username"
+                            class="auth-form-input"
+                            placeholder="请输入邮箱"
+                            required
+                            autocomplete="username"
+                        >
+                    </div>
+                    <div class="auth-form-group">
+                        <label class="auth-form-label" for="register-name">显示名称</label>
+                        <input
+                            type="text"
+                            id="register-name"
+                            class="auth-form-input"
+                            placeholder="请输入显示名称"
+                            required
+                            autocomplete="name"
+                        >
+                    </div>
+                    <div class="auth-form-group">
+                        <label class="auth-form-label" for="register-password">密码</label>
+                        <input
+                            type="password"
+                            id="register-password"
+                            class="auth-form-input"
+                            placeholder="至少8位，包含字母和数字"
+                            required
+                            autocomplete="new-password"
+                        >
+                        <div class="password-hint" id="password-strength-hint"></div>
+                    </div>
+                    <div class="auth-form-group">
+                        <label class="auth-form-label" for="register-confirm-password">确认密码</label>
+                        <input
+                            type="password"
+                            id="register-confirm-password"
+                            class="auth-form-input"
+                            placeholder="请再次输入密码"
+                            required
+                            autocomplete="new-password"
+                        >
+                    </div>
+                    <button type="submit" class="auth-submit-btn" id="register-submit">注册</button>
+                </form>
+                <div class="auth-switch-link">
+                    已有账号？<a href="#" id="register-to-login">立即登录</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 脚本加载 -->
     <script src="/static/constants.js"></script>
     <script src="/static/utils.js"></script>
-    <script src="/static/components/tabs.js"></script>
-    <script src="/static/components/toolsMultiselect.js"></script>
+    <!-- v12.0.0.3: 移除 tabs.js，改为单会话模式 -->
     <script src="/static/components/virtualList.js"></script>
     <script src="/static/modules/navigation.js"></script>
     <script src="/static/modules/task.js"></script>
     <script src="/static/modules/session.js"></script>
+    <!-- v12.0.0.3.5: 数据迁移模块 -->
+    <script src="/static/modules/migration.js"></script>
     <!-- 会话组件 -->
     <script src="/static/components/sessionComponents.js"></script>
     <script src="/static/modules/history.js"></script>
@@ -1241,6 +1369,9 @@
     <script src="/static/modules/pluginManager.js"></script>
     <script src="/static/modules/hooksManager.js"></script>
     <script src="/static/modules/questions.js"></script>
+    <script src="/static/modules/continueSession.js"></script>
+    <script src="/static/modules/examples.js"></script>
+    <script src="/static/modules/logViewer.js"></script>
     <!-- Claude 状态模块依赖 -->
     <script src="/static/modules/claude-status/claudeStatusCore.js"></script>
     <script src="/static/modules/claude-status/claudeDocs.js"></script>
@@ -1265,6 +1396,34 @@
     <script type="module" src="/static/modules/scheduler/dialogs/addScheduledDialog.js"></script>
     <script type="module" src="/static/modules/scheduler/dialogs/taskDetailDialog.js"></script>
     <script type="module" src="/static/modules/scheduler/index.js"></script>
-    <script src="/static/app.js"></script>
+
+    <!-- 认证模块 -->
+    <script src="/static/modules/auth.js"></script>
+    <script src="/static/modules/auth/authUI.js"></script>
+
+        <!-- v12.0.0.3.3: 历史记录抽屉 -->
+    <div class="history-drawer-overlay" id="history-drawer-overlay">
+        <div class="history-drawer">
+            <div class="history-drawer-header">
+                <h3>历史记录</h3>
+                <button class="history-drawer-close" aria-label="关闭历史记录" title="关闭">
+                    <span class="close-icon">×</span>
+                </button>
+            </div>
+            <div class="history-drawer-content">
+                <div class="history-drawer-loading">
+                    <div class="loading-spinner"></div>
+                    <span>加载中...</span>
+                </div>
+                <div class="history-drawer-empty" style="display: none;">
+                    <span class="empty-icon">📭</span>
+                    <span class="empty-text">暂无历史记录</span>
+                </div>
+                <div class="history-drawer-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script defer src="/static/app.js"></script>
 </body>
 </html>

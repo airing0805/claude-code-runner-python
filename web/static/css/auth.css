@@ -1,0 +1,364 @@
+/* ============== 认证模块样式 ============== */
+
+/* 认证区域 */
+.auth-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+}
+
+/* 认证按钮 */
+.auth-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--zinc-600);
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--zinc-300);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.auth-btn:hover {
+    background: var(--zinc-800);
+    color: var(--zinc-100);
+    border-color: var(--zinc-500);
+}
+
+.auth-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.auth-btn-primary {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.auth-btn-primary:hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+}
+
+/* 已登录状态 */
+.auth-user {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--zinc-800);
+    border-radius: var(--radius-md);
+}
+
+.auth-user-icon {
+    font-size: 1rem;
+}
+
+.auth-user-name {
+    font-size: 0.85rem;
+    color: var(--zinc-300);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.auth-logout-btn {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    border: 1px solid var(--zinc-600);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--zinc-400);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.auth-logout-btn:hover {
+    background: var(--danger-color);
+    color: white;
+    border-color: var(--danger-color);
+}
+
+/* 对话框 */
+.auth-dialog {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.auth-dialog.active {
+    display: flex;
+}
+
+.auth-dialog-content {
+    background: var(--zinc-900);
+    border: 1px solid var(--zinc-700);
+    border-radius: var(--radius-lg);
+    width: 100%;
+    max-width: 400px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    animation: dialogSlideIn 0.3s ease-out;
+}
+
+@keyframes dialogSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.auth-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--zinc-700);
+    background: var(--zinc-800);
+}
+
+.auth-dialog-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--zinc-100);
+}
+
+.auth-dialog-close {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--zinc-400);
+    font-size: 1.2rem;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.auth-dialog-close:hover {
+    background: var(--zinc-700);
+    color: var(--zinc-100);
+}
+
+.auth-dialog-body {
+    padding: 24px 20px;
+}
+
+/* 表单样式 */
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.auth-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.auth-form-label {
+    font-size: 0.85rem;
+    color: var(--zinc-400);
+    font-weight: 500;
+}
+
+.auth-form-input {
+    padding: 10px 12px;
+    border: 1px solid var(--zinc-600);
+    border-radius: var(--radius-md);
+    background: var(--zinc-800);
+    color: var(--zinc-100);
+    font-size: 0.9rem;
+    transition: all var(--transition-fast);
+}
+
+.auth-form-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(100, 100, 255, 0.1);
+}
+
+.auth-form-input::placeholder {
+    color: var(--zinc-500);
+}
+
+.auth-form-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* 密码强度提示 */
+.password-hint {
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+.password-hint.weak {
+    color: var(--danger-color);
+}
+
+.password-hint.medium {
+    color: var(--warning-color);
+}
+
+.password-hint.strong {
+    color: var(--success-color);
+}
+
+/* 错误提示 */
+.auth-error {
+    padding: 10px 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-md);
+    color: #ef4444;
+    font-size: 0.85rem;
+    display: none;
+    margin-bottom: 8px;
+}
+
+.auth-error.active {
+    display: block;
+}
+
+/* 提交按钮 */
+.auth-submit-btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--primary-color);
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    margin-top: 8px;
+}
+
+.auth-submit-btn:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.auth-submit-btn:active {
+    transform: translateY(0);
+}
+
+.auth-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* 切换链接 */
+.auth-switch-link {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--zinc-400);
+}
+
+.auth-switch-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.auth-switch-link a:hover {
+    text-decoration: underline;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .auth-section {
+        padding: 6px 8px;
+        gap: 6px;
+    }
+
+    .auth-btn {
+        padding: 5px 12px;
+        font-size: 0.75rem;
+    }
+
+    .auth-user {
+        padding: 4px 8px;
+    }
+
+    .auth-user-name {
+        font-size: 0.8rem;
+        max-width: 80px;
+    }
+
+    .auth-logout-btn {
+        padding: 3px 6px;
+        font-size: 0.7rem;
+    }
+
+    .auth-dialog-content {
+        max-width: 90%;
+        margin: 10px;
+    }
+
+    .auth-dialog-header {
+        padding: 12px 16px;
+    }
+
+    .auth-dialog-title {
+        font-size: 1rem;
+    }
+
+    .auth-dialog-body {
+        padding: 20px 16px;
+    }
+
+    .auth-form-input {
+        padding: 8px 10px;
+        font-size: 0.85rem;
+    }
+
+    .auth-submit-btn {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .auth-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .auth-btn {
+        width: 100%;
+    }
+
+    .auth-user {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .auth-user-name {
+        max-width: 100%;
+        text-align: center;
+    }
+}

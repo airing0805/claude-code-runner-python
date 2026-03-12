@@ -1,5 +1,85 @@
 {
   "tasks": [
-    
+    {
+      "id": "742912b5-2228-41a7-903a-582ad606c5ad",
+      "name": "测试定时任务",
+      "prompt": "网络搜索，与项目需求相关的内容，提出优化建议，形成方案。注意：你自己决策，用户现在不在线",
+      "workspace": "E:\\workspaces_2026_python\\claude-code-runner",
+      "cron": "*/1 * * * *",
+      "timeout": 600000,
+      "auto_approve": true,
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebSearch",
+        "WebFetch",
+        "Task",
+        "TodoWrite",
+        "NotebookEdit"
+      ],
+      "enabled": true,
+      "last_run": null,
+      "next_run": null,
+      "created_at": "2026-03-12 11:17:57",
+      "updated_at": "2026-03-12 11:18:11"
+    },
+    {
+      "id": "241a2ec5-45c1-453f-8259-cc23b5bbb0eb",
+      "name": "测试定时任务",
+      "prompt": "网络搜索，与项目需求相关的内容，提出优化建议，形成方案。注意：你自己决策，用户现在不在线",
+      "workspace": "E:\\workspaces_2026_python\\claude-code-runner",
+      "cron": "*/1 * * * *",
+      "timeout": 600000,
+      "auto_approve": true,
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebSearch",
+        "WebFetch",
+        "Task",
+        "TodoWrite",
+        "NotebookEdit"
+      ],
+      "enabled": true,
+      "last_run": null,
+      "next_run": null,
+      "created_at": "2026-03-12 11:17:57",
+      "updated_at": "2026-03-12 11:18:11"
+    },
+    {
+      "id": "7e747323-f4cf-4a76-a589-f7fd1056b710",
+      "name": "测试定时任务",
+      "prompt": "网络搜索，与项目需求相关的内容，提出优化建议，形成方案。注意：你自己决策，用户现在不在线",
+      "workspace": "E:\\workspaces_2026_python\\claude-code-runner",
+      "cron": "*/1 * * * *",
+      "timeout": 600000,
+      "auto_approve": true,
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebSearch",
+        "WebFetch",
+        "Task",
+        "TodoWrite",
+        "NotebookEdit"
+      ],
+      "enabled": true,
+      "last_run": null,
+      "next_run": null,
+      "created_at": "2026-03-12 11:17:57",
+      "updated_at": "2026-03-12 11:18:11"
+    }
   ]
 }

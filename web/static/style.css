@@ -10,6 +10,9 @@
 /* 通用组件 */
 @import url('css/components.css');
 
+/* 认证模块 */
+@import url('css/auth.css');
+
 /* 工具特定样式 */
 @import url('css/tools.css');
 

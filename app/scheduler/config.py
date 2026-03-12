@@ -21,9 +21,9 @@ LOGS_FILE = DATA_DIR / "logs.jsonl"
 # 默认超时时间（秒）
 DEFAULT_TIMEOUT = 600  # 10 分钟
 
-# 最小/最大超时时间（秒）
+# 最小超时时间（秒），最大不限制
 MIN_TIMEOUT = 1  # 1 秒
-MAX_TIMEOUT = 3600  # 1 小时
+MAX_TIMEOUT = None  # 不限制
 
 # 轮询间隔（秒）
 POLL_INTERVAL = 10

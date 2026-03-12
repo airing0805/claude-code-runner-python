@@ -5,6 +5,7 @@
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional, Tuple
 
 # 字段范围定义
@@ -393,3 +394,104 @@ class CronParser:
         from .cron_validator import CronValidator
         validator = CronValidator(self)
         return validator.validate(cron)
+
+    def calculate_next_run(
+        self,
+        cron: str,
+        from_time: Optional[datetime] = None,
+    ) -> Optional[datetime]:
+        """
+        计算下次执行时间（委托给 CronCalculator）
+
+        Args:
+            cron: Cron 表达式
+            from_time: 起始时间，默认当前时间
+
+        Returns:
+            下次执行时间，如果无法计算返回 None
+        """
+        from .cron_calculator import CronCalculator
+        calculator = CronCalculator(self)
+        return calculator.calculate_next_run(cron, from_time)
+
+    def get_next_runs(
+        self,
+        cron: str,
+        count: int = 5,
+        from_time: Optional[datetime] = None,
+    ) -> list[datetime]:
+        """
+        获取未来 n 个执行时间（委托给 CronCalculator）
+
+        Args:
+            cron: Cron 表达式
+            count: 返回数量
+            from_time: 起始时间，默认当前时间
+
+        Returns:
+            执行时间列表
+        """
+        from .cron_calculator import CronCalculator
+        calculator = CronCalculator(self)
+        return calculator.get_next_runs(cron, count, from_time)
+
+    def _get_last_day_of_month(self, year: int, month: int) -> int:
+        """
+        获取指定月份的最后一天（委托给 CronCalculator）
+
+        Args:
+            year: 年份
+            month: 月份
+
+        Returns:
+            该月的最后一天
+        """
+        from .cron_calculator import CronCalculator
+        calculator = CronCalculator(self)
+        return calculator._get_last_day_of_month(year, month)
+
+    def _matches(self, expression: CronExpression, dt: datetime) -> bool:
+        """
+        检查时间是否匹配 Cron 表达式（委托给 CronCalculator）
+
+        Args:
+            expression: Cron 表达式对象
+            dt: 待检查的时间
+
+        Returns:
+            是否匹配
+        """
+        from .cron_calculator import CronCalculator
+        calculator = CronCalculator(self)
+        return calculator._matches(expression, dt)
+
+    def _field_matches(self, field: CronField, value: int, dt: datetime) -> bool:
+        """
+        检查字段值是否匹配（委托给 CronCalculator）
+
+        Args:
+            field: Cron 字段对象
+            value: 待检查的值
+            dt: 日期时间对象
+
+        Returns:
+            是否匹配
+        """
+        from .cron_calculator import CronCalculator
+        calculator = CronCalculator(self)
+        return calculator._field_matches(field, value, dt)
+
+    def _validate_field(self, field: CronField, field_type: str) -> bool:
+        """
+        验证字段值是否在有效范围内（委托给 CronValidator）
+
+        Args:
+            field: Cron 字段对象
+            field_type: 字段类型
+
+        Returns:
+            是否有效
+        """
+        from .cron_validator import CronValidator
+        validator = CronValidator(self)
+        return validator._validate_field(field, field_type)

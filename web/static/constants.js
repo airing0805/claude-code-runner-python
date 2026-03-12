@@ -31,7 +31,18 @@ const Views = {
     PLUGINS: 'plugins',
     HOOKS_CONFIG: 'hooks-config',
     SCHEDULER: 'scheduler',  // v0.6.4: 任务调度视图
-    QUESTIONS: 'questions'   // v8.0.2: 提问历史记录视图
+    QUESTIONS: 'questions',   // v8.0.2: 提问历史记录视图
+    LOG_VIEWER: 'log-viewer',  // v7.1.0: 日志查看器视图
+    ADMIN: 'admin',         // v11.0.0: 管理员界面视图
+};
+
+// 日志类型常量
+const LogTypes = {
+    NORMAL: 'normal',
+    ERROR: 'error',
+    STDOUT: 'stdout',
+    STDERR: 'stderr',
+    ALL: 'all'
 };
 
 // 消息类型常量

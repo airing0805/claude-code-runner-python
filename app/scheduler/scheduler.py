@@ -39,6 +39,9 @@ class Scheduler:
         self._status = SchedulerStatus.STOPPED
         self._queue_task: asyncio.Task[None] | None = None  # 队列处理任务
 
+        # 日志事件订阅机制 (用于 SSE)
+        self._log_queues: dict[str, asyncio.Queue] = {}
+
     @property
     def status(self) -> SchedulerStatus:
         """获取调度器状态"""
@@ -468,6 +471,54 @@ class Scheduler:
             任务信息字典，不存在返回 None
         """
         return self.apscheduler.get_job_info(task_id)
+
+    # ============= 日志事件订阅机制 (用于 SSE) =============
+
+    def subscribe_logs(self, task_id: str) -> asyncio.Queue:
+        """订阅任务日志事件
+
+        Args:
+            task_id: 任务 ID
+
+        Returns:
+            异步队列用于接收日志事件
+        """
+        if task_id not in self._log_queues:
+            self._log_queues[task_id] = asyncio.Queue()
+        return self._log_queues[task_id]
+
+    def unsubscribe_logs(self, task_id: str):
+        """取消订阅任务日志事件
+
+        Args:
+            task_id: 任务 ID
+        """
+        if task_id in self._log_queues:
+            del self._log_queues[task_id]
+
+    def publish_log(self, task_id: str, log_entry: dict):
+        """发布日志事件
+
+        Args:
+            task_id: 任务 ID
+            log_entry: 日志条目
+        """
+        if task_id in self._log_queues:
+            try:
+                self._log_queues[task_id].put_nowait(log_entry)
+            except asyncio.QueueFull:
+                logger.warning(f"日志队列已满，丢弃日志: {task_id}")
+
+    def get_log_queue(self, task_id: str) -> Optional[asyncio.Queue]:
+        """获取任务日志队列
+
+        Args:
+            task_id: 任务 ID
+
+        Returns:
+            异步队列，不存在返回 None
+        """
+        return self._log_queues.get(task_id)
 
 
 # 全局调度器实例

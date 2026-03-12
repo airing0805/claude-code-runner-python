@@ -8,6 +8,7 @@ from pathlib import Path
 from app.scheduler.models import Task, ScheduledTask, TaskStatus
 from app.scheduler import storage
 from app.scheduler import config
+from app.scheduler.storage_base import FileLock, atomic_write, BaseStorage
 
 
 # 备份原始文件路径
@@ -49,7 +50,7 @@ class TestQueueStorage:
 
     def test_add_task_to_queue(self):
         """测试添加任务到队列"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
         task = Task(
             id=str(uuid.uuid4()),
             prompt="测试任务",
@@ -64,7 +65,7 @@ class TestQueueStorage:
 
     def test_get_all_tasks_from_queue(self):
         """测试获取队列所有任务"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
 
         # 添加多个任务
         for i in range(3):
@@ -79,7 +80,7 @@ class TestQueueStorage:
 
     def test_get_task_by_id(self):
         """测试根据 ID 获取任务"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
         task_id = str(uuid.uuid4())
         task = Task(id=task_id, prompt="测试任务")
         queue_storage.add(task)
@@ -91,14 +92,14 @@ class TestQueueStorage:
 
     def test_get_nonexistent_task(self):
         """测试获取不存在的任务"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
 
         result = queue_storage.get("nonexistent-id")
         assert result is None
 
     def test_remove_task_from_queue(self):
         """测试从队列移除任务"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
         task_id = str(uuid.uuid4())
         task = Task(id=task_id, prompt="测试任务")
         queue_storage.add(task)
@@ -111,7 +112,7 @@ class TestQueueStorage:
 
     def test_pop_task_from_queue(self):
         """测试弹出队首任务"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
 
         # 添加多个任务
         for i in range(3):
@@ -132,14 +133,14 @@ class TestQueueStorage:
 
     def test_pop_empty_queue(self):
         """测试弹出空队列"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
 
         result = queue_storage.pop()
         assert result is None
 
     def test_clear_queue(self):
         """测试清空队列"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
 
         # 添加任务
         for i in range(5):
@@ -153,7 +154,7 @@ class TestQueueStorage:
 
     def test_queue_count(self):
         """测试队列计数"""
-        queue_storage = storage.QueueStorage()
+        queue_storage = storage.get_storage().queue
 
         assert queue_storage.count() == 0
 
@@ -169,7 +170,7 @@ class TestScheduledStorage:
 
     def test_save_scheduled_task(self):
         """测试保存定时任务"""
-        scheduled_storage = storage.ScheduledStorage()
+        scheduled_storage = storage.get_storage().scheduled
         task = ScheduledTask(
             id=str(uuid.uuid4()),
             name="定时任务",
@@ -185,7 +186,7 @@ class TestScheduledStorage:
 
     def test_update_scheduled_task(self):
         """测试更新定时任务"""
-        scheduled_storage = storage.ScheduledStorage()
+        scheduled_storage = storage.get_storage().scheduled
         task_id = str(uuid.uuid4())
         task = ScheduledTask(
             id=task_id,
@@ -206,7 +207,7 @@ class TestScheduledStorage:
 
     def test_get_enabled_tasks(self):
         """测试获取已启用任务"""
-        scheduled_storage = storage.ScheduledStorage()
+        scheduled_storage = storage.get_storage().scheduled
 
         # 添加多个任务，部分启用
         for i in range(5):
@@ -224,7 +225,7 @@ class TestScheduledStorage:
 
     def test_delete_scheduled_task(self):
         """测试删除定时任务"""
-        scheduled_storage = storage.ScheduledStorage()
+        scheduled_storage = storage.get_storage().scheduled
         task_id = str(uuid.uuid4())
         task = ScheduledTask(
             id=task_id,
@@ -246,7 +247,7 @@ class TestRunningStorage:
 
     def test_add_running_task(self):
         """测试添加运行中任务"""
-        running_storage = storage.RunningStorage()
+        running_storage = storage.get_storage().running
         task = Task(
             id=str(uuid.uuid4()),
             prompt="运行中任务",
@@ -261,7 +262,7 @@ class TestRunningStorage:
 
     def test_update_running_task(self):
         """测试更新运行中任务"""
-        running_storage = storage.RunningStorage()
+        running_storage = storage.get_storage().running
         task_id = str(uuid.uuid4())
         task = Task(id=task_id, prompt="运行中", status=TaskStatus.RUNNING)
         running_storage.add(task)
@@ -277,7 +278,7 @@ class TestRunningStorage:
 
     def test_remove_running_task(self):
         """测试移除运行中任务"""
-        running_storage = storage.RunningStorage()
+        running_storage = storage.get_storage().running
         task_id = str(uuid.uuid4())
         task = Task(id=task_id, prompt="运行中", status=TaskStatus.RUNNING)
         running_storage.add(task)
@@ -295,7 +296,7 @@ class TestHistoryStorage:
 
     def test_add_completed_task(self):
         """测试添加已完成任务"""
-        history_storage = storage.HistoryStorage()
+        history_storage = storage.get_storage().history
         task = Task(
             id=str(uuid.uuid4()),
             prompt="已完成任务",
@@ -310,7 +311,7 @@ class TestHistoryStorage:
 
     def test_add_failed_task(self):
         """测试添加失败任务"""
-        history_storage = storage.HistoryStorage()
+        history_storage = storage.get_storage().history
         task = Task(
             id=str(uuid.uuid4()),
             prompt="失败任务",
@@ -326,7 +327,7 @@ class TestHistoryStorage:
 
     def test_completed_tasks_sorted_by_time(self):
         """测试已完成任务按时间排序"""
-        history_storage = storage.HistoryStorage()
+        history_storage = storage.get_storage().history
 
         # 添加多个任务
         for i in range(5):
@@ -343,7 +344,7 @@ class TestHistoryStorage:
 
     def test_get_completed_pagination(self):
         """测试已完成任务分页"""
-        history_storage = storage.HistoryStorage()
+        history_storage = storage.get_storage().history
 
         # 添加 25 个任务
         for i in range(25):
@@ -375,7 +376,7 @@ class TestFileLock:
     def test_lock_acquire_release(self, tmp_path):
         """测试锁获取和释放"""
         lock_file = tmp_path / "test.lock"
-        lock = storage.FileLock(lock_file)
+        lock = FileLock(lock_file)
 
         # 获取锁
         acquired = lock.acquire()
@@ -388,13 +389,13 @@ class TestFileLock:
     def test_lock_non_blocking(self, tmp_path):
         """测试非阻塞获取锁"""
         lock_file = tmp_path / "test.lock"
-        lock = storage.FileLock(lock_file)
+        lock = FileLock(lock_file)
 
         # 第一次获取
         assert lock.acquire(blocking=False) is True
 
         # 第二次应该失败（非阻塞）
-        lock2 = storage.FileLock(lock_file)
+        lock2 = FileLock(lock_file)
         assert lock2.acquire(blocking=False) is False
 
         # 释放后可以再次获取
@@ -411,7 +412,7 @@ class TestAtomicWrite:
         filepath = tmp_path / "test.json"
         data = {"key": "value", "number": 42}
 
-        storage.atomic_write(filepath, data)
+        atomic_write(filepath, data)
 
         # 验证写入的数据
         with open(filepath, encoding="utf-8") as f:
@@ -424,9 +425,9 @@ class TestAtomicWrite:
         filepath = tmp_path / "test.json"
 
         # 第一次写入
-        storage.atomic_write(filepath, {"version": 1})
+        atomic_write(filepath, {"version": 1})
         # 第二次写入
-        storage.atomic_write(filepath, {"version": 2})
+        atomic_write(filepath, {"version": 2})
 
         with open(filepath, encoding="utf-8") as f:
             loaded = json.load(f)

@@ -245,5 +245,8 @@ const SchedulerAPI = {
     },
 };
 
-// 导出到全局命名空间
+// 导出到全局命名空间（兼容非模块脚本）
 window.SchedulerAPI = SchedulerAPI;
+
+// ES6 模块导出（用于模块导入）
+export { SchedulerAPI };

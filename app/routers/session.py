@@ -2,17 +2,20 @@
 
 import hashlib
 import json
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from app.auth import get_current_user_optional
 from app.services import extract_question
 
 router = APIRouter(prefix="/api", tags=["session"])
+logger = logging.getLogger(__name__)
 
 # 路径配置
 CLAUDE_DIR = Path.home() / ".claude"
@@ -294,8 +297,21 @@ def find_session_file(session_id: str) -> Optional[Path]:
 
 
 @router.get("/sessions")
-async def list_sessions(working_dir: str = "."):
-    """获取历史会话列表（使用当前项目，使用缓存）"""
+async def list_sessions(
+    working_dir: str = ".",
+    current_user: Optional[any] = Depends(get_current_user_optional),
+):
+    """
+    获取历史会话列表（使用当前项目，使用缓存）
+
+    支持可选认证：
+    - 已认证用户：可以添加用户筛选（未来扩展）
+    - 匿名用户：返回所有会话
+    """
+    # 记录用户信息
+    if current_user:
+        logger.info(f"会话列表查询 - 用户: {current_user.username} (ID: {current_user.id})")
+
     sessions_dir = get_sessions_dir(working_dir)
 
     if not sessions_dir.exists():
@@ -317,8 +333,22 @@ async def list_sessions(working_dir: str = "."):
 
 
 @router.get("/projects")
-async def list_projects(page: int = 1, limit: int = 20):
-    """获取所有项目列表（分页，使用缓存）"""
+async def list_projects(
+    page: int = 1,
+    limit: int = 20,
+    current_user: Optional[any] = Depends(get_current_user_optional),
+):
+    """
+    获取所有项目列表（分页，使用缓存）
+
+    支持可选认证：
+    - 已认证用户：可以添加用户筛选（未来扩展）
+    - 匿名用户：返回所有项目
+    """
+    # 记录用户信息
+    if current_user:
+        logger.info(f"项目列表查询 - 用户: {current_user.username} (ID: {current_user.id})")
+
     if not PROJECTS_DIR.exists():
         return {
             "projects": [],
@@ -751,9 +781,14 @@ async def get_project_questions(
     project_name: str,
     page: int = Query(1, ge=1, description="页码"),
     limit: int = Query(20, ge=1, le=100, description="每页数量"),
+    current_user: Optional[any] = Depends(get_current_user_optional),
 ):
     """
     获取指定项目的提问列表（分页）
+
+    支持可选认证：
+    - 已认证用户：可以添加用户筛选（未来扩展）
+    - 匿名用户：返回所有提问
 
     从项目的所有会话文件中提取首次用户提问，并按时间倒序排列。
 

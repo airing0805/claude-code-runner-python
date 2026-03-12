@@ -1346,3 +1346,342 @@
 | 最大超时时间 | 1 小时 | 单个任务最长执行时间 |
 | 历史记录上限 | 1000 | 已完成/失败任务最大保留数量 |
 | 分页大小上限 | 100 | 单次查询最多返回 100 条记录 |
+
+---
+
+## 附录 E：日志增强功能 (v7.1.0)
+
+> **版本**: v1.0 (2026-03-10)
+> **说明**: 日志增强功能是 v7.1.0 版本的新功能
+
+### 功能概述
+
+日志增强功能提供以下核心能力：
+- **独立日志标签页**：分离正常日志 (stdout) 和错误日志 (stderr)
+- **实时日志推送**：通过 SSE 实时接收日志
+- **历史日志分页**：分页加载历史日志
+- **日志搜索**：支持关键字和正则表达式搜索
+
+---
+
+### 日志分类接口
+
+#### 获取正常日志 (stdout)
+
+**GET** `/api/scheduler/tasks/{task_id}/logs/normal`
+
+获取任务的正常日志（标准输出）。
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| task_id | string | 任务 ID |
+
+**查询参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| page | integer | 1 | 页码 |
+| limit | integer | 100 | 每页数量（最大 500） |
+| start_time | string | - | 开始时间 (ISO 8601 格式) |
+| end_time | string | - | 结束时间 (ISO 8601 格式) |
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "log-001",
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "type": "stdout",
+        "level": "info",
+        "message": "任务开始执行"
+      }
+    ],
+    "total": 100,
+    "page": 1,
+    "limit": 100,
+    "pages": 1
+  }
+}
+```
+
+---
+
+#### 获取错误日志 (stderr)
+
+**GET** `/api/scheduler/tasks/{task_id}/logs/error`
+
+获取任务的错误日志（标准错误）。
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| task_id | string | 任务 ID |
+
+**查询参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| page | integer | 1 | 页码 |
+| limit | integer | 100 | 每页数量（最大 500） |
+| start_time | string | - | 开始时间 (ISO 8601 格式) |
+| end_time | string | - | 结束时间 (ISO 8601 格式) |
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "log-001",
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "timestamp": "2024-01-01T00:00:05.000Z",
+        "type": "stderr",
+        "level": "error",
+        "message": "Error: File not found"
+      }
+    ],
+    "total": 10,
+    "page": 1,
+    "limit": 100,
+    "pages": 1
+  }
+}
+```
+
+---
+
+### 实时日志推送
+
+#### SSE 实时日志流
+
+**GET** `/api/scheduler/tasks/{task_id}/logs/stream`
+
+通过 Server-Sent Events (SSE) 实时接收任务日志。
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| task_id | string | 任务 ID |
+
+**查询参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| log_type | string | "all" | 日志类型过滤 (stdout/stderr/all) |
+
+**响应** `200 OK`
+
+SSE 流式响应，支持以下事件类型：
+
+| 事件 | 说明 |
+|------|------|
+| connected | 连接成功 |
+| log | 新日志条目 |
+| complete | 任务完成 |
+| error | 任务执行失败 |
+| close | 连接关闭 |
+| heartbeat | 心跳（每 30 秒） |
+
+**SSE 事件示例**
+
+```
+event: connected
+data: {"message": "已连接到日志流"}
+
+event: log
+data: {"id": "log-001", "task_id": "xxx", "timestamp": "...", "type": "stdout", "level": "info", "message": "任务开始执行"}
+
+event: complete
+data: {"message": "任务已完成"}
+
+:heartbeat
+```
+
+**使用示例**
+
+```javascript
+// JavaScript SSE 客户端
+const eventSource = new EventSource('/api/scheduler/tasks/xxx/logs/stream');
+
+eventSource.addEventListener('connected', (e) => {
+  console.log('已连接:', JSON.parse(e.data));
+});
+
+eventSource.addEventListener('log', (e) => {
+  const log = JSON.parse(e.data);
+  console.log('新日志:', log.message);
+});
+
+eventSource.addEventListener('complete', (e) => {
+  console.log('任务完成');
+  eventSource.close();
+});
+
+// Python SSE 客户端
+import sseclient
+import requests
+
+response = requests.get('/api/scheduler/tasks/xxx/logs/stream', stream=True)
+client = sseclient.SSEClient(response)
+
+for event in client.events():
+    if event.event == 'log':
+        print(json.loads(event.data))
+```
+
+---
+
+### 日志搜索
+
+#### 搜索日志
+
+**GET** `/api/scheduler/tasks/{task_id}/logs/search`
+
+搜索任务日志，支持关键字搜索和正则表达式。
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| task_id | string | 任务 ID |
+
+**查询参数**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| keyword | string | - | 搜索关键字（必填） |
+| regex | boolean | false | 是否使用正则表达式 |
+| log_type | string | - | 日志类型过滤 (stdout/stderr/all) |
+| page | integer | 1 | 页码 |
+| limit | integer | 100 | 每页数量（最大 500） |
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "log-001",
+        "task_id": "550e8400-e29b-41d4-a716-446655440000",
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "type": "stdout",
+        "level": "info",
+        "message": "Processing file: test.py"
+      }
+    ],
+    "total": 5,
+    "keyword": "test",
+    "page": 1,
+    "limit": 100,
+    "pages": 1
+  }
+}
+```
+
+**错误响应**
+
+| 状态码 | 错误码 | 说明 |
+|--------|--------|------|
+| 400 | EMPTY_KEYWORD | 搜索关键字为空 |
+| 400 | INVALID_LOG_TYPE | 无效的日志类型 |
+
+---
+
+### 日志统计
+
+#### 获取日志数量统计
+
+**GET** `/api/scheduler/tasks/{task_id}/logs/count`
+
+获取任务的日志数量统计信息。
+
+**路径参数**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| task_id | string | 任务 ID |
+
+**响应** `200 OK`
+
+```json
+{
+  "success": true,
+  "data": {
+    "stdout": 150,
+    "stderr": 5,
+    "total": 155
+  }
+}
+```
+
+**响应字段说明**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| stdout | integer | 正常日志数量 |
+| stderr | integer | 错误日志数量 |
+| total | integer | 日志总数 |
+
+---
+
+### 日志数据模型
+
+#### LogEntry
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | string | 日志唯一标识 |
+| task_id | string | 任务 ID |
+| timestamp | string | ISO 8601 时间戳 |
+| type | string | 日志类型 (stdout/stderr) |
+| level | string | 日志级别 (debug/info/warn/error) |
+| message | string | 日志消息 |
+
+#### 日志类型说明
+
+| 类型 | 说明 | 典型用途 |
+|------|------|----------|
+| stdout | 标准输出 | 正常执行日志、进度信息 |
+| stderr | 标准错误 | 错误信息、警告、异常 |
+
+#### 日志级别说明
+
+| 级别 | 说明 |
+|------|------|
+| debug | 调试信息 |
+| info | 一般信息 |
+| warn | 警告信息 |
+| error | 错误信息 |
+
+---
+
+### 错误码扩展
+
+| 错误码 | HTTP 状态码 | 说明 |
+|--------|-------------|------|
+| EMPTY_KEYWORD | 400 | 搜索关键字为空 |
+| INVALID_LOG_TYPE | 400 | 无效的日志类型 |
+
+---
+
+### 性能考虑
+
+| 优化项 | 说明 |
+|--------|------|
+| 虚拟滚动 | 前端使用虚拟滚动渲染大量日志 |
+| 分页加载 | 历史日志分页加载，减少内存占用 |
+| 日志缓冲 | 前端缓冲刷新，提升实时日志性能 |
+| SSE 心跳 | 30 秒心跳保持连接，防止超时 |

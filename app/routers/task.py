@@ -13,10 +13,11 @@ from typing import Any, Literal, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from app.auth import get_current_user_optional
 from app.claude_runner import ClaudeCodeClient
 from app.claude_runner.client import MessageType, PermissionMode
 from app.routers.session_manager import session_manager, SessionInfo
@@ -251,10 +252,24 @@ class NewSessionResponse(BaseModel):
 
 
 @router.post("", response_model=TaskResponse)
-async def run_task(task: TaskRequest, working_dir: str = "."):
+async def run_task(
+    task: TaskRequest,
+    working_dir: str = ".",
+    current_user: Optional[any] = Depends(get_current_user_optional),
+):
     """
     执行任务 (同步等待结果)
+
+    支持可选认证：
+    - 已认证用户：任务将关联到用户，用于多用户数据隔离
+    - 匿名用户：任务正常执行，无用户关联
     """
+    # 记录用户信息（如果已认证）
+    if current_user:
+        logger.info(f"任务执行 - 用户: {current_user.username} (ID: {current_user.id})")
+    else:
+        logger.info("任务执行 - 匿名用户")
+
     client = ClaudeCodeClient(
         working_dir=task.working_dir or working_dir,
         allowed_tools=task.tools,
@@ -276,9 +291,17 @@ async def run_task(task: TaskRequest, working_dir: str = "."):
 
 
 @router.post("/stream")
-async def run_task_stream(task: TaskRequest, working_dir: str = "."):
+async def run_task_stream(
+    task: TaskRequest,
+    working_dir: str = ".",
+    current_user: Optional[any] = Depends(get_current_user_optional),
+):
     """
     执行任务 (SSE 流式输出)
+
+    支持可选认证：
+    - 已认证用户：任务将关联到用户
+    - 匿名用户：任务正常执行
 
     当遇到需要用户回答的问题时，会暂停并等待用户通过 /answer 接口提交答案
     """
@@ -286,6 +309,13 @@ async def run_task_stream(task: TaskRequest, working_dir: str = "."):
     request_start_time = time.time()
     logger.info(f"[SSE] ==================== 新请求开始 ====================")
     logger.info(f"[SSE] 请求详情: resume={task.resume}, new_session={task.new_session}, working_dir={task.working_dir}, prompt长度={len(task.prompt) if task.prompt else 0}")
+
+    # 记录用户信息（如果已认证）
+    if current_user:
+        logger.info(f"[SSE] 用户: {current_user.username} (ID: {current_user.id})")
+    else:
+        logger.info("[SSE] 匿名用户")
+
     logger.info(f"[SSE] 当前所有会话数: {len(session_manager._sessions)}")
     logger.info(f"[SSE] 当前所有会话IDs: {list(session_manager._sessions.keys())}")
 

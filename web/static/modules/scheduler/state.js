@@ -4,7 +4,7 @@
  * 职责: 管理任务调度器的状态
  */
 
-const SchedulerState = {
+export const SchedulerState = {
     // 调度器运行状态
     scheduler: {
         isRunning: false,

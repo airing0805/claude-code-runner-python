@@ -2,8 +2,12 @@
 
 from app.auth.core import (
     ACCESS_TOKEN_EXPIRE_HOURS,
+    REFRESH_TOKEN_EXPIRE_DAYS,
+    _users_db,
+    add_to_blacklist,
     authenticate_user,
     create_access_token,
+    create_refresh_token,
     create_user,
     create_api_key,
     decode_access_token,
@@ -14,27 +18,39 @@ from app.auth.core import (
     get_user_by_id,
     get_user_by_username,
     hash_password,
+    is_token_blacklisted,
     revoke_api_key,
     update_user_password,
     validate_password_strength,
     verify_api_key,
     verify_password,
+    verify_token,
+    verify_token_with_blacklist,
 )
 from app.auth.dependencies import (
     api_key_header,
     get_api_key_user,
     get_current_user,
+    get_current_admin_user,
     get_current_user_optional,
     oauth2_scheme,
+    oauth2_scheme_optional,
 )
+from app.auth.rate_limiter import RateLimiter, get_rate_limiter
 
 __all__ = [
     # Core
+    "_users_db",
     "verify_password",
     "hash_password",
     "validate_password_strength",
     "create_access_token",
+    "create_refresh_token",
     "decode_access_token",
+    "verify_token",
+    "verify_token_with_blacklist",
+    "add_to_blacklist",
+    "is_token_blacklisted",
     "get_user_by_username",
     "get_user_by_id",
     "create_user",
@@ -48,10 +64,16 @@ __all__ = [
     "revoke_api_key",
     "delete_api_key",
     "ACCESS_TOKEN_EXPIRE_HOURS",
+    "REFRESH_TOKEN_EXPIRE_DAYS",
     # Dependencies
     "get_current_user",
+    "get_current_admin_user",
     "get_current_user_optional",
     "get_api_key_user",
     "oauth2_scheme",
+    "oauth2_scheme_optional",
     "api_key_header",
+    # Rate Limiter
+    "RateLimiter",
+    "get_rate_limiter",
 ]

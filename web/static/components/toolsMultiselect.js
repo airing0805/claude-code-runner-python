@@ -14,19 +14,41 @@ const ToolsMultiselect = {
 
         if (!dropdown || !selectBtn) return;
 
+        // 添加 ARIA 属性支持无障碍访问
+        selectBtn.setAttribute('aria-haspopup', 'listbox');
+        selectBtn.setAttribute('aria-expanded', 'false');
+        selectBtn.setAttribute('role', 'combobox');
+        dropdown.setAttribute('role', 'listbox');
+        dropdown.setAttribute('aria-label', '选择工具权限');
+
         // 渲染工具选项
         this.renderToolOptions(runner);
 
         // 切换下拉框显示
         selectBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            dropdown.classList.toggle('show');
+            const isExpanded = dropdown.classList.toggle('show');
+            selectBtn.setAttribute('aria-expanded', isExpanded);
+        });
+
+        // 键盘导航支持
+        selectBtn.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectBtn.click();
+            }
+            if (e.key === 'Escape' && dropdown.classList.contains('show')) {
+                dropdown.classList.remove('show');
+                selectBtn.setAttribute('aria-expanded', 'false');
+                selectBtn.focus();
+            }
         });
 
         // 点击外部关闭下拉框
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.tools-multiselect')) {
                 dropdown.classList.remove('show');
+                selectBtn.setAttribute('aria-expanded', 'false');
             }
         });
 
@@ -40,13 +62,21 @@ const ToolsMultiselect = {
      */
     renderToolOptions(runner) {
         const dropdown = document.getElementById('tools-dropdown');
+        const selectBtn = document.getElementById('tools-select-btn');
 
         // 使用网格布局包装工具选项
         dropdown.innerHTML = `
-            <div class="tools-grid">
+            <div class="tools-grid" role="group" aria-label="工具列表">
                 ${runner.availableTools.map((tool, index) => `
-                    <div class="tools-option" data-index="${index}">
-                        <input type="checkbox" id="tool-${tool.name}" ${tool.selected ? 'checked' : ''}>
+                    <div class="tools-option"
+                         role="option"
+                         data-index="${index}"
+                         tabindex="0"
+                         aria-selected="${tool.selected}">
+                        <input type="checkbox"
+                               id="tool-${tool.name}"
+                               ${tool.selected ? 'checked' : ''}
+                               aria-label="${tool.name}">
                         <span class="tool-name" title="${tool.description}">${tool.name}</span>
                     </div>
                 `).join('')}
@@ -65,7 +95,26 @@ const ToolsMultiselect = {
                 }
 
                 runner.availableTools[index].selected = checkbox.checked;
+                option.setAttribute('aria-selected', checkbox.checked);
                 this.updateToolsDisplay(runner);
+            });
+
+            // 键盘导航支持
+            option.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    option.click();
+                }
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    const nextOption = option.nextElementSibling;
+                    if (nextOption) nextOption.focus();
+                }
+                if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    const prevOption = option.previousElementSibling;
+                    if (prevOption) prevOption.focus();
+                }
             });
         });
     },

@@ -180,12 +180,7 @@ def validate_timeout(timeout: int) -> int:
             code="TIMEOUT_TOO_SMALL"
         )
 
-    if timeout > MAX_TIMEOUT:
-        raise SecurityError(
-            f"超时时间不能超过 {MAX_TIMEOUT} 毫秒",
-            code="TIMEOUT_TOO_LARGE"
-        )
-
+    # 最大值不限制
     return timeout
 
 

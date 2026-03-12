@@ -13,10 +13,13 @@ from app.auth.core import (
 )
 from app.models.user import User
 
-# OAuth2 密码 bearer
+# OAuth2 密码 bearer (必须认证)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
-# API Key header
+# OAuth2 密码 bearer (可选认证)
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+# API Key header (可选)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
@@ -50,17 +53,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     if user is None:
         raise credentials_exception
 
+    # 检查用户状态
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="用户已被禁用",
+        )
+
     return user
 
 
 async def get_current_user_optional(
-    token: Optional[str] = Depends(oauth2_scheme),
+    token: Optional[str] = Depends(oauth2_scheme_optional),
     api_key: Optional[str] = Depends(api_key_header),
 ) -> Optional[User]:
     """
     获取当前用户 (可选)
 
     支持 JWT 或 API Key 认证
+    如果未提供认证信息，返回 None
     """
     # 优先使用 JWT token
     if token is not None:
@@ -98,11 +109,27 @@ async def get_api_key_user(api_key: Optional[str] = Depends(api_key_header)) -> 
     return user
 
 
+async def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """
+    获取当前管理员用户
+
+    用于需要管理员权限的端点
+    """
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限",
+        )
+    return current_user
+
+
 # 导出
 __all__ = [
     "get_current_user",
+    "get_current_admin_user",
     "get_current_user_optional",
     "get_api_key_user",
     "oauth2_scheme",
+    "oauth2_scheme_optional",
     "api_key_header",
 ]

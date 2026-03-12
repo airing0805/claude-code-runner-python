@@ -20,13 +20,13 @@ const Scheduler = {
     utils: SchedulerUtils,
     renderers: SchedulerRenderers,
 
-    // 轮询定时器
+    // 轮询定时器（已禁用自动轮询）
     refreshInterval: null,
     durationUpdateInterval: null,
-    REFRESH_INTERVAL_MS: 5000,  // 5秒刷新一次
-    DURATION_UPDATE_MS: 1000,  // 1秒更新运行时长
+    REFRESH_INTERVAL_MS: 5000,  // 5秒刷新一次（已禁用）
+    DURATION_UPDATE_MS: 1000,  // 1秒更新运行时长（已禁用）
 
-    // 页面可见性
+    // 页面可见性（已禁用）
     _isPageVisible: true,
     _shouldAutoRefresh: false,
 
@@ -36,24 +36,11 @@ const Scheduler = {
     init() {
         this.bindEvents();
         this.initToolsMultiselect();
-        this.initVisibilityListener();
-        console.log('[Scheduler] 模块初始化完成');
+        // 轮询已禁用 // 自动
+        console.log('[Scheduler] 模块初始化完成（手动刷新模式）');
     },
 
-    /**
-     * 初始化页面可见性监听
-     */
-    initVisibilityListener() {
-        document.addEventListener('visibilitychange', () => {
-            this._isPageVisible = !document.hidden;
-
-            if (this._isPageVisible && this._shouldAutoRefresh) {
-                this.startAutoRefresh();
-            } else {
-                this.stopAutoRefresh();
-            }
-        });
-    },
+    // 页面可见性监听已禁用（自动轮询）
 
     /**
      * 绑定事件
@@ -204,45 +191,17 @@ const Scheduler = {
     },
 
     /**
-     * 视图显示时调用
-     */
-    async onShow() {
-        await this.loadAll();
-        this.startAutoRefresh();
-    },
-
-    /**
-     * 视图隐藏时调用
-     */
-    onHide() {
-        this.stopAutoRefresh();
-    },
-
-    /**
-     * 开始自动刷新
+     * 开始自动刷新（已禁用）
      */
     startAutoRefresh() {
-        this._shouldAutoRefresh = true;
-
-        if (!this._isPageVisible) {
-            return;
-        }
-
-        this.stopAutoRefresh();
-        this.refreshInterval = setInterval(() => {
-            this.refreshCurrentTab();
-        }, this.REFRESH_INTERVAL_MS);
-
-        this.durationUpdateInterval = setInterval(() => {
-            this.updateRunningDurations();
-        }, this.DURATION_UPDATE_MS);
+        // 自动轮询已禁用
     },
 
     /**
-     * 停止自动刷新
+     * 停止自动刷新（已禁用）
      */
     stopAutoRefresh() {
-        this._shouldAutoRefresh = false;
+        // 自动轮询已禁用 - 保留函数以兼容外部调用
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
             this.refreshInterval = null;
@@ -251,6 +210,7 @@ const Scheduler = {
             clearInterval(this.durationUpdateInterval);
             this.durationUpdateInterval = null;
         }
+        this._shouldAutoRefresh = false;
     },
 
     /**
@@ -304,6 +264,7 @@ const Scheduler = {
             await Promise.all([
                 this.loadSchedulerStatus(),
                 this.loadQueue(),
+                this.loadScheduled(),
             ]);
         } finally {
             SchedulerState.setLoading(false);
@@ -643,15 +604,30 @@ const Scheduler = {
         document.getElementById('scheduler-scheduled-count').textContent = SchedulerState.stats.scheduledCount;
         document.getElementById('scheduler-running-count').textContent = SchedulerState.stats.runningCount;
     },
+
+    /**
+     * 视图显示时调用
+     */
+    async onShow() {
+        await this.loadAll();
+        // 手动刷新模式 - 不启动自动轮询
+    },
+
+    /**
+     * 视图隐藏时调用
+     */
+    onHide() {
+        // 手动刷新模式 - 不停止轮询（因为没有启动）
+    },
 };
 
-// 导出到全局命名空间
+// 将Scheduler对象暴露到全局作用域，以便非模块脚本（如app.js）可以访问
 window.Scheduler = Scheduler;
-window.SchedulerState = SchedulerState;
-window.SchedulerAPI = SchedulerAPI;
-window.SchedulerUtils = SchedulerUtils;
 
-// 初始化
+// ES6 模块导出
+export { Scheduler };
+
+// 初始化调度器（保持原有的初始化逻辑）
 document.addEventListener('DOMContentLoaded', () => {
     Scheduler.init();
 });

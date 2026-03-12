@@ -3,6 +3,7 @@
 import hashlib
 import os
 import re
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -11,11 +12,13 @@ import bcrypt
 from jose import JWTError, jwt
 
 from app.models.api_key import APIKey
+from app.models.token import TokenPayload
 from app.models.user import TokenData, User
 
 # JWT 配置
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "1"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 SECRET_KEY = os.getenv("SECRET_KEY", os.urandom(32).hex())
 
 # 用户存储（内存）- 生产环境应使用数据库
@@ -24,6 +27,9 @@ _users_db: dict[str, User] = {}
 # API Key 存储（内存）- 生产环境应使用数据库
 _api_keys_db: dict[str, APIKey] = {}  # key_id -> APIKey
 _api_keys_by_hash: dict[str, str] = {}  # key_hash -> key_id
+
+# Token 黑名单（内存）- 生产环境应使用数据库或 Redis
+_token_blacklist: set[str] = set()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -100,6 +106,93 @@ def decode_access_token(token: str) -> Optional[TokenData]:
         )
     except JWTError:
         return None
+
+
+def create_refresh_token(user_id: str) -> tuple[str, str]:
+    """
+    创建刷新令牌
+
+    Args:
+        user_id: 用户 ID
+
+    Returns:
+        (refresh_token, jti) - JWT ID 用于黑名单追踪
+    """
+    now = datetime.now(timezone.utc)
+    jti = secrets.token_urlsafe(16)  # JWT ID
+    expire = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+    to_encode = {
+        "sub": user_id,
+        "type": "refresh",
+        "jti": jti,
+        "iat": now,
+        "exp": expire,
+    }
+    refresh_token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return refresh_token, jti
+
+
+def verify_token(token: str, expected_type: str = "access") -> Optional[dict]:
+    """
+    验证 Token
+
+    Note: 需要在调用处注入 token_blacklist 服务进行黑名单检查
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != expected_type:
+            return None
+        return payload
+    except JWTError:
+        return None
+
+
+def verify_token_with_blacklist(token: str, expected_type: str = "access") -> Optional[dict]:
+    """
+    验证 Token 并检查黑名单
+
+    Args:
+        token: JWT token
+        expected_type: 期望的 token 类型 (access / refresh)
+
+    Returns:
+        payload if valid, None otherwise
+    """
+    payload = verify_token(token, expected_type)
+    if not payload:
+        return None
+
+    # 检查 Token 是否在黑名单中
+    jti = payload.get("jti")
+    if jti and jti in _token_blacklist:
+        return None
+
+    return payload
+
+
+def add_to_blacklist(jti: str, user_id: str, expires_at: datetime) -> None:
+    """
+    将 Token 加入黑名单
+
+    Args:
+        jti: JWT ID
+        user_id: 用户 ID
+        expires_at: 原 Token 过期时间
+    """
+    _token_blacklist.add(jti)
+
+
+def is_token_blacklisted(jti: str) -> bool:
+    """检查 Token 是否在黑名单中"""
+    return jti in _token_blacklist
+
+
+def cleanup_blacklist() -> None:
+    """清理过期黑名单条目（内存版本简化处理）"""
+    # 内存版本的黑名单需要外部调用者定期清理
+    # 在生产环境中应使用 Redis 并设置 TTL
+    pass
 
 
 def get_user_by_username(username: str) -> Optional[User]:

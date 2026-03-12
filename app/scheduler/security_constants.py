@@ -156,4 +156,4 @@ VALID_NAME_PATTERN = re.compile(r'^[\w\u4e00-\u9fff\- ]+$')
 MAX_PROMPT_LENGTH = 10000
 MAX_NAME_LENGTH = 100
 MIN_TIMEOUT = 1         # 1 秒
-MAX_TIMEOUT = 3600     # 1 小时
+MAX_TIMEOUT = None     # 不限制

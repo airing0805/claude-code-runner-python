@@ -6,15 +6,18 @@
 import os
 import re
 import uuid
+import json
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status as Status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
-from app.scheduler.config import DEFAULT_TIMEOUT, MAX_TIMEOUT, MIN_TIMEOUT
+from app.auth import get_current_user_optional
+from app.scheduler.config import DEFAULT_TIMEOUT, MIN_TIMEOUT
 from app.scheduler.cron import CronParser
 from app.scheduler.models import PaginatedResponse, ScheduledTask, Task, TaskLog, TaskSource, TaskStatus
 from app.scheduler.scheduler import get_scheduler, get_scheduler_status, start_scheduler, stop_scheduler
@@ -22,12 +25,11 @@ from app.scheduler.storage import get_storage
 from app.scheduler.timezone_utils import now_iso, now_shanghai, format_datetime
 
 router = APIRouter(prefix="/api/scheduler", tags=["任务调度"])
+logger = logging.getLogger(__name__)
 
 # ============= 认证依赖 =============
 
-oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
-
-CurrentUser = Annotated[Optional[str], Depends(oauth2_scheme_optional)]
+CurrentUser = Annotated[Optional[any], Depends(get_current_user_optional)]
 
 
 # ============= 常量定义 =============
@@ -67,7 +69,7 @@ class CreateTaskRequest(BaseModel):
     """创建任务请求"""
     prompt: str = Field(..., min_length=1, max_length=MAX_PROMPT_LENGTH, description="任务描述")
     workspace: Optional[str] = Field(None, description="工作目录")
-    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, le=MAX_TIMEOUT, description="超时时间(秒)")
+    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, description="超时时间(秒)")
     auto_approve: bool = Field(False, description="是否自动批准工具操作")
     allowed_tools: Optional[list[str]] = Field(None, description="允许使用的工具列表")
 
@@ -78,7 +80,7 @@ class CreateScheduledTaskRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=MAX_PROMPT_LENGTH, description="任务描述")
     cron: str = Field(..., description="Cron 表达式")
     workspace: Optional[str] = Field(None, description="工作目录")
-    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, le=MAX_TIMEOUT, description="超时时间(秒)")
+    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, description="超时时间(秒)")
     auto_approve: bool = Field(False, description="是否自动批准")
     allowed_tools: Optional[list[str]] = Field(None, description="允许使用的工具列表")
     enabled: bool = Field(True, description="是否启用")
@@ -106,7 +108,7 @@ class UpdateScheduledTaskRequest(BaseModel):
     prompt: Optional[str] = Field(None, min_length=1, max_length=MAX_PROMPT_LENGTH)
     cron: Optional[str] = Field(None)
     workspace: Optional[str] = Field(None)
-    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT, le=MAX_TIMEOUT)
+    timeout: Optional[int] = Field(None, ge=MIN_TIMEOUT)
     auto_approve: Optional[bool] = None
     allowed_tools: Optional[list[str]] = Field(None)
     enabled: Optional[bool] = None
@@ -272,10 +274,10 @@ def validate_timeout(timeout: int | None) -> int:
     """
     if timeout is None:
         return None  # 返回 None，保留原值
-    if not isinstance(timeout, int) or timeout < MIN_TIMEOUT or timeout > MAX_TIMEOUT:
+    if not isinstance(timeout, int) or timeout < MIN_TIMEOUT:
         raise HTTPException(
             status_code=Status.HTTP_400_BAD_REQUEST,
-            detail=ErrorResponse(error=f"timeout 必须在 {MIN_TIMEOUT} 到 {MAX_TIMEOUT} 之间", code="INVALID_TIMEOUT").model_dump(),
+            detail=ErrorResponse(error=f"timeout 必须大于等于 {MIN_TIMEOUT}", code="INVALID_TIMEOUT").model_dump(),
         )
     return timeout
 
@@ -315,7 +317,16 @@ _cron_parser = CronParser()
 
 @router.post("/tasks", status_code=Status.HTTP_201_CREATED)
 async def create_task(request: CreateTaskRequest, current_user: CurrentUser = None) -> dict:
-    """添加任务到队列"""
+    """添加任务到队列
+
+    支持可选认证：
+    - 已认证用户：任务将关联到用户（未来扩展）
+    - 匿名用户：任务正常执行
+    """
+    # 记录用户信息
+    if current_user:
+        logger.info(f"创建队列任务 - 用户: {current_user.username} (ID: {current_user.id})")
+
     # 验证字段
     prompt = validate_prompt(request.prompt)
     workspace = validate_workspace(request.workspace)
@@ -359,7 +370,13 @@ async def clear_tasks() -> dict:
 
 @router.delete("/tasks/{task_id}")
 async def delete_task(task_id: str, current_user: CurrentUser = None) -> dict:
-    """删除队列中的任务"""
+    """
+    删除队列中的任务
+
+    支持可选认证：
+    - 已认证用户：可记录用户操作（未来扩展）
+    - 匿名用户：任务正常删除
+    """
     task_id = validate_task_id(task_id)
     storage = get_storage()
     if not storage.queue.remove(task_id):
@@ -374,7 +391,16 @@ async def delete_task(task_id: str, current_user: CurrentUser = None) -> dict:
 
 @router.post("/scheduled-tasks", status_code=Status.HTTP_201_CREATED)
 async def create_scheduled_task(request: CreateScheduledTaskRequest, current_user: CurrentUser = None) -> dict:
-    """创建定时任务"""
+    """
+    创建定时任务
+
+    支持可选认证：
+    - 已认证用户：任务将关联到用户（未来扩展）
+    - 匿名用户：任务正常创建
+    """
+    # 记录用户信息
+    if current_user:
+        logger.info(f"创建定时任务 - 用户: {current_user.username} (ID: {current_user.id}), 名称: {request.name}")
     # 验证 cron 表达式
     is_valid, error_msg = _cron_parser.validate(request.cron)
     if not is_valid:
@@ -427,7 +453,13 @@ async def list_scheduled_tasks() -> dict:
 
 @router.patch("/scheduled-tasks/{task_id}")
 async def update_scheduled_task(task_id: str, request: UpdateScheduledTaskRequest, current_user: CurrentUser = None) -> dict:
-    """更新定时任务"""
+    """
+    更新定时任务
+
+    支持可选认证：
+    - 已认证用户：可记录用户操作（未来扩展）
+    - 匿名用户：任务正常更新
+    """
     task_id = validate_task_id(task_id)
     storage = get_storage()
     task = storage.scheduled.get(task_id)
@@ -494,7 +526,13 @@ async def update_scheduled_task(task_id: str, request: UpdateScheduledTaskReques
 
 @router.delete("/scheduled-tasks/{task_id}")
 async def delete_scheduled_task(task_id: str, current_user: CurrentUser = None) -> dict:
-    """删除定时任务"""
+    """
+    删除定时任务
+
+    支持可选认证：
+    - 已认证用户：可记录用户操作（未来扩展）
+    - 匿名用户：任务正常删除
+    """
     task_id = validate_task_id(task_id)
     scheduler = get_scheduler()
     success = scheduler.remove_scheduled_task(task_id)
@@ -508,7 +546,13 @@ async def delete_scheduled_task(task_id: str, current_user: CurrentUser = None) 
 
 @router.post("/scheduled-tasks/{task_id}/toggle")
 async def toggle_scheduled_task(task_id: str, current_user: CurrentUser = None) -> dict:
-    """启用/禁用定时任务"""
+    """
+    启用/禁用定时任务
+
+    支持可选认证：
+    - 已认证用户：可记录用户操作（未来扩展）
+    - 匿名用户：任务正常切换
+    """
     task_id = validate_task_id(task_id)
     storage = get_storage()
     task = storage.scheduled.get(task_id)
@@ -549,7 +593,13 @@ async def toggle_scheduled_task(task_id: str, current_user: CurrentUser = None) 
 
 @router.post("/scheduled-tasks/{task_id}/run")
 async def run_scheduled_task_now(task_id: str, current_user: CurrentUser = None) -> dict:
-    """立即执行定时任务"""
+    """
+    立即执行定时任务
+
+    支持可选认证：
+    - 已认证用户：可记录用户操作（未来扩展）
+    - 匿名用户：任务正常执行
+    """
     task_id = validate_task_id(task_id)
     scheduler = get_scheduler()
     task = scheduler.run_scheduled_now(task_id)
@@ -626,7 +676,13 @@ async def list_cancelled_tasks(
 
 @router.get("/tasks/{task_id}")
 async def get_task_detail(task_id: str, current_user: CurrentUser = None) -> dict:
-    """获取任务详情"""
+    """
+    获取任务详情
+
+    支持可选认证：
+    - 已认证用户：可返回用户相关任务（未来扩展）
+    - 匿名用户：返回所有任务详情
+    """
     task_id = validate_task_id(task_id)
     storage = get_storage()
 
@@ -657,7 +713,12 @@ async def get_task_detail(task_id: str, current_user: CurrentUser = None) -> dic
 
 @router.post("/tasks/{task_id}/cancel")
 async def cancel_task(task_id: str, current_user: CurrentUser = None) -> dict:
-    """取消任务
+    """
+    取消任务
+
+    支持可选认证：
+    - 已认证用户：可记录用户操作（未来扩展）
+    - 匿名用户：任务正常取消
 
     可以取消队列中等待的任务。
     运行中的任务无法通过此接口取消。
@@ -730,7 +791,13 @@ async def stop() -> dict:
 
 @router.post("/validate-cron")
 async def validate_cron(request: ValidateCronRequest, current_user: CurrentUser = None) -> dict:
-    """验证 Cron 表达式"""
+    """
+    验证 Cron 表达式
+
+    支持可选认证：
+    - 已认证用户：可记录使用情况（未来扩展）
+    - 匿名用户：正常验证
+    """
     is_valid, error_msg = _cron_parser.validate(request.cron)
 
     if not is_valid:
@@ -822,3 +889,274 @@ async def clear_logs() -> dict:
     storage = get_storage()
     storage.logs.clear()
     return SuccessResponse(message="日志已清空").model_dump()
+
+
+# ============= 日志增强 API =============
+
+@router.get("/tasks/{task_id}/logs/normal")
+async def get_normal_logs(
+    task_id: str,
+    page: int = Query(1, ge=1, description="页码"),
+    limit: int = Query(100, ge=1, le=500, description="每页数量"),
+    start_time: Optional[str] = Query(None, description="开始时间 (ISO 格式)"),
+    end_time: Optional[str] = Query(None, description="结束时间 (ISO 格式)"),
+) -> dict:
+    """获取任务的正常日志 (stdout)"""
+    task_id = validate_task_id(task_id)
+    storage = get_storage()
+
+    # 检查任务是否存在
+    task = storage.history.find_by_id(task_id)
+    if not task:
+        task = storage.running.get(task_id)
+    if not task:
+        task = storage.queue.get(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=Status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(error="任务不存在", code="TASK_NOT_FOUND").model_dump(),
+        )
+
+    result = storage.logs.get_paginated(
+        task_id=task_id,
+        page=page,
+        limit=limit,
+        log_type="stdout",
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    return SuccessResponse(data={
+        "items": result.items,
+        "total": result.total,
+        "page": result.page,
+        "limit": result.limit,
+        "pages": result.pages,
+    }).model_dump()
+
+
+@router.get("/tasks/{task_id}/logs/error")
+async def get_error_logs(
+    task_id: str,
+    page: int = Query(1, ge=1, description="页码"),
+    limit: int = Query(100, ge=1, le=500, description="每页数量"),
+    start_time: Optional[str] = Query(None, description="开始时间 (ISO 格式)"),
+    end_time: Optional[str] = Query(None, description="结束时间 (ISO 格式)"),
+) -> dict:
+    """获取任务的错误日志 (stderr)"""
+    task_id = validate_task_id(task_id)
+    storage = get_storage()
+
+    # 检查任务是否存在
+    task = storage.history.find_by_id(task_id)
+    if not task:
+        task = storage.running.get(task_id)
+    if not task:
+        task = storage.queue.get(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=Status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(error="任务不存在", code="TASK_NOT_FOUND").model_dump(),
+        )
+
+    result = storage.logs.get_paginated(
+        task_id=task_id,
+        page=page,
+        limit=limit,
+        log_type="stderr",
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    return SuccessResponse(data={
+        "items": result.items,
+        "total": result.total,
+        "page": result.page,
+        "limit": result.limit,
+        "pages": result.pages,
+    }).model_dump()
+
+
+@router.get("/tasks/{task_id}/logs/search")
+async def search_logs(
+    task_id: str,
+    keyword: str = Query(..., min_length=1, description="搜索关键字"),
+    regex: bool = Query(False, description="是否使用正则表达式"),
+    log_type: Optional[str] = Query(None, description="日志类型过滤 (stdout/stderr/all)"),
+    page: int = Query(1, ge=1, description="页码"),
+    limit: int = Query(100, ge=1, le=500, description="每页数量"),
+) -> dict:
+    """搜索任务日志"""
+    task_id = validate_task_id(task_id)
+
+    if not keyword or not keyword.strip():
+        raise HTTPException(
+            status_code=Status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="搜索关键字不能为空", code="EMPTY_KEYWORD").model_dump(),
+        )
+
+    # 验证日志类型
+    if log_type and log_type not in ("stdout", "stderr", "all"):
+        raise HTTPException(
+            status_code=Status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="无效的日志类型", code="INVALID_LOG_TYPE").model_dump(),
+        )
+
+    # 转换为存储层使用的类型过滤
+    type_filter = None
+    if log_type == "all":
+        type_filter = None
+    elif log_type:
+        type_filter = log_type
+
+    storage = get_storage()
+
+    # 检查任务是否存在
+    task = storage.history.find_by_id(task_id)
+    if not task:
+        task = storage.running.get(task_id)
+    if not task:
+        task = storage.queue.get(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=Status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(error="任务不存在", code="TASK_NOT_FOUND").model_dump(),
+        )
+
+    result = storage.logs.search(
+        task_id=task_id,
+        keyword=keyword.strip(),
+        regex=regex,
+        log_type=type_filter,
+        page=page,
+        limit=limit,
+    )
+
+    return SuccessResponse(data={
+        "items": result.items,
+        "total": result.total,
+        "keyword": keyword,
+        "page": result.page,
+        "limit": result.limit,
+        "pages": result.pages,
+    }).model_dump()
+
+
+@router.get("/tasks/{task_id}/logs/count")
+async def get_log_counts(
+    task_id: str,
+) -> dict:
+    """获取任务的日志数量统计"""
+    task_id = validate_task_id(task_id)
+    storage = get_storage()
+
+    # 检查任务是否存在
+    task = storage.history.find_by_id(task_id)
+    if not task:
+        task = storage.running.get(task_id)
+    if not task:
+        task = storage.queue.get(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=Status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(error="任务不存在", code="TASK_NOT_FOUND").model_dump(),
+        )
+
+    counts = storage.logs.get_count_by_type(task_id)
+
+    return SuccessResponse(data=counts).model_dump()
+
+
+@router.get("/tasks/{task_id}/logs/stream")
+async def stream_task_logs(
+    task_id: str,
+    log_type: str = Query("all", description="日志类型过滤 (stdout/stderr/all)"),
+):
+    """SSE 实时日志流
+
+    建立 SSE 连接以接收任务的实时日志。
+    支持日志类型过滤（stdout/stderr/all）。
+    """
+    import asyncio
+
+    task_id = validate_task_id(task_id)
+
+    # 验证日志类型
+    if log_type not in ("stdout", "stderr", "all"):
+        raise HTTPException(
+            status_code=Status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(error="无效的日志类型", code="INVALID_LOG_TYPE").model_dump(),
+        )
+
+    storage = get_storage()
+    scheduler = get_scheduler()
+
+    # 检查任务是否存在
+    task = storage.history.find_by_id(task_id)
+    if not task:
+        task = storage.running.get(task_id)
+    if not task:
+        task = storage.queue.get(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=Status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(error="任务不存在", code="TASK_NOT_FOUND").model_dump(),
+        )
+
+    async def event_generator():
+        # 订阅日志事件
+        queue = scheduler.subscribe_logs(task_id)
+
+        try:
+            # 首先发送连接成功消息
+            yield f"event: connected\ndata: {json.dumps({'message': '已连接到日志流'})}\n\n"
+
+            # 持续监听日志事件
+            while True:
+                try:
+                    # 使用超时等待日志事件
+                    log_entry = await asyncio.wait_for(queue.get(), timeout=30.0)
+
+                    # 根据类型过滤
+                    if log_type != "all" and log_entry.get("type") != log_type:
+                        continue
+
+                    # 发送日志事件
+                    yield f"event: log\ndata: {json.dumps(log_entry, ensure_ascii=False)}\n\n"
+
+                except asyncio.TimeoutError:
+                    # 发送心跳保持连接
+                    yield f": heartbeat\n\n"
+                    continue
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
+                    break
+
+                # 检查任务状态
+                running_task = storage.running.get(task_id)
+                if not running_task:
+                    # 任务已结束
+                    completed_task = storage.history.find_by_id(task_id)
+                    if completed_task:
+                        if completed_task.status == TaskStatus.COMPLETED:
+                            yield f"event: complete\ndata: {json.dumps({'message': '任务已完成'})}\n\n"
+                        else:
+                            yield f"event: error\ndata: {json.dumps({'message': '任务执行失败', 'error': completed_task.error})}\n\n"
+                    yield f"event: close\ndata: {json.dumps({'message': '连接关闭'})}\n\n"
+                    break
+
+        finally:
+            # 取消订阅
+            scheduler.unsubscribe_logs(task_id)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

@@ -4,7 +4,7 @@
  * 提供工具函数和辅助方法
  */
 
-const SchedulerUtils = {
+export const SchedulerUtils = {
     /**
      * 转义 HTML 特殊字符
      */

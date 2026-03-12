@@ -10,7 +10,6 @@ from .security_constants import (
     MAX_PROMPT_LENGTH,
     MAX_NAME_LENGTH,
     MIN_TIMEOUT,
-    MAX_TIMEOUT,
     VALID_NAME_PATTERN,
 )
 from .security_validators import (
@@ -40,7 +39,6 @@ __all__ = [
     "MAX_PROMPT_LENGTH",
     "MAX_NAME_LENGTH",
     "MIN_TIMEOUT",
-    "MAX_TIMEOUT",
     "validate_workspace",
     "validate_allowed_tools",
     "validate_prompt_length",

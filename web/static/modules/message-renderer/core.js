@@ -1,9 +1,9 @@
 /**
  * 核心消息渲染器模块
- * 处理基础的消息渲染逻辑和轮次管理
+ * 处理基础的消息渲染逻辑、轮次管理
  *
  * v0.5.3.6: 完善工具渲染器集成
- * v0.5.4: 消息渲染增强 - 内容截断、动画、思考块、工具图标/预览系统
+ * v0.5.4: 消息渲染增强 - 内容截断、动画,思考块、工具图标/预览系统
  * v9.0.1: 添加轮次折叠/展开状态管理
  */
 
@@ -28,7 +28,7 @@ const MessageRendererCore = {
     _collapseState: {},
 
     /**
-     * 默认折叠状态（对于较旧的轮次）
+     * 默认折叠状态(对于较旧的轮次)
      */
     _defaultCollapseOlderRounds: true,
 
@@ -41,10 +41,10 @@ const MessageRendererCore = {
     _getRoundCollapseState(sessionId, roundNumber) {
         const key = sessionId || 'default';
         if (!this._collapseState[key]) {
-            // 默认：较新的轮次展开，较旧的轮次折叠
-            return this._defaultCollapseOlderRounds && roundNumber > 2;
+            // 默认:较新的轮次展开,较旧的轮次折叠
+            return this._defaultCollapseOlderRounds && roundNumber > 1;
         }
-        return this._collapseState[key][roundNumber] ?? (this._defaultCollapseOlderRounds && roundNumber > 2);
+        return this._collapseState[key][roundNumber] ?? (this._defaultCollapseOlderRounds && roundNumber > 1);
     },
 
     /**
@@ -102,6 +102,7 @@ const MessageRendererCore = {
 
         const content = roundEl.querySelector('.round-content');
         const toggle = roundEl.querySelector('.round-toggle-icon');
+
         const isCollapsed = roundEl.classList.contains('collapsed');
 
         if (isCollapsed) {
@@ -126,7 +127,8 @@ const MessageRendererCore = {
     },
 
     /**
-     * 显示历史消息
+     * v12: 显示历史消息 (单会话模式)
+     * 使用 runner.state.messages 作为消息源
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {Array} messages - 消息数组
      */
@@ -134,8 +136,9 @@ const MessageRendererCore = {
         console.log('[displayHistoryMessages] 开始渲染历史消息:', messages.length, '条消息');
         console.log('[displayHistoryMessages] 消息详情:', messages);
 
-        // v9.0.1: 加载折叠状态
-        this._loadCollapseState(runner.currentSessionId);
+        // 使用 runner.state.sessionId 加载折叠状态
+        const sessionId = runner.state.sessionId;
+        this._loadCollapseState(sessionId);
 
         // 清空输出区并显示历史消息
         runner.outputEl.innerHTML = '';
@@ -149,7 +152,7 @@ const MessageRendererCore = {
 
         // 按轮次分组消息
         const rounds = this._groupByRounds(messages);
-        console.log('[displayHistoryMessages] 分组后轮次数组:', rounds);
+        console.log('[displayHistoryMessages] 分组后轮次数:', rounds.length);
 
         rounds.forEach((round, index) => {
             const roundEl = this._createRoundElement(runner, round, index + 1);
@@ -158,54 +161,23 @@ const MessageRendererCore = {
 
         // 更新轮次计数器
         runner.roundCounter = rounds.length;
-        console.log('[displayHistoryMessages] 渲染完成，共', rounds.length, '轮');
+        console.log('[displayHistoryMessages] 渲染完成,共', rounds.length, '轮');
 
         // 滚动到底部
         Utils.scrollToBottom(runner.outputEl);
     },
 
     /**
+     * @deprecated v12: 此方法已废弃, 请使用 displayHistoryMessages
      * 显示历史消息到指定tab
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} tabId - 目标tab ID
      * @param {Array} messages - 消息数组
      */
     displayHistoryMessagesToTab(runner, tabId, messages) {
-        // 找到对应的输出容器
-        const outputContainer = document.getElementById(`output-${tabId}`);
-        if (!outputContainer) {
-            console.warn(`[MessageRenderer] 未找到tab ${tabId}的输出容器`);
-            return;
-        }
-
-        // v9.0.1: 加载折叠状态（使用 tab 对应的 sessionId）
-        const tabData = runner.tabs.find(t => t.id === tabId);
-        const sessionId = tabData ? tabData.sessionId : null;
-        this._loadCollapseState(sessionId);
-
-        // 清空容器
-        outputContainer.innerHTML = '';
-
-        // 按轮次分组消息
-        const rounds = this._groupByRounds(messages);
-
-        // 渲染每一轮对话
-        rounds.forEach((round, index) => {
-            const roundEl = this._createRoundElement(
-                runner,
-                round,
-                index + 1
-            );
-            outputContainer.appendChild(roundEl);
-        });
-
-        // 如果没有消息，显示占位符
-        if (rounds.length === 0) {
-            outputContainer.innerHTML = '<div class="output-placeholder">暂无历史消息</div>';
-        }
-
-        // 滚动到底部
-        Utils.scrollToBottom(outputContainer);
+        console.warn('[MessageRenderer] displayHistoryMessagesToTab 已废弃,请使用 displayHistoryMessages');
+        // 直接调用新方法
+        this.displayHistoryMessages(runner, messages);
     },
 
     /**
@@ -221,19 +193,19 @@ const MessageRendererCore = {
         messages.forEach(msg => {
             // 处理用户消息
             if (msg.role === 'user') {
-                // 1. permissionMode 存在 = 新会话（最可靠）
+                // 1. permissionMode 存在 = 新会话 (最可靠)
                 if (msg.permissionMode) {
                     currentRound = { user: msg, assistant: [] };
                     rounds.push(currentRound);
                 }
-                // 2. 检查是否为工具结果（包含 tool_result 内容块）
+                // 2. 检查是否为工具结果 (包含 tool_result 内容块)
                 // 只有当用户消息实际上包含工具结果内容时才继续当前对话
                 else if (Utils.isToolResult(msg)) {
                     if (currentRound) {
                         // 将工具结果添加到当前轮次的助手消息中
                         currentRound.assistant.push(msg);
                     } else {
-                        // 没有当前轮次，作为新轮次处理
+                        // 没有当前轮次,作为新轮次处理
                         currentRound = { user: msg, assistant: [] };
                         rounds.push(currentRound);
                     }
@@ -249,12 +221,12 @@ const MessageRendererCore = {
                 if (currentRound) {
                     currentRound.assistant.push(msg);
                 } else {
-                    // 没有当前轮次（这种情况不应该发生），创建新轮次
+                    // 没有当前轮次 (这种情况不应该发生), 创建新轮次
                     currentRound = { user: { role: 'user', content: [] }, assistant: [msg] };
                     rounds.push(currentRound);
                 }
             }
-            // 处理其他类型的消息（如工具结果，role 可能是 'tool' 或其他）
+            // 处理其他类型的消息 (如工具结果, role 可能是 'tool' 或其他)
             else {
                 if (currentRound) {
                     // 添加到当前轮次的助手消息中
@@ -280,8 +252,8 @@ const MessageRendererCore = {
         roundEl.className = 'conversation-round message-fade-in';
         roundEl.id = `round-${roundNumber}`;
 
-        // v9.0.1: 获取折叠状态
-        const sessionId = runner.currentSessionId;
+        // v12: 使用 runner.state.sessionId 获取折叠状态
+        const sessionId = runner.state.sessionId;
         const isCollapsed = this._getRoundCollapseState(sessionId, roundNumber);
 
         // 渲染用户消息
@@ -314,16 +286,17 @@ const MessageRendererCore = {
             </div>
         `;
 
-        // 如果初始状态为折叠，添加 collapsed 类
+        // 如果初始状态为折叠, 添加 collapsed 类
         if (isCollapsed) {
             roundEl.classList.add('collapsed');
         }
+
 
         return roundEl;
     },
 
     /**
-     * 添加助手消息到当前轮次（支持tab-specific）
+     * v12: 添加助手消息到当前轮次 (单会话模式)
      * @param {Object} runner - ClaudeCodeRunner 实例
      * @param {string} type - 消息类型
      * @param {string} content - 消息内容
@@ -332,12 +305,17 @@ const MessageRendererCore = {
     addAssistantMessage(runner, type, content, timestamp = null) {
         // 确保有当前轮次
         if (!runner.currentRoundEl) {
-            // 如果没有当前轮次，创建一个
+            // 如果没有当前轮次, 创建一个
             Task.startNewRound(runner, '(继续对话)');
         }
 
         // 找到消息容器
         const messagesContainer = runner.currentRoundEl.querySelector('.assistant-messages');
+
+        if (!messagesContainer) {
+            console.warn('[addAssistantMessage] 未找到消息容器');
+            return;
+        }
 
         const msgEl = document.createElement('div');
         // 根据消息类型添加对应的CSS类名
@@ -370,10 +348,24 @@ const MessageRendererCore = {
 
         messagesContainer.appendChild(msgEl);
 
+        // 同时保存消息到状态
+        if (runner.state) {
+            if (!runner.state.messages) {
+                runner.state.messages = [];
+            }
+            runner.state.messages.push({
+                role: 'assistant',
+                type: type,
+                content: content,
+                timestamp: timestamp || new Date().toISOString()
+            });
+        }
+
         // 滚动到底部
         Utils.scrollToBottom(runner.outputEl);
     }
 };
+
 
 // 导出到全局命名空间
 window.MessageRendererCore = MessageRendererCore;

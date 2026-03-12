@@ -37,8 +37,8 @@ class QuestionListResponse:
 # 敏感信息正则模式
 SENSITIVE_PATTERNS = [
     # API Keys
-    (r"sk-[a-zA-Z0-9]{20,}", "[API_KEY]"),
-    (r"sk-ant-api03-[a-zA-Z0-9\-]{20,}", "[API_KEY]"),
+    (r"sk-[a-zA-Z0-9-]{10,}", "[API_KEY]"),  # 更灵活的匹配
+    (r"sk-ant-api03-[a-zA-Z0-9-]+", "[API_KEY]"),  # 无最小长度限制
     (r"anthropic[_-]?api[_-]?key['\"]?\s*[:=]\s*['\"][^'\"]+['\"]", "[API_KEY]"),
     # Tokens
     (r"ghp_[a-zA-Z0-9]{36}", "[GITHUB_TOKEN]"),
@@ -47,8 +47,11 @@ SENSITIVE_PATTERNS = [
     (r"ghs_[a-zA-Z0-9]{36}", "[GITHUB_TOKEN]"),
     (r"ghr_[a-zA-Z0-9]{36}", "[GITHUB_TOKEN]"),
     # Passwords
-    (r"password['\"]?\s*[:=]\s*['\"][^'\"]+['\"]", "[PASSWORD]"),
-    (r"passwd['\"]?\s*[:=]\s*['\"][^'\"]+['\"]", "[PASSWORD]"),
+    (r"password['\"]?\s*[:=]\s*['\"][^'\"]+['\"]", "[PASSWORD]"),  # 带引号
+    (r"passwd['\"]?\s*[:=]\s*['\"][^'\"]+['\"]", "[PASSWORD]"),  # 带引号
+    (r"password\s*=\s*[^\s\n]+", "[PASSWORD]"),  # 不带引号 = 格式
+    (r"passwd\s*=\s*[^\s\n]+", "[PASSWORD]"),  # 不带引号 = 格式
+    (r"password\s+\u8bbe\u7f6e[\u4e3a\u7684]*\s*[^\s\n]+", "[PASSWORD]"),  # 中文 "设置/设为" 格式
     # AWS
     (r"AKIA[0-9A-Z]{16}", "[AWS_ACCESS_KEY]"),
     (r"aws[_-]?secret[_-]?access[_-]?key['\"]?\s*[:=]\s*['\"][^'\"]+['\"]", "[AWS_SECRET]"),

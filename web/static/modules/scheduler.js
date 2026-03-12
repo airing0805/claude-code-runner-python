@@ -342,24 +342,10 @@ const Scheduler = {
     },
 
     /**
-     * 开始自动刷新
+     * 开始自动刷新（已禁用）
      */
     startAutoRefresh() {
-        this._shouldAutoRefresh = true;
-
-        // 页面不可见时不启动轮询
-        if (!this._isPageVisible) {
-            return;
-        }
-
-        this.stopAutoRefresh();
-        this.refreshInterval = setInterval(() => {
-            this.refreshCurrentTab();
-        }, this.REFRESH_INTERVAL_MS);
-        // 运行时长实时更新
-        this.durationUpdateInterval = setInterval(() => {
-            this.updateRunningDurations();
-        }, this.DURATION_UPDATE_MS);
+        // 刷新功能已禁用，用户需要手动点击刷新按钮
     },
 
     /**
@@ -983,6 +969,11 @@ const Scheduler = {
             const task = await SchedulerAPI.getTaskDetail(taskId);
             this.renderTaskDetail(task);
             document.getElementById('task-detail-dialog').classList.add('active');
+
+            // 初始化日志查看器 (v7.1.0)
+            if (window.LogViewer) {
+                window.LogViewer.init(taskId);
+            }
         } catch (error) {
             Utils.showNotification('加载详情失败: ' + error.message, 'error');
         }
@@ -993,6 +984,11 @@ const Scheduler = {
      */
     hideTaskDetailDialog() {
         document.getElementById('task-detail-dialog').classList.remove('active');
+
+        // 销毁日志查看器 (v7.1.0)
+        if (window.LogViewer) {
+            window.LogViewer.destroy();
+        }
     },
 
     /**

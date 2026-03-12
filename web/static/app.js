@@ -1,6 +1,7 @@
 /**
  * Claude Code Runner 前端交互 - 主入口
  * 按功能模块拆分的应用入口文件
+ * v12.0.0.3 - 界面重构：单会话模式
  */
 
 class ClaudeCodeRunner {
@@ -18,29 +19,49 @@ class ClaudeCodeRunner {
         this.sessionList = document.getElementById('session-list');
         this.historyProjects = document.getElementById('history-projects');
         this.historySessions = document.getElementById('history-sessions');
-        this.tabsBar = document.getElementById('tabs-bar');
         this.workingDirInput = document.getElementById('working-dir');
-        this.workingDirList = document.getElementById('working-dir-list');
+        this.workspaceComboContainer = document.getElementById('workspace-combo-container');
+        this.workspaceCombo = null; // WorkspaceCombo 组件实例
         this.resumeInput = document.getElementById('resume');
         this.continueConversationCheckbox = document.getElementById('continue-conversation');
         this.newSessionBtn = document.getElementById('new-session-btn');
 
-        // 状态
+        // v12 状态管理 - 单会话模式
+        this.state = {
+            // 会话状态
+            sessionId: null,           // 当前会话 ID（null 表示新会话）
+            sessionStatus: 'new',      // new, running, completed, resumed
+
+            // 工作空间状态
+            workspace: '',             // 当前工作空间路径
+            workspaceHistory: [],      // 历史工作空间列表
+
+            // 消息状态
+            messages: [],              // 当前会话的消息列表
+            isStreaming: false,        // 是否正在流式输出
+
+            // UI 状态
+            historyDrawerOpen: false,  // 历史抽屉是否打开
+
+            // 工具配置
+            toolConfig: {
+                enabledTools: [],      // 启用的工具列表
+                permissionMode: 'auto' // 权限模式
+            }
+        };
+
+        // 任务执行状态
         this.abortController = null;
         this.reader = null;
         this.isRunning = false;
-        this.currentSessionId = null;
+
+        // 其他状态
         this.currentProject = null;
         this.currentView = Views.CURRENT_SESSION;
         this.projects = [];
         this.sessions = [];
         this.workingDirs = [];
         this.defaultWorkingDir = this.workingDirInput ? this.workingDirInput.value : '';
-
-        // 标签页状态
-        this.tabs = [];
-        this.tabCounter = 0;
-        this.activeTabId = 'new';
 
         // 多轮对话状态
         this.currentRoundEl = null;
@@ -49,10 +70,30 @@ class ClaudeCodeRunner {
         // 工具列表（从 constants.js 获取）
         this.availableTools = JSON.parse(JSON.stringify(AVAILABLE_TOOLS));
 
+        // 兼容性：currentSessionId 指向 state.sessionId
+        Object.defineProperty(this, 'currentSessionId', {
+            get: function() { return this.state.sessionId; },
+            set: function(value) { this.state.sessionId = value; }
+        });
+
         this.init();
     }
 
+
     init() {
+        // v12.0.0.3.5: 数据迁移（在最开始执行）
+        this.runMigrationIfNeeded();
+
+        // 初始化认证模块
+        if (typeof Auth !== 'undefined') {
+            Auth.init();
+        }
+
+        // 初始化认证UI模块
+        if (typeof AuthUI !== 'undefined') {
+            AuthUI.init();
+        }
+
         // 绑定菜单事件
         Navigation.init(this);
 
@@ -95,46 +136,45 @@ class ClaudeCodeRunner {
             PermissionModeSelect.init(this);
         }
 
-        // 绑定示例任务按钮
-        this.initExampleButtons();
-
-        // 绑定新会话按钮
+        // 绑定新会话按钮 - 清空当前会话开始新任务
+        // v12.0.0.3.4: 使用 Session.clearCurrentSession 统一处理
         this.newSessionBtn.addEventListener('click', async () => {
-            await Tabs.createNewSession(this);
+            // 使用 Session 模块统一处理新会话清空逻辑
+            if (typeof Session !== 'undefined') {
+                await Session.clearCurrentSession(this);
+            }
         });
 
         // 绑定"继续会话"复选框事件
         if (this.continueConversationCheckbox) {
+            // 初始化继续会话模块
+            ContinueSessionManager.init(this);
+
             this.continueConversationCheckbox.addEventListener('change', (e) => {
-                this.handleContinueConversationChange(e.target.checked);
+                ContinueSessionManager.handleContinueConversationChange(e.target.checked);
             });
         }
 
         // 初始化"继续会话"复选框状态
         if (this.continueConversationCheckbox) {
-            this.updateContinueConversationState();
+            ContinueSessionManager.updateContinueConversationState();
         }
 
-        // 绑定标签页点击事件（事件委托）
-        this.tabsBar.addEventListener('click', (e) => {
-            const tabItem = e.target.closest('.tab-item');
-            if (tabItem && !e.target.classList.contains('tab-close')) {
-                const tabId = tabItem.dataset.tab;
-                if (tabId) {
-                    Tabs.switchToTab(this, tabId);
-                }
-            }
-        });
-
-        // 加载工作目录列表
-        WorkingDir.loadWorkingDirs(this);
+        // 初始化工作空间组合控件
+        this.initWorkspaceCombo();
 
         // 绑定工作目录变更监听（用于更新继续会话复选框状态）
-        if (this.workingDirInput) {
-            this.workingDirInput.addEventListener('change', () => {
-                this.handleWorkingDirChange();
+        // 注意: this.workingDirInput 现在由 WorkspaceCombo 管理
+        if (this.workspaceCombo) {
+            this.workspaceCombo.onChange((value) => {
+                // 更新 runner 实例中的工作目录值
+                this.workingDirInput.value = value;
+                ContinueSessionManager.handleWorkingDirChange();
             });
         }
+
+        // v12.0.0.3.3: 初始化历史记录抽屉
+        this.initHistoryDrawer();
 
         // 初始化 Claude 状态模块
         if (typeof ClaudeStatus !== 'undefined') {
@@ -171,14 +211,10 @@ class ClaudeCodeRunner {
             Scheduler.init();
         }
 
-        // 创建默认的"新任务"标签页
-        Tabs.createNewSession(this);
+        // 初始化示例任务模块
+        ExampleTasks.init(this);
 
-        // v9.0.1: 初始化标签页快捷键和拖拽排序功能
-        Tabs.init(this);
-
-        // 恢复标签页排序
-        Tabs._restoreTabOrder(this);
+        // v12.0.0.3: 移除 Tab 系统，改为单会话模式
 
         // 快捷键
         document.addEventListener('keydown', (e) => {
@@ -188,218 +224,78 @@ class ClaudeCodeRunner {
         });
     }
 
-    // ============== 继续会话功能 ==============
-
     /**
-     * 获取最近的会话ID
-     * @param {string} workingDir - 工作目录（可选，默认使用当前输入的工作目录）
-     * @returns {Promise<string|null>} 最近会话ID或null
+     * 初始化工作空间组合控件
      */
-    async getLatestSessionId(workingDir = null) {
-        try {
-            // v9.0.2: 使用传入的工作目录或当前输入的工作目录
-            const dir = workingDir || this.workingDirInput?.value || '.';
-            const encodedDir = encodeURIComponent(dir);
-            const response = await fetch(`/api/sessions?working_dir=${encodedDir}&limit=1`);
-            if (!response.ok) {
-                console.warn('[继续会话] 获取最近会话失败:', response.status, response.statusText);
-                return null;
+    async initWorkspaceCombo() {
+        if (!this.workspaceComboContainer) {
+            console.warn('[App] 工作空间组合控件容器不存在');
+            return;
+        }
+
+        // 清空容器
+        this.workspaceComboContainer.innerHTML = '';
+
+        // 创建 WorkspaceCombo 实例
+        this.workspaceCombo = new WorkspaceCombo(this.workspaceComboContainer, {
+            value: this.defaultWorkingDir,
+            placeholder: '选择或输入工作空间路径',
+            onChange: (value) => {
+                // 这个回调在 init() 中已经绑定了
+            },
+            onValidate: (result) => {
+                // 可以在这里处理验证结果，例如显示提示
+                console.log('[App] 工作空间验证:', result);
             }
-            const data = await response.json();
-            if (data.sessions && data.sessions.length > 0) {
-                const latestSession = data.sessions[0];
-                return latestSession.id;
-            }
-            return null;
-        } catch (error) {
-            console.warn('[继续会话] 获取最近会话异常:', error);
-            return null;
-        }
-    }
-
-    /**
-     * 更新"继续会话"复选框状态
-     * @param {boolean} enabled - 是否启用复选框
-     */
-    updateContinueConversationCheckbox(enabled) {
-        if (this.continueConversationCheckbox) {
-            this.continueConversationCheckbox.disabled = !enabled;
-            this.continueConversationCheckbox.title = enabled
-                ? '延续最近会话的对话历史'
-                : '当前会话模式下不可用';
-        }
-    }
-
-    /**
-     * 生成缓存 key（包含工作目录标识）
-     * @param {string} workingDir - 工作目录
-     * @returns {string} 缓存 key
-     */
-    _getCacheKey(workingDir) {
-        // 使用简单的 hash 来区分不同工作目录
-        const hash = workingDir.split('').reduce((a, b) => {
-            a = ((a << 5) - a) + b.charCodeAt(0);
-            return a & a;
-        }, 0);
-        return `claude_session_${Math.abs(hash)}`;
-    }
-
-    /**
-     * 从本地存储获取缓存的最近会话ID（按工作目录区分）
-     * @returns {string|null} 缓存的会话ID或null
-     */
-    getCachedLatestSessionId() {
-        try {
-            const workingDir = this.workingDirInput?.value || '.';
-            const cacheKey = this._getCacheKey(workingDir);
-            const cached = localStorage.getItem(cacheKey);
-            const timestampKey = `${cacheKey}_timestamp`;
-            const timestamp = localStorage.getItem(timestampKey);
-            const now = Date.now();
-
-            // 缓存有效期：1小时
-            if (cached && timestamp && (now - parseInt(timestamp)) < 3600000) {
-                return cached;
-            }
-            return null;
-        } catch (error) {
-            console.warn('[继续会话] 读取本地缓存失败:', error);
-            return null;
-        }
-    }
-
-    /**
-     * 缓存最近会话ID到本地存储（按工作目录区分）
-     * @param {string} sessionId - 会话ID
-     */
-    cacheLatestSessionId(sessionId) {
-        try {
-            const workingDir = this.workingDirInput?.value || '.';
-            const cacheKey = this._getCacheKey(workingDir);
-            const timestampKey = `${cacheKey}_timestamp`;
-            localStorage.setItem(cacheKey, sessionId);
-            localStorage.setItem(timestampKey, Date.now().toString());
-        } catch (error) {
-            console.warn('[继续会话] 缓存会话ID失败:', error);
-        }
-    }
-
-    /**
-     * 更新"继续会话"复选框状态和最近会话ID
-     * @param {boolean} forceRefresh - 是否强制刷新（忽略缓存）
-     */
-    async updateContinueConversationState(forceRefresh = false) {
-        const workingDir = this.workingDirInput?.value || '.';
-
-        // 首先尝试从缓存获取（除非强制刷新）
-        let latestSessionId = null;
-        if (!forceRefresh) {
-            latestSessionId = this.getCachedLatestSessionId();
-        }
-
-        // v9.0.2: 如果缓存不存在或已过期，从API获取（传递工作目录）
-        if (!latestSessionId) {
-            latestSessionId = await this.getLatestSessionId(workingDir);
-            if (latestSessionId) {
-                this.cacheLatestSessionId(latestSessionId);
-            }
-        }
-
-        // 更新UI状态
-        if (latestSessionId) {
-            this.continueConversationCheckbox.disabled = false;
-            this.continueConversationCheckbox.title = `延续最近会话的对话历史 (${workingDir})`;
-            // 如果复选框已勾选，更新resume字段
-            if (this.continueConversationCheckbox.checked) {
-                this.resumeInput.value = latestSessionId;
-                this.resumeInput.title = latestSessionId;
-            }
-        } else {
-            this.continueConversationCheckbox.disabled = true;
-            this.continueConversationCheckbox.checked = false;
-            this.continueConversationCheckbox.title = `无历史会话可继续 (${workingDir})`;
-            this.resumeInput.value = '';
-            this.resumeInput.title = '';
-        }
-    }
-
-    /**
-     * 处理"继续会话"复选框状态变化
-     * @param {boolean} checked - 复选框是否勾选
-     */
-    async handleContinueConversationChange(checked) {
-        if (checked) {
-            // v9.0.2: 获取当前工作目录
-            const workingDir = this.workingDirInput?.value || '.';
-
-            // 勾选时，获取最近会话ID并填充 resume 字段
-            let latestSessionId = this.getCachedLatestSessionId();
-            if (!latestSessionId) {
-                // v9.0.2: 传递工作目录参数
-                latestSessionId = await this.getLatestSessionId(workingDir);
-                if (latestSessionId) {
-                    this.cacheLatestSessionId(latestSessionId);
-                }
-            }
-
-            if (latestSessionId) {
-                this.resumeInput.value = latestSessionId;
-                this.resumeInput.title = latestSessionId;
-                console.log('[继续会话] 已勾选，自动填充会话ID:', latestSessionId);
-            } else {
-                // 没有最近的会话ID，取消勾选并提示
-                this.continueConversationCheckbox.checked = false;
-                Task.addMessage(this, 'text', '⚠️ 没有可继续的会话，请先执行一个任务');
-                this.resumeInput.value = '';
-                this.resumeInput.title = '';
-            }
-        } else {
-            // 取消勾选时，清空 resume 字段
-            this.resumeInput.value = '';
-            this.resumeInput.title = '';
-            console.log('[继续会话] 已取消，清空会话ID');
-        }
-    }
-
-    /**
-     * 处理工作目录变更
-     */
-    async handleWorkingDirChange() {
-        const newDir = this.workingDirInput?.value || '.';
-        console.log('[继续会话] 工作目录已变更:', newDir);
-
-        // 清空当前的 resume 值（因为会话可能不在新目录中）
-        if (this.continueConversationCheckbox?.checked) {
-            this.continueConversationCheckbox.checked = false;
-            this.resumeInput.value = '';
-            this.resumeInput.title = '';
-        }
-
-        // 强制刷新继续会话状态（获取新目录的最近会话）
-        await this.updateContinueConversationState(true);
-    }
-
-    // ============== 示例任务 ==============
-
-    initExampleButtons() {
-        // 示例任务视图中的大按钮
-        document.querySelectorAll('.btn-example-large').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const prompt = btn.dataset.prompt;
-                this.useExamplePrompt(prompt);
-            });
         });
+
+        // 加载工作目录历史
+        await WorkingDir.loadWorkingDirs(this);
+
+        // 设置历史记录到组合控件
+        if (this.workingDirs && this.workingDirs.length > 0) {
+            this.workspaceCombo.setHistory(this.workingDirs);
+        }
+
+        console.log('[App] 工作空间组合控件已初始化');
     }
 
-    useExamplePrompt(prompt) {
-        // 切换到当前会话视图
-        Navigation.switchView(this, Views.CURRENT_SESSION);
+    /**
+     * 初始化历史记录抽屉
+     * v12.0.0.3.3
+     */
+    initHistoryDrawer() {
+        if (typeof HistoryDrawer === 'undefined') {
+            console.warn('[App] HistoryDrawer 组件未定义');
+            return;
+        }
 
-        // 填充任务描述
-        document.getElementById('prompt').value = prompt;
+        this.historyDrawer = new HistoryDrawer({
+            onSelect: (session) => {
+                // 当用户选择一个会话时，继续该会话
+                if (typeof History !== 'undefined') {
+                    History.continueSession(this, session.id);
+                }
+            },
+            onClose: () => {
+                // 抽屉关闭时可以做一些清理工作
+            }
+        });
 
-        // 聚焦到任务描述输入框
-        document.getElementById('prompt').focus();
+        console.log('[App] 历史记录抽屉已初始化');
+    }
+
+    /**
+     * 执行数据迁移（如果需要）
+     * v12.0.0.3.5
+     */
+    async runMigrationIfNeeded() {
+        if (typeof Migration !== 'undefined') {
+            const migrated = await Migration.runMigration(this);
+            if (migrated) {
+                console.log('[App] 数据迁移已完成');
+            }
+        }
     }
 }
 

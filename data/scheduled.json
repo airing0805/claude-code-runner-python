@@ -1,49 +1,61 @@
 {
   "tasks": [
     {
-      "id": "e7ae6a6f-6600-49be-a26d-f4ed19e28f3f",
-      "name": "每日审查",
-      "prompt": "执行代码审查",
-      "workspace": ".",
+      "id": "v06-dev-execution",
+      "name": "v0.6 开发计划执行",
+      "prompt": "你是开发专家。请执行 E:\\workspaces_2026_python\\claude-code-runner\\docs\\plan\\功能规划\\v0.6开发计划.md 中的任务。\n\n本次只执行一个任务分组，按以下优先级顺序：\n1. 先找到第一个未完成的版本分组（查看 [ ] 待完成标记）\n2. 从该分组中选取一个未完成的子任务执行\n3. 执行后将该子任务标记为 [x] 完成\n4. 如果该分组所有任务都完成，记录分组完成状态\n5. 每次执行只完成1个分组的任务即可\n\n重要：每次只执行1个分组的任务，防止上下文不够影响其他任务。",
+      "cron": "*/20 * * * *",
+      "workspace": "E:\\workspaces_2026_python\\claude-code-runner",
+      "timeout": 1800000,
+      "auto_approve": true,
+      "allowed_tools": null,
+      "enabled": false,
+      "last_run": "2026-02-27 00:12:41",
+      "next_run": null,
+      "created_at": "2026-02-26 17:00:00",
+      "updated_at": "2026-03-12 00:00:00"
+    },
+    {
+      "id": "test-scheduled-task",
+      "name": "测试定时任务",
+      "prompt": "这是一个测试定时任务",
       "cron": "0 9 * * *",
-      "timeout": 600,
-      "auto_approve": false,
-      "allowed_tools": null,
-      "enabled": false,
-      "last_run": "2026-03-07 22:10:40",
-      "next_run": "2026-03-08 09:00:00",
-      "created_at": "2026-03-05 16:21:25",
-      "updated_at": "2026-03-05 16:21:25"
-    },
-    {
-      "id": "director-product-management-execution",
-      "name": "产品总监 任务执行",
-      "prompt": "/director-product-management\n\n依次读取  \n \n\"docs\\plan\\功能规划\\v8开发计划-提问历史记录.md\"、\n\n文档里面的开发任务，提取没有完成的一组任务，将任务分组安排给对应的角色进行任务执行，按 项目级 skills 的方式分配给角色 。 一次只安排一个任务分组的内容给到一个角色。 \n\n注意：不要将所有的任务全部获取出来分配处理。 全程你做决策，不要与用户沟通，用户不在线。",
       "workspace": "E:\\workspaces_2026_python\\claude-code-runner",
-      "cron": "*/1 * * * *",
       "timeout": 1800,
       "auto_approve": true,
       "allowed_tools": null,
       "enabled": false,
-      "last_run": "2026-03-07 22:11:00",
+      "last_run": null,
       "next_run": null,
-      "created_at": "2026-03-05 02:50:50",
-      "updated_at": "2026-03-06 01:00:00"
+      "created_at": "2026-03-12 00:00:00",
+      "updated_at": "2026-03-12 00:00:00"
     },
     {
-      "id": "director-product-management-execution-2",
-      "name": "产品总监 任务执行(v9)",
-      "prompt": " /director-product-management \n\n依次读取  \n \n\"docs\\plan\\功能规划\\v9开发计划-当前会话.md \"、\n\n文档里面的开发任务，一个会话 提取没有完成的一组任务，将任务分组安排给对应的角色进行任务执行，按 项目级 skills 的方式分配给角色 。 不能使用 skills 就使用 subagent ，将skill 的 提示词加入到subagent 。  一个会话一次只安排一个任务分组的内容给到一个角色，执行完后不再分配任务。 \n\n注意：不要将所有的任务全部获取出来分配处理。 全程你做决策，不要与用户沟通，用户不在线。",
+      "id": "c8591758-26be-4e6f-9c45-d690c0c9d21e",
+      "name": "测试定时任务",
+      "prompt": "网络搜索，与项目需求相关的内容，提出优化建议，形成方案。注意：你自己决策，用户现在不在线",
       "workspace": "E:\\workspaces_2026_python\\claude-code-runner",
       "cron": "*/1 * * * *",
-      "timeout": 1800,
+      "timeout": 600000,
       "auto_approve": true,
-      "allowed_tools": null,
-      "enabled": false,
-      "last_run": "2026-03-07 22:11:00",
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebSearch",
+        "WebFetch",
+        "Task",
+        "TodoWrite",
+        "NotebookEdit"
+      ],
+      "enabled": true,
+      "last_run": null,
       "next_run": null,
-      "created_at": "2026-03-05 02:50:50",
-      "updated_at": "2026-03-05 01:00:00"
+      "created_at": "2026-03-12 11:17:57",
+      "updated_at": "2026-03-12 11:18:11"
     }
   ]
 }

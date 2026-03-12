@@ -17,33 +17,30 @@ class TestAsyncHandleRetry:
     """测试异步重试处理"""
 
     @pytest.mark.asyncio
-    async def test_handle_retry_with_sleep(self):
-        """测试 _handle_retry 使用 asyncio.sleep 而非阻塞的 time.sleep"""
+    async def test_handle_error_with_sleep(self):
+        """测试 _handle_error 使用异步处理而非阻塞的 time.sleep"""
         # 创建模拟存储
         mock_storage = MagicMock()
         mock_storage.running = MagicMock()
         mock_storage.running.remove = MagicMock()
-        mock_storage.queue = MagicMock()
-        mock_storage.queue.get = MagicMock(return_value=None)
-        mock_storage.queue.add_to_front = MagicMock()
+        mock_storage.history = MagicMock()
+        mock_storage.history.add_failed = MagicMock()
 
         # 创建执行器实例
         executor = TaskExecutor(storage=mock_storage)
 
         # 创建测试任务
         task = Task(id="test-task-1", prompt="Test prompt")
-        task.retries = 0
 
-        # 执行异步重试处理
+        # 执行异步错误处理
         error = Exception("Test error")
-        result = await executor._handle_retry(task, error)
+        result = await executor._handle_error(task, error)
 
         # 验证结果
         assert result is not None
-        assert result.success is False or result.success is True  # 根据重试逻辑
+        assert result.success is False
 
-        # 验证 asyncio.sleep 被调用（验证不是阻塞调用）
-        # 注意：由于我们mock了storage，这里主要验证异步函数能正常执行
+        # 验证异步函数能正常执行
 
     @pytest.mark.asyncio
     async def test_handle_success_is_async(self):

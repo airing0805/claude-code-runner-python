@@ -14,6 +14,8 @@ class User:
     hashed_password: str = ""
     name: str = ""
     is_active: bool = True
+    is_admin: bool = False
+    last_login: Optional[datetime] = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -24,6 +26,8 @@ class User:
             "username": self.username,
             "name": self.name,
             "is_active": self.is_active,
+            "is_admin": self.is_admin,
+            "last_login": self.last_login.isoformat() if self.last_login else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
