@@ -1,0 +1,247 @@
+/* ============== 历史记录抽屉样式 ============== */
+/* v12.0.0.3.3 - 界面重构 */
+
+/* ============== 韺础布局 ============== */
+
+/* 韥找抽屉容器 - 作为 body 的直系子级 */
+.history-drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-normal), visibility var(--transition-normal);
+}
+
+.history-drawer-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* 抽屉面板 */
+.history-drawer {
+    position: fixed;
+    top: 0;
+    right: -320px;
+    width: 300px;
+    height: 100%;
+    background: var(--card-bg);
+    border-left: 1px solid var(--border-color);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(0);
+    transition: transform var(--transition-normal);
+}
+
+.history-drawer-overlay.open .history-drawer {
+    transform: translateX(-100%);
+}
+
+.history-drawer-overlay.open .history-drawer.slide-in {
+    transform: translateX(0);
+}
+
+/* ============== 夋头部样式 ============== */
+
+.history-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-color);
+}
+
+.history-drawer-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.history-drawer-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.history-drawer-close:hover {
+    background: var(--hover-bg);
+    color: var(--text-color);
+}
+
+/* ============== 内容区域样式 ============== */
+
+.history-drawer-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* ============== 加载状态样式 ============== */
+
+.history-drawer-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+}
+
+.history-drawer-loading .loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--violet-500);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 12px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ============== 空状态样式 ============== */
+
+.history-drawer-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.history-drawer-empty .empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+.history-drawer-empty .empty-text {
+    font-size: 0.9rem;
+}
+
+/* ============== 会话列表样式 ============== */
+
+.history-drawer-list {
+    padding: 8px 0;
+}
+
+/* 会话项 */
+.history-session-item {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.history-session-item:last-child {
+    border-bottom: none;
+}
+
+.history-session-item:hover {
+    background: var(--hover-bg);
+}
+
+.history-session-item.current {
+    background: color-mix(in srgb, var(--violet-500) 15%, transparent);
+    border-left: 3px solid var(--violet-500);
+}
+
+/* 会话信息行 */
+.history-session-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.history-session-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.history-session-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--bg-color);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+
+/* 会话摘要 */
+.history-session-summary {
+    font-size: 0.9rem;
+    color: var(--text-color);
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 会话路径 */
+.history-session-path {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: 'Consolas', 'Monaco', monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============== 响应式适配 ============== */
+@media screen and (max-width: 768px) {
+    .history-drawer {
+        width: 280px;
+        right: -280px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .history-drawer {
+        width: 260px;
+        right: -260px;
+    }
+
+    .history-drawer-header {
+        padding: 12px 16px;
+    }
+
+    .history-drawer-header h3 {
+        font-size: 0.9rem;
+    }
+
+    .history-session-item {
+        padding: 10px 12px;
+    }
+
+    .history-session-summary {
+        font-size: 0.85rem;
+    }
+
+    .history-session-path {
+        font-size: 0.75rem;
+    }
+}

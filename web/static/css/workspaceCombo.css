@@ -1,0 +1,239 @@
+/* ============== 工作空间组合控件样式 ============== */
+/* v12.0.0.3.2 - 界面重构 */
+
+.workspace-combo {
+    position: relative;
+    width: 100%;
+    min-width: 150px;
+}
+
+.workspace-combo * {
+    box-sizing: border-box;
+}
+
+/* 输入组容器 */
+.workspace-combo-input-group {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.workspace-combo-input-group:hover {
+    border-color: var(--zinc-600);
+}
+
+.workspace-combo-input-group:focus-within {
+    border-color: var(--violet-500);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--violet-500) 30%, transparent);
+}
+
+/* 禁用状态 */
+.workspace-combo.disabled .workspace-combo-input-group {
+    background: color-mix(in srgb, var(--zinc-800) 50%, transparent);
+    cursor: not-allowed;
+}
+
+.workspace-combo.disabled .workspace-combo-input-group:hover {
+    border-color: var(--border-color);
+}
+
+/* 输入框 */
+.workspace-combo-input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 10px;
+    background: transparent;
+    border: none;
+    color: var(--text-color);
+    font-size: 0.85rem;
+    font-family: 'Consolas', 'Monaco', monospace;
+    outline: none;
+}
+
+.workspace-combo-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+.workspace-combo-input:focus {
+    outline: none;
+}
+
+/* 输入框无效状态 */
+.workspace-combo-input.invalid {
+    color: var(--rose-400);
+}
+
+/* 下拉按钮 */
+.workspace-combo-dropdown-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--border-color);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.workspace-combo-dropdown-btn:hover {
+    background: color-mix(in srgb, var(--zinc-700) 30%, transparent);
+    color: var(--text-color);
+}
+
+.workspace-combo-dropdown-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.workspace-combo-dropdown-btn .dropdown-icon {
+    font-size: 0.7rem;
+    transition: transform var(--transition-fast);
+}
+
+/* 下拉面板 */
+.workspace-combo-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 0;
+    overflow: hidden;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    opacity: 0;
+    transition: max-height var(--transition-normal), opacity var(--transition-normal);
+}
+
+.workspace-combo-dropdown.open {
+    max-height: 300px;
+    opacity: 1;
+}
+
+/* 下拉内容区域 */
+.workspace-combo-dropdown-content {
+    max-height: 280px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* 滚动条样式 */
+.workspace-combo-dropdown-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.workspace-combo-dropdown-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.workspace-combo-dropdown-content::-webkit-scrollbar-thumb {
+    background: var(--zinc-600);
+    border-radius: 3px;
+}
+
+.workspace-combo-dropdown-content::-webkit-scrollbar-thumb:hover {
+    background: var(--zinc-500);
+}
+
+/* 选项样式 */
+.workspace-combo-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border-bottom: 1px solid color-mix(in srgb, var(--zinc-700) 30%, transparent);
+}
+
+.workspace-combo-option:last-child {
+    border-bottom: none;
+}
+
+.workspace-combo-option:hover {
+    background: color-mix(in srgb, var(--zinc-700) 30%, transparent);
+}
+
+.workspace-combo-option:focus {
+    outline: none;
+    background: color-mix(in srgb, var(--violet-500) 20%, transparent);
+}
+
+.workspace-combo-option.selected {
+    background: color-mix(in srgb, var(--violet-500) 30%, transparent);
+}
+
+.workspace-combo-option.hidden {
+    display: none;
+}
+
+.workspace-combo-option .option-icon {
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.workspace-combo-option .option-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    color: var(--text-color);
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+/* 空状态提示 */
+.workspace-combo-empty {
+    padding: 12px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* 验证提示 */
+.workspace-combo-validation {
+    min-height: 0;
+    padding: 0 4px;
+    font-size: 0.75rem;
+    transition: all var(--transition-fast);
+}
+
+.workspace-combo-validation.error {
+    color: var(--rose-400);
+    min-height: 18px;
+    padding: 4px;
+}
+
+.workspace-combo-validation.success {
+    color: var(--emerald-400);
+    min-height: 18px;
+    padding: 4px;
+}
+
+/* ============== 响应式适配 ============== */
+@media screen and (max-width: 768px) {
+    .workspace-combo {
+        min-width: 120px;
+    }
+
+    .workspace-combo-input {
+        font-size: 0.8rem;
+    }
+
+    .workspace-combo-option {
+        padding: 6px 10px;
+    }
+
+    .workspace-combo-option .option-text {
+        font-size: 0.8rem;
+    }
+}
+

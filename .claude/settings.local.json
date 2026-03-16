@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "Task(*)",
+      "TaskCreate(*)",
+      "TaskUpdate(*)",
+      "TaskList(*)",
+      "TaskGet(*)",
+      "TaskStop(*)",
+      "TaskOutput(*)",
+      "TeamCreate(*)",
+      "TeamDelete(*)",
+      "SendMessage(*)",
+      "WebSearch(*)",
+      "WebFetch(*)",
+      "WebFetch",
+      "TodoWrite(*)",
+      "AskUserQuestion(*)",
+      "Skill(*)",
+      "NotebookEdit(*)",
+      "EnterPlanMode(*)",
+      "ExitPlanMode(*)",
+      "WebSearch",
+      "Bash(uv run python -c:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "mcp__github__*",
+      "mcp__filesystem__*",
+      "mcp__memory__*",
+      "mcp__sequential-thinking__*",
+      "mcp__4_5v_mcp__*",
+      "mcp__web_reader__*"
+    ]
+  }
+}

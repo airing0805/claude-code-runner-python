@@ -1,0 +1,50 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Environment variables
+.env
+.env.local
+
+# Git 多远程仓库配置文档（本地参考）
+Git多远程仓库推送.md
+
+# 策划文档（本地参考）
+策划/
+
+# 日志文件
+logs/
+*.log
+
+.obsidian/
+
+data/
+
+# Coverage and testing
+.coverage
+coverage.json
+.pytest_cache/
+test_*.py
+test_*.html
+
+# Screenshot
+screenshot.png
+
+# uv lock file (use pyproject.toml instead)
+uv.lock
+
+.coverage
+
+# Frontend build outputs
+web/node_modules/
+web/static/build/
+web2/node_modules/
+web2/dist/
+web2/.vite/

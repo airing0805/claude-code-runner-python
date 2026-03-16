@@ -1,0 +1,200 @@
+/* ============== 数据迁移模块样式 ============== */
+/* v12.0.0.3.5 - 界面重构 */
+
+/* ============== 迁移进度模态框 ============== */
+.migration-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.migration-content {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 32px 40px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    animation: migration-fade-in 0.3s ease-out;
+}
+
+@keyframes migration-fade-in {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.migration-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    animation: migration-spin 2s linear infinite;
+}
+
+@keyframes migration-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.migration-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 8px;
+}
+
+.migration-message {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    min-height: 20px;
+}
+
+.migration-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    opacity: 0.7;
+    margin-top: 16px;
+}
+
+/* ============== 进度条 ============== */
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--bg-color);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+    border-radius: 4px;
+    transition: width 0.3s ease-out;
+    width: 0%;
+}
+
+.progress-text {
+    font-size: 0.85rem;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+/* ============== 迁移错误模态框 ============== */
+.migration-error-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10001;
+}
+
+.migration-error-content {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 32px 40px;
+    text-align: center;
+    max-width: 450px;
+    width: 90%;
+}
+
+.migration-error-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+}
+
+.migration-error-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--rose-400);
+    margin-bottom: 8px;
+}
+
+.migration-error-desc {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.error-message {
+    background: var(--bg-color);
+    border: 1px solid var(--rose-500);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 20px;
+    font-size: 0.85rem;
+    color: var(--rose-400);
+    font-family: monospace;
+    word-break: break-all;
+}
+
+.error-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.error-actions button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.error-actions .retry-btn {
+    background: var(--primary-color);
+    color: white;
+}
+.error-actions .retry-btn:hover {
+    background: var(--accent-color);
+    transform: translateY(-1px);
+}
+.error-actions .skip-btn {
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+.error-actions .skip-btn:hover {
+    background: var(--hover-bg);
+    border-color: var(--primary-color);
+}
+
+/* ============== 响应式调整 ============== */
+@media (max-width: 480px) {
+    .migration-content,
+    .migration-error-content {
+        max-width: 90%;
+        padding: 24px 30px;
+    }
+}

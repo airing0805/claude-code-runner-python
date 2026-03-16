@@ -1,0 +1,38 @@
+{
+  "tasks": [
+    {
+      "id": "7075fa91-6bf6-4077-a06e-51aef1abed0e",
+      "prompt": "网络搜索，与项目需求相关的内容，提出优化建议，形成方案。注意：你自己决策，用户现在不在线",
+      "workspace": "/workspace",
+      "timeout": 600000,
+      "auto_approve": true,
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Bash",
+        "Glob",
+        "Grep",
+        "WebSearch",
+        "WebFetch",
+        "Task",
+        "TodoWrite",
+        "NotebookEdit"
+      ],
+      "created_at": "2026-03-14 11:28:00",
+      "started_at": "2026-03-14 11:36:56",
+      "finished_at": null,
+      "retries": 0,
+      "status": "running",
+      "source": "scheduled",
+      "scheduled_id": "c8591758-26be-4e6f-9c45-d690c0c9d21e",
+      "scheduled_name": "测试定时任务",
+      "result": null,
+      "error": null,
+      "files_changed": [],
+      "tools_used": [],
+      "cost_usd": null,
+      "duration_ms": null
+    }
+  ]
+}

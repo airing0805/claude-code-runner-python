@@ -1,0 +1,489 @@
+/* ============== v7.0.15 响应式布局 ============== */
+
+/* ============== 平板端 (768px - 1024px) ============== */
+@media (max-width: 1024px) {
+    /* 提问历史记录 - 项目列表 */
+    .question-project-item {
+        padding: 12px 16px;
+    }
+
+    .question-project-info .project-path {
+        font-size: 0.85rem;
+    }
+
+    /* 提问历史记录 - 提问列表 */
+    .question-item {
+        padding: 12px 16px;
+    }
+
+    .question-text {
+        font-size: 0.85rem;
+    }
+
+    /* 调度器标签页 */
+    .scheduler-tabs {
+        flex-wrap: wrap;
+    }
+
+    .scheduler-tab {
+        padding: 6px 12px;
+        font-size: 0.85rem;
+    }
+
+    .scheduler-tab .tab-text {
+        font-size: 0.8rem;
+    }
+
+    /* 调度器表格 */
+    .scheduler-table th,
+    .scheduler-table td {
+        padding: 10px 12px;
+    }
+
+    .scheduler-table .task-prompt {
+        max-width: 250px;
+    }
+
+    /* 调度器操作栏 */
+    .scheduler-actions-bar {
+        flex-wrap: wrap;
+    }
+
+    /* 对话框 */
+    .dialog-content {
+        max-width: 90%;
+        margin: 10px;
+    }
+}
+
+/* ============== 移动端 (768px 以下) ============== */
+@media (max-width: 768px) {
+    /* 提问历史记录 - 项目列表 */
+    .question-project-item {
+        padding: 10px 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .question-project-info {
+        width: 100%;
+    }
+
+    .question-project-info .project-path {
+        font-size: 0.8rem;
+        word-break: break-all;
+    }
+
+    .question-project-info .project-meta {
+        font-size: 0.7rem;
+    }
+
+    .project-arrow {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .question-project-item {
+        position: relative;
+    }
+
+    /* 提问历史记录 - 提问列表 */
+    .question-item {
+        padding: 10px 12px;
+    }
+
+    .question-text {
+        font-size: 0.8rem;
+        margin-bottom: 8px;
+    }
+
+    .question-meta {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .question-time {
+        font-size: 0.7rem;
+    }
+
+    .btn-copy-question {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+
+    .btn-expand-question {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+
+    /* 分页信息 */
+    .pagination-info {
+        font-size: 0.7rem;
+    }
+
+    .load-more-hint {
+        font-size: 0.65rem;
+    }
+
+    /* 导航菜单 */
+    .nav-menu {
+        position: fixed;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        z-index: 1000;
+        transform: translateX(-100%);
+    }
+
+    .nav-menu.open {
+        transform: translateX(0);
+    }
+
+    .nav-menu.collapsed {
+        transform: translateX(-100%);
+    }
+
+    .menu-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* 页面头部 */
+    header {
+        padding: 20px 0;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+    }
+
+    .container {
+        padding: 15px;
+    }
+
+    /* 会话布局响应式 */
+    .session-header {
+        padding: 8px 12px;
+    }
+
+    .session-info-bar {
+        padding: 8px 12px;
+        gap: 12px;
+    }
+
+    .info-input {
+        min-width: 60px;
+        font-size: 0.8rem;
+    }
+
+    .info-label {
+        display: none;
+    }
+
+    .session-input {
+        flex-direction: column;
+        padding: 8px 12px;
+    }
+
+    .session-input textarea {
+        width: 100%;
+    }
+
+    .input-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .input-actions .btn {
+        padding: 8px 12px;
+        font-size: 0.9rem;
+    }
+
+    .stats-floating {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 8px 12px;
+    }
+
+    .stats-floating .stat-item {
+        font-size: 0.8rem;
+    }
+
+    .info-checkbox-label {
+        font-size: 0.8rem;
+    }
+
+    .info-checkbox-label .info-checkbox {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* ============== 调度器模块响应式 ============== */
+
+    /* 调度器状态栏 */
+    .scheduler-status-bar {
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+    }
+
+    .scheduler-status-left {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .scheduler-stats {
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .scheduler-actions {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* 调度器标签页 */
+    .scheduler-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 4px;
+        gap: 2px;
+    }
+
+    .scheduler-tab {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+
+    .scheduler-tab .tab-icon {
+        font-size: 1.1rem;
+    }
+
+    .scheduler-tab .tab-text {
+        display: none;
+    }
+
+    /* 调度器操作栏 */
+    .scheduler-actions-bar {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .scheduler-actions-bar .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* 调度器表格 - 移动端卡片布局 */
+    .scheduler-table {
+        display: block;
+    }
+
+    .scheduler-table thead {
+        display: none;
+    }
+
+    .scheduler-table tbody {
+        display: block;
+    }
+
+    .scheduler-table tr {
+        display: block;
+        margin-bottom: 12px;
+        background: color-mix(in srgb, var(--zinc-800) 50%, transparent);
+        border-radius: var(--radius-md);
+        padding: 12px;
+        border: 1px solid color-mix(in srgb, var(--zinc-700) 50%, transparent);
+    }
+
+    .scheduler-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid color-mix(in srgb, var(--zinc-700) 30%, transparent);
+        text-align: right;
+    }
+
+    .scheduler-table td:last-child {
+        border-bottom: none;
+    }
+
+    .scheduler-table td::before {
+        content: attr(data-label);
+        font-weight: 500;
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        margin-right: 8px;
+    }
+
+    .scheduler-table td.task-prompt {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .scheduler-table td.task-prompt::before {
+        margin-bottom: 4px;
+    }
+
+    .scheduler-table .actions {
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .scheduler-table .actions .btn {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+
+    /* 状态徽章 - 移动端 */
+    .status-badge {
+        padding: 2px 8px;
+        font-size: 0.7rem;
+    }
+
+    /* 分页控件 - 移动端 */
+    .pagination {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .pagination-btn {
+        padding: 8px 16px;
+        font-size: 0.85rem;
+    }
+
+    /* 对话框 - 移动端 */
+    .dialog-overlay {
+        padding: 10px;
+    }
+
+    .dialog-content {
+        max-width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .confirm-dialog {
+        max-width: 100%;
+    }
+
+    .confirm-dialog-body {
+        padding: 16px;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .confirm-dialog-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.25rem;
+    }
+
+    .confirm-dialog-title {
+        font-size: 1rem;
+    }
+
+    .confirm-dialog-message {
+        font-size: 0.85rem;
+    }
+
+    .confirm-dialog .dialog-footer {
+        flex-direction: column-reverse;
+        padding: 12px 16px;
+    }
+
+    .confirm-dialog .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* 空状态 - 移动端 */
+    .empty-state {
+        padding: 24px 16px;
+        font-size: 0.85rem;
+    }
+
+    /* Cron 帮助对话框 - 移动端 */
+    .cron-example-item {
+        padding: 8px 10px;
+    }
+
+    .cron-example-expr {
+        font-size: 0.8rem;
+    }
+
+    .cron-example-desc {
+        font-size: 0.75rem;
+    }
+}
+
+/* ============== 小屏幕移动端 (480px 以下) ============== */
+@media (max-width: 480px) {
+    /* 页面标题 */
+    .page-title {
+        font-size: 1rem;
+    }
+
+    .page-subtitle {
+        font-size: 0.75rem;
+    }
+
+    /* 调度器统计数字 */
+    .scheduler-stat .stat-value {
+        font-size: 1rem;
+    }
+
+    .scheduler-stat .stat-label {
+        font-size: 0.7rem;
+    }
+
+    /* 按钮 */
+    .btn {
+        padding: 10px 16px;
+        font-size: 0.85rem;
+    }
+
+    .btn-small {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+
+    /* 标签页 */
+    .scheduler-tab {
+        padding: 6px 8px;
+    }
+
+    .scheduler-tab .tab-icon {
+        font-size: 1rem;
+    }
+
+    /* 工具多选 - 移动端 */
+    .tools-multiselect {
+        width: 100%;
+    }
+
+    .tools-dropdown {
+        max-height: 200px;
+    }
+
+    .tools-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tools-select-btn {
+        width: 100%;
+        justify-content: space-between;
+    }
+}

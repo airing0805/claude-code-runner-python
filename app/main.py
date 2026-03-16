@@ -1,0 +1,106 @@
+"""FastAPI 主应用 - 提供 Web 界面和 API"""
+
+import os
+import logging
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from app.routers import api_keys, admin, agents, auth, claude, files, mcp, scheduler, session, skills, status, task
+from app.scheduler.scheduler import start_scheduler
+
+# 配置日志 - 明确输出到控制台
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+    force=True,
+)
+
+# 创建应用日志记录器
+logger = logging.getLogger(__name__)
+
+# 加载环境变量
+load_dotenv()
+
+# 配置
+WORKING_DIR = os.getenv("WORKING_DIR", ".")
+HOST = os.getenv("HOST", "127.0.0.1")
+PORT = int(os.getenv("PORT", "8000"))
+
+# 路径（前端文件已迁移到 web 目录）
+BASE_DIR = Path(__file__).resolve().parent.parent  # 项目根目录
+TEMPLATES_DIR = BASE_DIR / "web" / "templates"
+STATIC_DIR = BASE_DIR / "web" / "static"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    logger.info("Claude Code Runner 启动")
+    logger.info(f"工作目录: {WORKING_DIR}")
+
+    # 启动任务调度器
+    try:
+        scheduler_started = await start_scheduler()
+        if scheduler_started:
+            logger.info("任务调度器已自动启动")
+        else:
+            logger.warning("任务调度器启动失败或已在运行")
+    except Exception as e:
+        logger.error(f"启动任务调度器时出错: {e}")
+
+    yield
+    logger.info("Claude Code Runner 关闭")
+
+
+app = FastAPI(
+    title="Claude Code Runner",
+    description="通过 Web API 调用 Claude Code 执行任务",
+    version="0.2.0",
+    lifespan=lifespan,
+)
+
+# 挂载静态文件和模板
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
+# 注册路由
+app.include_router(auth.router)
+app.include_router(admin.router)
+app.include_router(task.router)
+app.include_router(session.router)
+app.include_router(status.router)
+app.include_router(api_keys.router)
+app.include_router(claude.router)
+app.include_router(mcp.router)
+app.include_router(agents.router)
+app.include_router(skills.router)
+app.include_router(scheduler.router)
+app.include_router(files.router)
+
+
+# ============== 页面路由 ==============
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    """主页"""
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "working_dir": WORKING_DIR,
+        },
+    )
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host=HOST, port=PORT)
