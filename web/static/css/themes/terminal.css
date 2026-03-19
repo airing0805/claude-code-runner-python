@@ -1,0 +1,59 @@
+/* ============== 主题方案：极简墨白 ============== */
+/* 设计理念：极度简洁、类似终端、专注于内容 */
+
+:root {
+    /* ============== 背景 - 纯黑或极深灰 ============== */
+    --bg-color: #000000;
+    --card-bg: #0a0a0a;
+    --header-bg: #111111;
+
+    /* ============== 文字颜色 - 纯白或浅灰 ============== */
+    --text-color: #ffffff;
+    --text-primary: #ffffff;
+    --text-secondary: #888888;
+    --text-muted: #555555;
+
+    /* ============== 边框 - 细线 ============== */
+    --border-color: #222222;
+
+    /* ============== 主题色 - 纯白或淡灰 ============== */
+    --primary-color: #ffffff;      /* 纯白 */
+    --primary-hover: #cccccc;
+    --success-color: #00ff00;      /* 终端绿 */
+    --danger-color: #ff4444;
+    --warning-color: #ffff00;
+    --error-color: #ff4444;
+
+    /* ============== 消息类型样式 ============== */
+    --message-text-border: #ffffff;
+    --message-thinking-bg: #0a0a0a;
+    --message-tool-use-border: #00ff00;
+    --message-tool-result-border: #888888;
+    --message-error-border: #ff4444;
+    --message-error-bg: #0a0000;
+    --message-complete-border: #00ff00;
+    --message-complete-bg: #000a00;
+    --message-info-border: #00ffff;
+    --message-info-bg: #000a0a;
+    --message-ask-user-question-border: #ff00ff;
+    --message-ask-user-question-bg: #0a000a;
+
+    /* ============== 阴影 - 微弱或无 ============== */
+    --shadow-sm: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+    --shadow-xl: none;
+}
+
+/* 终端风格 */
+.terminal-style {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+    letter-spacing: -0.5px;
+}
+
+/* 绿色终端效果 */
+.terminal-green {
+    --text-color: #00ff00;
+    --text-primary: #00ff00;
+    --text-secondary: #00cc00;
+}

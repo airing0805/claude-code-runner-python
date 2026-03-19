@@ -1,0 +1,64 @@
+/* ============== 主题方案：赛博朋克 ============== */
+/* 设计理念：霓虹灯光、未来科技感、深色主题 */
+
+:root {
+    /* ============== 深色背景 - 接近黑色 ============== */
+    --bg-color: #0a0a0f;
+    --card-bg: #12121a;
+    --header-bg: #1a1a24;
+
+    /* ============== 文字颜色 ============== */
+    --text-color: #e0e0e0;
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0a0;
+    --text-muted: #606060;
+
+    /* ============== 边框 - 带微光 ============== */
+    --border-color: #2a2a3a;
+
+    /* ============== 主题色 - 赛博粉 + 电光蓝 ============== */
+    --primary-color: #ff2d92;      /* 赛博粉 */
+    --primary-hover: #ff0080;
+    --success-color: #00ff9f;      /* 霓虹绿 */
+    --danger-color: #ff3366;       /* 霓虹红 */
+    --warning-color: #ffcc00;      /* 霓虹黄 */
+    --error-color: #ff3366;
+
+    /* ============== 强调色 - 电光系列 ============== */
+    --cyan-400: #00d4ff;
+    --cyan-500: #00b8ff;
+    --cyan-600: #0099cc;
+
+    --violet-500: #b967ff;
+    --violet-600: #9d4edd;
+
+    /* ============== 消息类型样式 (霓虹边框) ============== */
+    --message-text-border: #ff2d92;
+    --message-thinking-bg: #1a0a20;
+    --message-tool-use-border: #00ff9f;
+    --message-tool-result-border: #00d4ff;
+    --message-error-border: #ff3366;
+    --message-error-bg: #200a10;
+    --message-complete-border: #00ff9f;
+    --message-complete-bg: #0a2010;
+    --message-info-border: #00d4ff;
+    --message-info-bg: #0a1520;
+    --message-ask-user-question-border: #b967ff;
+    --message-ask-user-question-bg: #150a20;
+
+    /* ============== 阴影 - 霓虹发光效果 ============== */
+    --shadow-sm: 0 0 5px rgba(255, 45, 146, 0.3);
+    --shadow-md: 0 0 15px rgba(255, 45, 146, 0.4);
+    --shadow-lg: 0 0 25px rgba(255, 45, 146, 0.5);
+    --shadow-xl: 0 0 40px rgba(0, 212, 255, 0.3);
+}
+
+/* 霓虹发光效果类 */
+.neon-glow {
+    box-shadow: 0 0 10px var(--primary-color), 0 0 20px var(--primary-color);
+}
+
+.neon-border {
+    border: 1px solid var(--primary-color);
+    box-shadow: 0 0 5px var(--primary-color), inset 0 0 5px rgba(255, 45, 146, 0.1);
+}

@@ -1,0 +1,63 @@
+/* ============== 主题方案：深海蓝 ============== */
+/* 设计理念：专业、冷静、专注 */
+
+:root {
+    /* ============== 背景 - 深蓝灰色 ============== */
+    --bg-color: #0f172a;
+    --card-bg: #1e293b;
+    --header-bg: #334155;
+
+    /* ============== 文字颜色 ============== */
+    --text-color: #e2e8f0;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+
+    /* ============== 边框 ============== */
+    --border-color: #475569;
+
+    /* ============== 主题色 - 深海蓝 ============== */
+    --primary-color: #3b82f6;      /* 蓝色 */
+    --primary-hover: #2563eb;
+    --success-color: #22d3ee;       /* 青色 */
+    --danger-color: #f87171;
+    --warning-color: #fbbf24;
+    --error-color: #f87171;
+
+    /* ============== 强调色 - 蓝色系 ============== */
+    --blue-400: #60a5fa;
+    --blue-500: #3b82f6;
+    --blue-600: #2563eb;
+    --blue-700: #1d4ed8;
+
+    --cyan-400: #22d3ee;
+    --cyan-500: #06b6d4;
+
+    --sky-400: #38bdf8;
+    --sky-500: #0ea5e9;
+
+    /* ============== 消息类型样式 ============== */
+    --message-text-border: #3b82f6;
+    --message-thinking-bg: #0f172a;
+    --message-tool-use-border: #22d3ee;
+    --message-tool-result-border: #60a5fa;
+    --message-error-border: #f87171;
+    --message-error-bg: #1a0f0f;
+    --message-complete-border: #22d3ee;
+    --message-complete-bg: #0a1520;
+    --message-info-border: #38bdf8;
+    --message-info-bg: #0a1520;
+    --message-ask-user-question-border: #a78bfa;
+    --message-ask-user-question-bg: #120a15;
+
+    /* ============== 阴影 - 蓝色调 ============== */
+    --shadow-sm: 0 1px 3px rgba(59, 130, 246, 0.25);
+    --shadow-md: 0 4px 6px rgba(59, 130, 246, 0.3);
+    --shadow-lg: 0 10px 15px rgba(59, 130, 246, 0.35);
+    --shadow-xl: 0 20px 25px rgba(59, 130, 246, 0.4);
+}
+
+/* 蓝色发光效果 */
+.blue-glow {
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+}

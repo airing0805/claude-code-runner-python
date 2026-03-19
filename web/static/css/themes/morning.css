@@ -1,0 +1,59 @@
+/* ============== 主题方案：晨曦白浅色主题 ============== */
+/* 设计理念：清新、简洁、适合白天使用 */
+
+:root {
+    /* ============== 灰度色阶 (Tailwind stone - 温暖灰) ============== */
+    --zinc-50: #fafaf9;
+    --zinc-100: #f5f5f4;
+    --zinc-200: #e7e5e4;
+    --zinc-300: #d6d3d1;
+    --zinc-400: #a8a29e;
+    --zinc-500: #78716c;
+    --zinc-600: #57534e;
+    --zinc-700: #44403c;
+    --zinc-800: #292524;
+    --zinc-900: #1c1917;
+    --zinc-950: #0c0a09;
+
+    /* ============== 浅色主题背景 ============== */
+    --bg-color: var(--zinc-100);
+    --card-bg: #ffffff;
+    --header-bg: #ffffff;
+
+    /* ============== 文字颜色 - 深色文字 ============== */
+    --text-color: var(--zinc-800);
+    --text-primary: var(--zinc-900);
+    --text-secondary: var(--zinc-600);
+    --text-muted: var(--zinc-400);
+
+    /* ============== 边框颜色 ============== */
+    --border-color: var(--zinc-200);
+
+    /* ============== 主题色 - 晨曦橙 ============== */
+    --primary-color: #f97316;      /* 橙色 */
+    --primary-hover: #ea580c;
+    --success-color: #22c55e;
+    --danger-color: #ef4444;
+    --warning-color: #f59e0b;
+    --error-color: #ef4444;
+
+    /* ============== 消息类型样式 (浅色背景) ============== */
+    --message-text-border: #f97316;
+    --message-thinking-bg: #fff7ed;
+    --message-tool-use-border: #22c55e;
+    --message-tool-result-border: #f97316;
+    --message-error-border: #ef4444;
+    --message-error-bg: #fef2f2;
+    --message-complete-border: #22c55e;
+    --message-complete-bg: #f0fdf4;
+    --message-info-border: #0ea5e9;
+    --message-info-bg: #f0f9ff;
+    --message-ask-user-question-border: #a855f7;
+    --message-ask-user-question-bg: #faf5ff;
+
+    /* ============== 阴影 (浅色主题更柔和) ============== */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.15);
+}

@@ -1,0 +1,16 @@
+/* ============== 主题入口文件 ============== */
+/* 主题切换器 - 选择要使用的主题 */
+
+/* 引入默认主题 (当前使用的主题) */
+@import url('../variables.css');
+
+/* 如需切换主题，取消对应主题的注释即可：*/
+
+/*
+@import url('themes/morning.css');    -- 晨曦白浅色主题
+@import url('themes/cyberpunk.css');  -- 赛博朋克
+@import url('themes/forest.css');     -- 森林绿自然风
+@import url('themes/dream.css');      -- 紫罗兰梦幻
+@import url('themes/ocean.css');      -- 深海蓝
+@import url('themes/terminal.css');   -- 极简墨白/终端风
+*/

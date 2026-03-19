@@ -42,9 +42,12 @@ uv.lock
 
 .coverage
 
+
 # Frontend build outputs
 web/node_modules/
 web/static/build/
 web2/node_modules/
 web2/dist/
 web2/.vite/
+
+.qoder
