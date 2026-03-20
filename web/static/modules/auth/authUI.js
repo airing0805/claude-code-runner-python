@@ -370,15 +370,10 @@ const AuthUI = {
                 });
             }
         } else {
-            // 未登录状态
+            // 未登录状态 - 不显示登录/注册按钮
             authSection.innerHTML = `
-                <button class="auth-btn" id="auth-login-btn">登录</button>
-                <button class="auth-btn auth-btn-primary" id="auth-register-btn">注册</button>
+                <span class="auth-guest">访客模式</span>
             `;
-
-            // 重新绑定事件
-            this.initLoginDialog();
-            this.initRegisterDialog();
         }
     },
 

@@ -109,16 +109,27 @@ const MessageRendererContent = {
         const lines = text.split('\n');
         const needsTruncation = lines.length > MessageRendererCore._truncationConfig.maxLines;
 
+        // text 类型默认不显示时间戳（避免频繁更新造成视觉干扰）
+        const showTimestamp = false;
+
         if (needsTruncation) {
-            return this._renderTruncatedText(timeStr, lines, isUser);
+            return this._renderTruncatedText(timeStr, lines, isUser, showTimestamp);
         }
 
-        return `
-            <div class="assistant-msg assistant-msg-text message-fade-in message-text">
-                <span class="timestamp">${timeStr}</span>
-                <div class="content">${Utils.escapeHtml(text)}</div>
-            </div>
-        `;
+        if (showTimestamp) {
+            return `
+                <div class="assistant-msg assistant-msg-text message-fade-in message-text">
+                    <span class="timestamp">${timeStr}</span>
+                    <div class="content">${Utils.escapeHtml(text)}</div>
+                </div>
+            `;
+        } else {
+            return `
+                <div class="assistant-msg assistant-msg-text message-fade-in message-text">
+                    <div class="content">${Utils.escapeHtml(text)}</div>
+                </div>
+            `;
+        }
     },
 
     /**
@@ -126,9 +137,10 @@ const MessageRendererContent = {
      * @param {string} timeStr - 时间字符串
      * @param {Array} lines - 文本行数组
      * @param {boolean} isUser - 是否为用户消息
+     * @param {boolean} showTimestamp - 是否显示时间戳
      * @returns {string} 渲染后的 HTML
      */
-    _renderTruncatedText(timeStr, lines, isUser) {
+    _renderTruncatedText(timeStr, lines, isUser, showTimestamp = false) {
         const maxLines = MessageRendererCore._truncationConfig.maxLines;
         const hiddenLines = lines.length - maxLines;
         const displayLines = lines.slice(0, maxLines);
@@ -138,21 +150,38 @@ const MessageRendererContent = {
 
         const displayContent = displayLines.map(line => Utils.escapeHtml(line)).join('\n');
 
-        return `
-            <div class="assistant-msg assistant-msg-text message-fade-in message-text" id="${blockId}">
-                <span class="timestamp">${timeStr}</span>
-                <div class="content content-collapsible collapsed">
-                    <pre>${displayContent}</pre>
+        if (showTimestamp) {
+            return `
+                <div class="assistant-msg assistant-msg-text message-fade-in message-text" id="${blockId}">
+                    <span class="timestamp">${timeStr}</span>
+                    <div class="content content-collapsible collapsed">
+                        <pre>${displayContent}</pre>
+                    </div>
+                    <div class="content-truncated-hint">
+                        <span>... 还有 ${hiddenLines} 行</span>
+                    </div>
+                    <button class="content-expand-btn" onclick="MessageRendererContent._toggleContentExpand('${blockId}', this, ${hiddenLines})">
+                        <span class="expand-icon">▼</span>
+                        <span class="expand-text">展开更多</span>
+                    </button>
                 </div>
-                <div class="content-truncated-hint">
-                    <span>... 还有 ${hiddenLines} 行</span>
+            `;
+        } else {
+            return `
+                <div class="assistant-msg assistant-msg-text message-fade-in message-text" id="${blockId}">
+                    <div class="content content-collapsible collapsed">
+                        <pre>${displayContent}</pre>
+                    </div>
+                    <div class="content-truncated-hint">
+                        <span>... 还有 ${hiddenLines} 行</span>
+                    </div>
+                    <button class="content-expand-btn" onclick="MessageRendererContent._toggleContentExpand('${blockId}', this, ${hiddenLines})">
+                        <span class="expand-icon">▼</span>
+                        <span class="expand-text">展开更多</span>
+                    </button>
                 </div>
-                <button class="content-expand-btn" onclick="MessageRendererContent._toggleContentExpand('${blockId}', this, ${hiddenLines})">
-                    <span class="expand-icon">▼</span>
-                    <span class="expand-text">展开更多</span>
-                </button>
-            </div>
-        `;
+            `;
+        }
     },
 
     /**
@@ -260,7 +289,7 @@ const MessageRendererContent = {
         const timeStr = Utils.formatTime(block.timestamp);
         const content = block.content || '等待用户回答...';
         return `
-            <div class="assistant-msg assistant-msg-ask_user_question message-fade-in message-ask_user_question">
+            <div class="assistant-msg assistant-msg-ask_user_question message-fade-in message-ask-question">
                 <span class="timestamp">${timeStr}</span>
                 <div class="content">${Utils.escapeHtml(content)}</div>
             </div>

@@ -324,20 +324,14 @@ footer code {
     flex-wrap: wrap;
 }
 
-/* 中间空白区域 - 占据剩余空间 */
-.session-middle-spacer {
-    flex: 1;
-    min-height: 0;
-}
-
-/* 底部对话区域 - 固定在底部 */
+/* 底部对话区域 - 占据剩余空间 */
 .session-bottom-container {
     display: flex;
     flex-direction: column;
     background: var(--card-bg);
     border-top: 1px solid var(--border-color);
-    flex-shrink: 0;
-    max-height: 60vh; /* 限制最大高度，避免占用过多屏幕空间 */
+    flex: 1;  /* 占据剩余空间 */
+    min-height: 0;  /* 允许缩小 */
 }
 
 /* 对话输出区 - 在底部容器内 */

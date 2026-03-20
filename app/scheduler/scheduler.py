@@ -38,6 +38,7 @@ class Scheduler:
         self.apscheduler = APSchedulerWrapper(self.storage)
         self._status = SchedulerStatus.STOPPED
         self._queue_task: asyncio.Task[None] | None = None  # 队列处理任务
+        self._queue_guard_task: asyncio.Task[None] | None = None  # 队列守护任务
 
         # 日志事件订阅机制 (用于 SSE)
         self._log_queues: dict[str, asyncio.Queue] = {}
@@ -99,6 +100,10 @@ class Scheduler:
             self._queue_task = asyncio.create_task(self._run_queue_loop())
             logger.info("队列处理循环已启动")
 
+            # 启动队列守护任务（监控队列处理循环状态）
+            self._queue_guard_task = asyncio.create_task(self._run_queue_guard())
+            logger.info("队列守护任务已启动")
+
             self._status = SchedulerStatus.RUNNING
             logger.info("调度器已启动")
             return True
@@ -127,6 +132,15 @@ class Scheduler:
         self._status = SchedulerStatus.STOPPING
 
         try:
+            # 取消队列守护任务
+            if self._queue_guard_task and not self._queue_guard_task.done():
+                self._queue_guard_task.cancel()
+                try:
+                    await self._queue_guard_task
+                except asyncio.CancelledError:
+                    pass
+                logger.info("队列守护任务已取消")
+
             # 取消队列处理任务
             if self._queue_task and not self._queue_task.done():
                 self._queue_task.cancel()
@@ -246,6 +260,9 @@ class Scheduler:
         同时每隔 POLL_INTERVAL 检查 scheduled.json 中的任务，
         当 next_run 为 null 或为空时触发执行。
         只有当没有运行中的任务时，才从队列取任务执行。
+
+        注意：任务执行时的 CancelledError 不应该导致循环退出，
+        只有当调度器状态不是 RUNNING 时才退出循环。
         """
         # 延迟导入避免循环依赖
         from app.scheduler.executor import TaskExecutor
@@ -268,7 +285,8 @@ class Scheduler:
                     if task:
                         logger.info(f"从队列取出任务: {task.id}, prompt: {task.prompt[:50]}...")
 
-                        # 执行任务
+                        # 执行任务 - 捕获所有异常包括 CancelledError
+                        # 防止单个任务失败导致整个队列处理循环退出
                         try:
                             result = await executor.execute(task)
 
@@ -277,6 +295,15 @@ class Scheduler:
                             else:
                                 logger.warning(f"任务执行失败: {task.id}, 错误: {result.error}")
 
+                        except asyncio.CancelledError:
+                            # 任务被取消（如超时、用户取消），记录但继续循环
+                            logger.warning(f"任务被取消: {task.id}")
+                            # 确保任务状态被正确处理
+                            if self.storage.running.get(task.id):
+                                self.storage.running.remove(task.id)
+                                task.status = TaskStatus.PENDING
+                                task.error = "任务被取消"
+                                self.storage.queue.add_to_front(task)
                         except Exception as e:
                             logger.error(f"执行任务时发生异常: {task.id}, 错误: {e}", exc_info=True)
                 else:
@@ -287,11 +314,48 @@ class Scheduler:
                 await asyncio.sleep(POLL_INTERVAL)
 
             except asyncio.CancelledError:
-                logger.info("队列处理循环已取消")
-                break
+                # 只有在调度器正在停止时才真正退出循环
+                if self._status == SchedulerStatus.STOPPING:
+                    logger.info("队列处理循环已取消（调度器正在停止）")
+                    break
+                else:
+                    # 调度器仍在运行，忽略 CancelledError 并继续循环
+                    logger.warning("队列处理循环收到 CancelledError，但调度器仍在运行，继续处理队列")
+                    await asyncio.sleep(POLL_INTERVAL)
             except Exception as e:
                 logger.error(f"队列处理循环错误: {e}", exc_info=True)
                 await asyncio.sleep(POLL_INTERVAL)
+
+    async def _run_queue_guard(self) -> None:
+        """队列守护任务 - 监控队列处理循环状态
+
+        定期检查队列处理任务是否仍在运行，如果已退出但调度器仍在运行，
+        则自动重启队列处理循环。
+        """
+        logger.info("队列守护任务已开始运行")
+
+        while self._status == SchedulerStatus.RUNNING:
+            try:
+                # 检查队列处理任务是否已退出
+                if self._queue_task is None or self._queue_task.done():
+                    # 队列处理任务已退出，但调度器仍在运行
+                    if self._status == SchedulerStatus.RUNNING:
+                        logger.warning(
+                            f"队列处理循环已退出（状态: {self._status.value}），自动重启"
+                        )
+                        # 重新启动队列处理循环
+                        self._queue_task = asyncio.create_task(self._run_queue_loop())
+                        logger.info("队列处理循环已重新启动")
+
+                # 每 30 秒检查一次
+                await asyncio.sleep(30)
+
+            except asyncio.CancelledError:
+                logger.info("队列守护任务已取消")
+                break
+            except Exception as e:
+                logger.error(f"队列守护任务错误: {e}", exc_info=True)
+                await asyncio.sleep(30)
 
     def _check_scheduled_tasks_on_loop(self) -> None:
         """在队列处理循环中检查定时任务

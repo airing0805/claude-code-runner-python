@@ -12,7 +12,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.auth import get_current_user_optional
+from app.routers.session_manager import session_manager
 from app.services import extract_question
+from app.services.path_utils import decode_project_name, get_project_dir_name
 
 router = APIRouter(prefix="/api", tags=["session"])
 logger = logging.getLogger(__name__)
@@ -101,42 +103,6 @@ class MetadataCache:
             self._save()
 
 
-def decode_project_name(encoded_name: str) -> str:
-    """解码项目目录名为原始路径"""
-    import re
-    match = re.match(r'^([A-Za-z])--(.+)$', encoded_name)
-    if match:
-        drive = match.group(1).upper()
-        rest = match.group(2)
-        path = rest.replace('-', '\\')
-        return f"{drive}:\\{path}"
-    return encoded_name.replace('-', '/')
-
-
-def get_project_dir_name(project_path: str) -> str:
-    """
-    根据项目路径生成目录名（与 Claude Agent SDK 一致）
-
-    SDK 使用的命名规则：
-    - Windows: E:\\workspaces_2026\\project → E--workspaces-2026-project
-    - Unix: /home/user/project → -home-user-project
-    - 盘符后的冒号转换为 --
-    - 路径分隔符和下划线都转换为 -
-    """
-    abs_path = Path(project_path).resolve()
-    path_str = str(abs_path)
-
-    # Windows 路径处理
-    if len(path_str) >= 2 and path_str[1] == ":":
-        # E:\path → E--path (从索引 3 跳过 "E:\")
-        drive = path_str[0].upper()
-        rest = path_str[3:].replace("\\", "-").replace("/", "-").replace("_", "-")
-        return f"{drive}--{rest}"
-    else:
-        # Unix 路径: /home/user → -home-user
-        return path_str.replace("\\", "-").replace("/", "-").replace("_", "-")
-
-
 def get_sessions_dir(working_dir: str) -> Path:
     """获取当前项目的会话目录"""
     project_dir_name = get_project_dir_name(working_dir)
@@ -199,7 +165,7 @@ def parse_session_metadata(
                                 text = content
                                 # 跳过包含 ide_selection 或 ide_opened_file 的块
                                 if "<ide_selection>" not in text and "<ide_opened_file>" not in text:
-                                    first_user_msg = text[:80] + ("..." if len(text) > 80 else "")
+                                    first_user_msg = text  # 保存完整文本，后续再截断
                             # 处理 content 为数组的情况（复杂消息）
                             elif content and isinstance(content, list):
                                 for item in content:
@@ -208,7 +174,7 @@ def parse_session_metadata(
                                         # 跳过包含 ide_selection 或 ide_opened_file 的块
                                         if "<ide_selection>" in text or "<ide_opened_file>" in text:
                                             continue
-                                        first_user_msg = text[:80] + ("..." if len(text) > 80 else "")
+                                        first_user_msg = text  # 保存完整文本，后续再截断
                                         break
                             timestamp = data.get("timestamp")
                             session_id = data.get("sessionId")
@@ -240,12 +206,23 @@ def parse_session_metadata(
                 has_question = bool(question_text)
                 question_timestamp = question_result.get("timestamp") or question_timestamp
 
+        # 生成标题和摘要
+        # 标题：最大 100 字符
+        title_text = first_user_msg or "无标题"
+        if len(title_text) > 100:
+            title_text = title_text[:100] + "..."
+        # 摘要：最大 30 字符，用于下拉选择等空间受限场景
+        summary_text = first_user_msg or "无摘要"
+        if len(summary_text) > 30:
+            summary_text = summary_text[:30] + "..."
+
         metadata = {
             "id": session_id or filepath.stem,
-            "title": first_user_msg or "无标题",
+            "title": title_text,
+            "summary": summary_text,  # 新增：会话摘要，用于下拉选择
             "timestamp": timestamp,
             "message_count": message_count,
-            "size": filepath.stat().st_size if filepath.exists() else 0,
+            "size_bytes": filepath.stat().st_size if filepath.exists() else 0,
             "tools": sorted(list(tools_used)),
             "cwd": cwd,  # 返回工作目录
             # 提问缓存字段（用于提问历史记录功能）
@@ -263,12 +240,14 @@ def parse_session_metadata(
 
         return metadata
     except Exception as e:
+        error_msg = f"解析错误: {str(e)[:30]}"
         error_metadata = {
             "id": filepath.stem,
-            "title": f"解析错误: {str(e)[:30]}",
+            "title": error_msg,
+            "summary": error_msg,  # 错误情况下摘要与标题相同
             "timestamp": None,
             "message_count": 0,
-            "size": 0,
+            "size_bytes": 0,
             "tools": [],
             "cwd": None,
             "has_question": False,
@@ -298,11 +277,15 @@ def find_session_file(session_id: str) -> Optional[Path]:
 
 @router.get("/sessions")
 async def list_sessions(
-    working_dir: str = ".",
+    working_dir: Optional[str] = None,
+    limit: int = Query(20, ge=1, le=100, description="返回数量上限"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+    sort_by: str = Query("timestamp", description="排序字段 (timestamp/title)"),
+    order: str = Query("desc", description="排序方向 (asc/desc)"),
     current_user: Optional[any] = Depends(get_current_user_optional),
 ):
     """
-    获取历史会话列表（使用当前项目，使用缓存）
+    获取历史会话列表（支持分页和排序）
 
     支持可选认证：
     - 已认证用户：可以添加用户筛选（未来扩展）
@@ -312,10 +295,14 @@ async def list_sessions(
     if current_user:
         logger.info(f"会话列表查询 - 用户: {current_user.username} (ID: {current_user.id})")
 
+    # 如果没有指定 working_dir，返回空列表（前端应该使用 /projects 接口获取项目列表）
+    if not working_dir:
+        return {"sessions": [], "total": 0, "limit": limit, "offset": offset}
+
     sessions_dir = get_sessions_dir(working_dir)
 
     if not sessions_dir.exists():
-        return {"sessions": []}
+        return {"sessions": [], "total": 0, "limit": limit, "offset": offset}
 
     # 创建缓存实例
     cache = MetadataCache(sessions_dir)
@@ -326,10 +313,52 @@ async def list_sessions(
         metadata = parse_session_metadata(filepath, cache=cache)
         sessions.append(metadata)
 
-    # 按时间戳降序排序
-    sessions.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+    # 排序
+    if sort_by == "title":
+        # 按标题排序，空标题（"无标题"）始终排在最后
+        # 分离空标题和非空标题，分别排序后合并
+        empty_title_sessions = [s for s in sessions if s.get("title") in ("无标题", "")]
+        non_empty_sessions = [s for s in sessions if s.get("title") not in ("无标题", "")]
 
-    return {"sessions": sessions}
+        # 对非空标题排序
+        non_empty_sessions.sort(
+            key=lambda x: (x.get("title") or "").lower(),
+            reverse=(order == "desc")
+        )
+
+        # 合并：非空标题在前，空标题在后
+        sessions = non_empty_sessions + empty_title_sessions
+    else:
+        # 默认按时间戳排序，None 值排在最后
+        # 分离有时间戳和无时间戳的会话
+        no_timestamp_sessions = [s for s in sessions if s.get("timestamp") is None]
+        with_timestamp_sessions = [s for s in sessions if s.get("timestamp") is not None]
+
+        # 对有时间戳的会话排序
+        with_timestamp_sessions.sort(
+            key=lambda x: x.get("timestamp") or "",
+            reverse=(order == "desc")
+        )
+
+        # 合并：有时间戳的会话在前，无时间戳的在后
+        sessions = with_timestamp_sessions + no_timestamp_sessions
+
+    # 计算总会话数
+    total = len(sessions)
+
+    # 分页
+    paginated_sessions = sessions[offset:offset + limit]
+
+    # 计算总页数
+    pages = (total + limit - 1) // limit if limit > 0 else 0
+
+    return {
+        "sessions": paginated_sessions,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "pages": pages,
+    }
 
 
 @router.get("/projects")
@@ -436,8 +465,11 @@ async def list_project_sessions(project_name: str, page: int = 1, limit: int = 2
         if project_path is None and metadata.get("cwd"):
             project_path = metadata.get("cwd")
 
-    # 按时间戳降序排序
-    sessions.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+    # 按时间戳降序排序，None 值排在最后
+    no_timestamp_sessions = [s for s in sessions if s.get("timestamp") is None]
+    with_timestamp_sessions = [s for s in sessions if s.get("timestamp") is not None]
+    with_timestamp_sessions.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+    sessions = with_timestamp_sessions + no_timestamp_sessions
 
     # 使用真实路径，如果无法获取则使用解码后的目录名
     if project_path is None:
@@ -890,3 +922,55 @@ async def get_project_questions(
         },
         "project_path": project_path,
     }
+
+
+class DeleteSessionResponse(BaseModel):
+    """删除会话响应"""
+    success: bool
+    message: str
+    session_id: str
+
+
+@router.delete("/sessions/{session_id}", response_model=DeleteSessionResponse)
+async def delete_session(
+    session_id: str,
+    current_user: Optional[any] = Depends(get_current_user_optional),
+):
+    """
+    删除会话文件及其元数据缓存
+
+    支持可选认证：
+    - 已认证用户：可以删除会话（未来扩展用户级权限）
+    - 匿名用户：可以删除会话
+    """
+    # 记录用户信息
+    if current_user:
+        logger.info(f"删除会话 - 用户: {current_user.username} (ID: {current_user.id}), session_id: {session_id}")
+
+    # 查找会话文件
+    session_file = find_session_file(session_id)
+
+    if not session_file:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    try:
+        # 获取项目目录并使缓存失效
+        project_dir = session_file.parent
+        cache = MetadataCache(project_dir)
+        cache.invalidate(session_file)
+
+        # 删除会话文件
+        session_file.unlink()
+
+        # 同步清理内存中的活跃会话（如果存在）
+        await session_manager.remove_session(session_id)
+
+        logger.info(f"已删除会话文件: {session_file}")
+        return DeleteSessionResponse(
+            success=True,
+            message="会话已删除",
+            session_id=session_id,
+        )
+    except Exception as e:
+        logger.error(f"删除会话失败: {e}")
+        raise HTTPException(status_code=500, detail=f"删除会话失败: {str(e)}")

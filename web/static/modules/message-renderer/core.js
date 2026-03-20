@@ -136,6 +136,15 @@ const MessageRendererCore = {
         console.log('[displayHistoryMessages] 开始渲染历史消息:', messages.length, '条消息');
         console.log('[displayHistoryMessages] 消息详情:', messages);
 
+        // 确保 outputEl 存在
+        if (!runner.outputEl) {
+            runner.outputEl = document.getElementById('output-container-wrapper');
+        }
+        if (!runner.outputEl) {
+            console.error('[displayHistoryMessages] 找不到输出容器');
+            return;
+        }
+
         // 使用 runner.state.sessionId 加载折叠状态
         const sessionId = runner.state.sessionId;
         this._loadCollapseState(sessionId);
@@ -335,16 +344,27 @@ const MessageRendererCore = {
         } else if (type === 'info') {
             messageClass += ' message-info';
         } else if (type === 'ask_user_question') {
-            messageClass += ' message-ask_user_question';
+            messageClass += ' message-ask-question';
         }
 
         msgEl.className = messageClass;
 
+        // 根据消息类型决定是否显示时间戳
+        // text 和 thinking 类型不显示时间戳（实时流式消息，避免频繁更新造成视觉干扰）
+        const showTimestamp = type !== 'text' && type !== 'thinking';
         const timeStr = Utils.formatTime(timestamp);
-        msgEl.innerHTML = `
-            <span class="timestamp">${timeStr}</span>
-            <span class="content">${Utils.escapeHtml(content)}</span>
-        `;
+
+        // 根据是否显示时间戳构建不同的 HTML 结构
+        if (showTimestamp) {
+            msgEl.innerHTML = `
+                <span class="timestamp">${timeStr}</span>
+                <span class="content">${Utils.escapeHtml(content)}</span>
+            `;
+        } else {
+            msgEl.innerHTML = `
+                <span class="content">${Utils.escapeHtml(content)}</span>
+            `;
+        }
 
         messagesContainer.appendChild(msgEl);
 

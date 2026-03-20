@@ -674,7 +674,186 @@ const Questions = {
         } catch (error) {
             return '未知时间';
         }
-    }
+    },
+
+    /**
+     * 显示问答卡片对话框
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {Object} question - 问题数据
+     * @param {Function} onAnswer - 答案回调函数
+     */
+    showQuestionCard(runner, question, onAnswer) {
+        const questionText = question.question_text || '请回答问题';
+        const questionType = question.type || 'single_choice';
+        const options = question.options || [];
+
+        // 构建选项 HTML
+        let optionsHtml = '';
+        if (options.length > 0) {
+            optionsHtml = options.map((opt, idx) => `
+                <div class="question-option" data-value="${Utils.escapeHtml(opt.id || String(idx))}">
+                    <input type="${questionType === 'single_choice' ? 'radio' : 'checkbox'}"
+                           name="question_option"
+                           id="q_option_${idx}"
+                           value="${Utils.escapeHtml(opt.id || String(idx))}">
+                    <label for="q_option_${idx}">
+                        <span class="option-label">${Utils.escapeHtml(opt.label || opt.description || '选项' + (idx + 1))}</span>
+                        ${opt.description ? `<span class="option-desc">${Utils.escapeHtml(opt.description)}</span>` : ''}
+                    </label>
+                </div>
+            `).join('');
+        }
+
+        // 创建对话框
+        const dialog = document.createElement('div');
+        dialog.className = 'question-dialog-overlay';
+        dialog.innerHTML = `
+            <div class="question-dialog">
+                <div class="question-dialog-header">
+                    <span class="question-icon">❓</span>
+                    <span class="question-title">${question.header || '需要您的回答'}</span>
+                </div>
+                <div class="question-dialog-body">
+                    <div class="question-text">${Utils.escapeHtml(questionText)}</div>
+                    ${question.description ? `<div class="question-description">${Utils.escapeHtml(question.description)}</div>` : ''}
+                    <div class="question-options">${optionsHtml}</div>
+                    ${questionType !== 'text_input' ? '' : `
+                        <div class="question-text-input">
+                            <textarea id="question_custom_answer" rows="3" placeholder="请输入您的回答..."></textarea>
+                        </div>
+                    `}
+                </div>
+                <div class="question-dialog-footer">
+                    <button class="btn btn-primary question-submit">确定</button>
+                    <button class="btn btn-secondary question-cancel">取消</button>
+                </div>
+            </div>
+        `;
+
+        // 添加样式（如果还没有）
+        this._injectQuestionDialogStyles();
+
+        // 添加到 body
+        document.body.appendChild(dialog);
+
+        // 绑定事件
+        const submitBtn = dialog.querySelector('.question-submit');
+        const cancelBtn = dialog.querySelector('.question-cancel');
+
+        submitBtn.addEventListener('click', () => {
+            let answer = null;
+
+            if (questionType === 'text_input') {
+                answer = dialog.querySelector('#question_custom_answer')?.value;
+            } else if (questionType === 'multiple_choice') {
+                const checked = dialog.querySelectorAll('input[name="question_option"]:checked');
+                answer = Array.from(checked).map(cb => cb.value);
+            } else {
+                const checked = dialog.querySelector('input[name="question_option"]:checked');
+                answer = checked ? checked.value : null;
+            }
+
+            if (answer !== null && answer !== '') {
+                document.body.removeChild(dialog);
+                onAnswer(answer);
+            } else {
+                alert('请选择一个选项或输入回答');
+            }
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            document.body.removeChild(dialog);
+            onAnswer(false);
+        });
+
+        // ESC 键关闭
+        const escHandler = (e) => {
+            if (e.key === 'Escape') {
+                document.body.removeChild(dialog);
+                document.removeEventListener('keydown', escHandler);
+                onAnswer(false);
+            }
+        };
+        document.addEventListener('keydown', escHandler);
+    },
+
+    /**
+     * 注入问答对话框样式
+     * @private
+     */
+    _injectQuestionDialogStyles() {
+        if (document.getElementById('question-dialog-styles')) return;
+
+        const styles = document.createElement('style');
+        styles.id = 'question-dialog-styles';
+        styles.textContent = `
+            .question-dialog-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 10000;
+            }
+            .question-dialog {
+                background: var(--bg-primary, #fff);
+                border-radius: 12px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+                max-width: 500px;
+                width: 90%;
+                max-height: 80vh;
+                overflow: auto;
+            }
+            .question-dialog-header {
+                padding: 16px 20px;
+                border-bottom: 1px solid var(--border-color, #e5e7eb);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            .question-icon { font-size: 20px; }
+            .question-title { font-weight: 600; font-size: 16px; }
+            .question-dialog-body { padding: 20px; }
+            .question-text { font-size: 15px; line-height: 1.6; margin-bottom: 12px; }
+            .question-description { font-size: 13px; color: #666; margin-bottom: 16px; }
+            .question-options { display: flex; flex-direction: column; gap: 8px; }
+            .question-option {
+                display: flex;
+                align-items: flex-start;
+                gap: 8px;
+                padding: 10px 12px;
+                border: 1px solid var(--border-color, #e5e7eb);
+                border-radius: 8px;
+                cursor: pointer;
+                transition: background 0.2s;
+            }
+            .question-option:hover { background: var(--bg-hover, #f3f4f6); }
+            .question-option input { margin-top: 3px; }
+            .question-option label { flex: 1; cursor: pointer; }
+            .option-label { font-weight: 500; }
+            .option-desc { display: block; font-size: 12px; color: #666; margin-top: 2px; }
+            .question-text-input textarea {
+                width: 100%;
+                padding: 10px;
+                border: 1px solid var(--border-color, #e5e7eb);
+                border-radius: 8px;
+                font-size: 14px;
+                resize: vertical;
+            }
+            .question-dialog-footer {
+                padding: 16px 20px;
+                border-top: 1px solid var(--border-color, #e5e7eb);
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+            }
+        `;
+        document.head.appendChild(styles);
+    },
 };
 
 // 导出到全局命名空间

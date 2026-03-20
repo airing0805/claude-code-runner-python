@@ -21,6 +21,7 @@ from app.auth import get_current_user_optional
 from app.claude_runner import ClaudeCodeClient
 from app.claude_runner.client import MessageType, PermissionMode
 from app.routers.session_manager import session_manager, SessionInfo
+from app.services.path_utils import get_project_dir_name
 
 router = APIRouter(prefix="/api/task", tags=["task"])
 
@@ -28,28 +29,40 @@ router = APIRouter(prefix="/api/task", tags=["task"])
 CLAUDE_DIR = Path.home() / ".claude"
 
 
-def get_project_dir_name(project_path: str) -> str:
+def get_latest_session_id(working_dir: str) -> str | None:
     """
-    根据项目路径生成目录名（与 Claude Agent SDK 一致）
+    获取指定工作目录下的最近会话ID
 
-    SDK 使用的命名规则：
-    - Windows: E:\\workspaces_2026\\project → E--workspaces-2026-project
-    - Unix: /home/user/project → -home-user-project
-    - 盘符后的冒号转换为 --
-    - 路径分隔符和下划线都转换为 -
+    Args:
+        working_dir: 工作目录路径
+
+    Returns:
+        最近会话的ID，如果没有则返回None
     """
-    abs_path = Path(project_path).resolve()
-    path_str = str(abs_path)
+    if not working_dir:
+        return None
 
-    # Windows 路径处理
-    if len(path_str) >= 2 and path_str[1] == ":":
-        # E:\path → E--path (从索引 3 跳过 "E:\")
-        drive = path_str[0].upper()
-        rest = path_str[3:].replace("\\", "-").replace("/", "-").replace("_", "-")
-        return f"{drive}--{rest}"
-    else:
-        # Unix 路径: /home/user → -home-user
-        return path_str.replace("\\", "-").replace("/", "-").replace("_", "-")
+    try:
+        project_dir_name = get_project_dir_name(working_dir)
+        project_dir = CLAUDE_DIR / "projects" / project_dir_name
+
+        if not project_dir.exists():
+            return None
+
+        # 查找最新的会话文件（按修改时间排序）
+        session_files = list(project_dir.glob("*.jsonl"))
+        if not session_files:
+            return None
+
+        # 按修改时间降序排序
+        session_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+
+        # 返回最新的会话ID（去掉.jsonl后缀）
+        return session_files[0].stem
+
+    except Exception as e:
+        logger.warning(f"获取最近会话ID失败: {e}")
+        return None
 
 
 async def save_user_message_to_session(
@@ -134,20 +147,28 @@ def check_session_file_valid(session_id: str, cwd: str) -> bool:
     跳过 queue-operation 等非消息类型的行，找到第一条真正的用户消息或助手消息来验证。
     兼容旧格式会话文件（第一行可能是 queue-operation）。
 
+    v12.0.0.6: 在所有项目目录中查找会话文件，而不仅仅是 cwd 对应的目录。
+    这修复了当用户的工作目录与会话文件所在的项目目录不匹配时，会话无法恢复的问题。
+
     Args:
         session_id: 会话 ID
-        cwd: 工作目录
+        cwd: 工作目录（用于获取候选目录，但不会限制搜索范围）
 
     Returns:
         bool: 会话文件是否有效
     """
     try:
+        # v12.0.0.6: 首先尝试在 cwd 对应的目录中查找
         project_hash = get_project_dir_name(cwd)
         session_file = CLAUDE_DIR / "projects" / project_hash / f"{session_id}.jsonl"
 
+        # 如果在 cwd 目录下没找到，尝试在所有项目目录中查找
         if not session_file.exists():
-            logger.info(f"会话文件不存在: {session_file}")
-            return False
+            session_file = _find_session_file_in_all_projects(session_id)
+            if session_file is None:
+                logger.info(f"会话文件不存在: session_id={session_id}")
+                return False
+            logger.info(f"会话文件在其他项目目录中找到: {session_file}")
 
         # 检查文件是否为空
         if session_file.stat().st_size == 0:
@@ -194,12 +215,38 @@ def check_session_file_valid(session_id: str, cwd: str) -> bool:
         return False
 
 
+def _find_session_file_in_all_projects(session_id: str) -> Optional[Path]:
+    """
+    在所有项目目录中查找会话文件
+
+    Args:
+        session_id: 会话 ID
+
+    Returns:
+        Path | None: 会话文件路径，如果找不到则返回 None
+    """
+    projects_dir = CLAUDE_DIR / "projects"
+    if not projects_dir.exists():
+        return None
+
+    for project_dir in projects_dir.iterdir():
+        if not project_dir.is_dir():
+            continue
+        # 尝试直接匹配文件名
+        session_file = project_dir / f"{session_id}.jsonl"
+        if session_file.exists():
+            return session_file
+
+    return None
+
+
 class TaskRequest(BaseModel):
     """任务请求"""
     prompt: str
     working_dir: Optional[str] = None
     tools: Optional[list[str]] = None
-    resume: Optional[str] = None
+    resume: Optional[str] = None  # 会话ID，用于恢复指定会话
+    continue_conversation: bool = False  # 是否延续最近会话
     new_session: bool = False  # 是否创建新会话（忽略 resume）
     permission_mode: PermissionMode = "default"
 
@@ -237,6 +284,8 @@ class SessionStatusResponse(BaseModel):
     is_waiting: bool
     pending_question_id: Optional[str] = None
     created_at: float
+    last_activity: float  # 最后活动时间
+    cwd: Optional[str] = None  # 工作目录
 
 
 class NewSessionRequest(BaseModel):
@@ -324,36 +373,50 @@ async def run_task_stream(
 
     # 会话 ID 确定逻辑
     # 优先级：1. new_session=True → 创建新会话
-    #         2. resume 参数有效 → 检查内存会话和文件有效性
-    #         3. 创建新会话
+    #         2. continue_conversation=True → 获取最近会话并恢复
+    #         3. resume 参数有效 → 检查内存会话和文件有效性
+    #         4. 创建新会话
     existing_session = None
     can_resume = False  # 是否可以真正恢复会话
+    resume_to_use = task.resume  # 实际使用的 resume 参数
+
+    # v12.0.0.4: 处理 continue_conversation 参数
+    if task.continue_conversation and not task.resume:
+        # 用户请求延续最近会话，获取最近会话ID
+        latest_session_id = get_latest_session_id(cwd)
+        if latest_session_id:
+            resume_to_use = latest_session_id
+            logger.info(f"[SSE] continue_conversation=True，获取最近会话: session_id={resume_to_use}")
+        else:
+            logger.info(f"[SSE] continue_conversation=True，但无最近会话，创建新会话")
 
     if task.new_session:
         # 用户明确请求新会话，忽略 resume 参数
         session_id = str(uuid.uuid4())
+        resume_to_use = None
         logger.info(f"[SSE] new_session=True，创建新会话: session_id={session_id}")
-    elif task.resume:
+    elif resume_to_use:
         # 尝试恢复已有会话
-        existing_session = await session_manager.get_session(task.resume)
+        existing_session = await session_manager.get_session(resume_to_use)
 
         # 检查会话文件是否有效
-        session_file_valid = check_session_file_valid(task.resume, cwd)
-        logger.info(f"[SSE] 会话文件有效性检查: session_id={task.resume}, valid={session_file_valid}")
+        session_file_valid = check_session_file_valid(resume_to_use, cwd)
+        logger.info(f"[SSE] 会话文件有效性检查: session_id={resume_to_use}, valid={session_file_valid}")
 
         if existing_session and session_file_valid:
             # 内存会话存在且文件有效，可以恢复
-            session_id = task.resume
+            session_id = resume_to_use
             can_resume = True
             logger.info(f"[SSE] 恢复已有会话: session_id={session_id}, is_waiting={existing_session.is_waiting}")
         elif session_file_valid:
             # 文件有效但内存会话不存在（服务重启后的情况），也可以恢复
-            session_id = task.resume
+            session_id = resume_to_use
             can_resume = True
             logger.info(f"[SSE] 恢复文件中的会话: session_id={session_id}")
         else:
             # 会话文件无效，创建新会话
             session_id = str(uuid.uuid4())
+            resume_to_use = None
             existing_session = None
             logger.info(f"[SSE] 会话文件无效，创建新会话: session_id={session_id}")
     else:
@@ -365,7 +428,7 @@ async def run_task_stream(
     client = ClaudeCodeClient(
         working_dir=cwd,
         allowed_tools=task.tools,
-        resume=task.resume if can_resume else None,
+        resume=resume_to_use if can_resume else None,
         permission_mode=task.permission_mode,
     )
 
@@ -389,8 +452,16 @@ async def run_task_stream(
         """SSE 事件生成器"""
         # 用于跟踪 SDK 返回的真实 session_id
         sdk_session_id = None
+        # 跟踪是否已发送 task_start 事件（确保只发送一次）
+        task_started = False
+        # 跟踪 COMPLETE 消息是否是错误
+        is_error_complete = False
 
         try:
+            # 状态转换：任务开始执行 (PENDING -> RUNNING)
+            await session_manager.transition_state(session_id, "task_start")
+            task_started = True
+
             # 流式接收消息
             async for msg in client.run_stream(task.prompt):
                 is_waiting = client.is_waiting_answer()
@@ -404,6 +475,10 @@ async def run_task_stream(
                     if sdk_sid:
                         sdk_session_id = sdk_sid
                         logger.info(f"[SSE] SDK 返回的 session_id: {sdk_sid}")
+                    # 检查 COMPLETE 是否是错误完成
+                    is_error_complete = msg.metadata.get("is_error", False)
+                    if is_error_complete:
+                        logger.info(f"[SSE] 任务错误完成: session_id={session_id}")
 
                 # 使用 SDK 的 session_id（如果有的话），否则使用后端生成的
                 effective_session_id = sdk_session_id or session_id
@@ -491,25 +566,40 @@ async def run_task_stream(
 
                 # ========== 调试日志：发送的完整 SSE 消息 ==========
                 logger.info(f"[SSE] >>>>> 发送消息: session_id={session_id}, type={msg.type.value}, content_length={len(msg.content or '')}")
-                if msg.type.value == "ask_user_question" and msg.question:
+                if msg.type == MessageType.ASK_USER_QUESTION and msg.question:
                     logger.info(f"[SSE] >>>>> 完整 question 数据: {json.dumps(data.get('question', {}), ensure_ascii=False, indent=2)}")
                 logger.info(f"[SSE] >>>>> 完整消息内容: {json.dumps(data, ensure_ascii=False, indent=2)[:2000]}")
 
                 yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
-            # 任务完成，保留会话以支持多轮对话
-            # 不再自动删除会话，用户可以通过"新会话"按钮明确结束
-            logger.info(f"[SSE] 任务完成，保留会话: session_id={session_id}")
-            # 会话保留，支持用户继续对话
-            # 将在用户点击"新会话"或超时时清理
+            # 任务完成，根据结果更新会话状态
+            if is_error_complete:
+                # 任务错误完成 (RUNNING/WAITING -> FAILED)
+                await session_manager.transition_state(session_id, "task_error")
+                logger.info(f"[SSE] 任务错误完成，状态已更新为 failed: session_id={session_id}")
+            else:
+                # 任务正常完成 (RUNNING -> COMPLETED)
+                await session_manager.transition_state(session_id, "task_complete")
+                logger.info(f"[SSE] 任务完成，状态已更新为 completed: session_id={session_id}")
+
+            # 保留会话以支持多轮对话
+            # 用户可以通过"新会话"按钮明确结束
+            # 会话将在用户点击"新会话"或超时时清理
 
         except Exception as e:
-            # 发生错误时清理会话
+            # 发生错误时更新状态并清理会话
             import traceback
             error_trace = traceback.format_exc()
-            logger.error(f"[SSE] 发生错误，删除会话: session_id={session_id}, error={e}")
+            logger.error(f"[SSE] 发生错误: session_id={session_id}, error={e}")
             logger.error(f"[SSE] 错误堆栈:\n{error_trace}")
+
+            # 状态转换：(RUNNING/WAITING -> FAILED)
+            if task_started:
+                await session_manager.transition_state(session_id, "task_error")
+
+            # 清理会话
             await session_manager.remove_session(session_id)
+
             error_data = {
                 "type": "error",
                 "content": f"执行错误: {str(e)}",
@@ -591,11 +681,19 @@ async def submit_answer(answer: QuestionAnswerRequest):
 
     # 验证 question_id 是否匹配
     pending_question_id = client.get_pending_question_id()
-    if pending_question_id and pending_question_id != answer.question_id:
+    if pending_question_id is not None and pending_question_id != answer.question_id:
+        # 只有当 pending_question_id 存在且不匹配时才报错
         logger.warning(f"[Answer] question_id 不匹配: 期望={pending_question_id}, 收到={answer.question_id}")
         raise HTTPException(
             status_code=400,
             detail=f"question_id 不匹配: 期望 {pending_question_id}, 收到 {answer.question_id}"
+        )
+    elif pending_question_id is None:
+        # SDK 不支持 question 跟踪时，pending_question_id 为 None
+        # 这种情况下跳过验证，但记录日志供调试参考
+        logger.warning(
+            f"[Answer] ⚠️ SDK 不支持 question 跟踪，无法验证 question_id={answer.question_id}。"
+            f"请确认答案对应的 question 是否正确。"
         )
 
     # 提交答案（带上原始问题数据，用于构建 toolUseResult）
@@ -637,6 +735,8 @@ async def get_session_status(session_id: str):
         is_waiting=session_info.is_waiting,
         pending_question_id=session_info.pending_question_id,
         created_at=session_info.created_at,
+        last_activity=session_info.last_activity,
+        cwd=session_info.cwd,
     )
 
 
@@ -654,6 +754,8 @@ async def list_sessions():
             is_waiting=s.is_waiting,
             pending_question_id=s.pending_question_id,
             created_at=s.created_at,
+            last_activity=s.last_activity,
+            cwd=s.cwd,
         )
         for s in sessions
     ]

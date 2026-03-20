@@ -577,7 +577,9 @@ const History = {
             // v12: 不再需要创建 Tab，直接渲染消息
             // 渲染历史消息
             if (typeof MessageRenderer !== 'undefined' && messages.length > 0) {
-                MessageRenderer.renderMessages(runner, messages);
+                // 设置 runner.outputEl
+                runner.outputEl = document.getElementById('output-container-wrapper');
+                MessageRenderer.displayHistoryMessages(runner, messages);
             }
 
             // 填充会话信息
@@ -601,6 +603,23 @@ const History = {
                 }
             }
             Session.setSessionEditable(runner, false);
+
+            // v12.0.0.4: 锁定工作空间
+            runner.state.workspaceLocked = true;
+            if (runner.workspaceCombo) {
+                runner.workspaceCombo.setDisabled(true);
+            }
+
+            // v12.0.0.4: 禁用历史会话下拉
+            if (runner.historySessionCombo) {
+                runner.historySessionCombo.disable();
+            }
+
+            // v12.0.0.4: 禁用继续会话复选框
+            if (runner.continueConversationCheckbox) {
+                runner.continueConversationCheckbox.disabled = true;
+                runner.continueConversationCheckbox.checked = false;
+            }
         } catch (error) {
             console.error('加载会话历史失败:', error);
             // 移除加载提示
@@ -611,6 +630,17 @@ const History = {
             runner.resumeInput.title = sessionId;
             Session.setSessionEditable(runner, false);
         }
+    },
+
+    /**
+     * 加载会话消息（供外部调用）
+     * v12.0.0.4
+     * @param {Object} runner - ClaudeCodeRunner 实例
+     * @param {string} sessionId - 会话 ID
+     */
+    async loadSessionMessages(runner, sessionId) {
+        // 直接调用 continueSession 加载消息
+        await this.continueSession(runner, sessionId);
     },
 
     /**

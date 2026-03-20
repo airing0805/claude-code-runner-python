@@ -7,10 +7,12 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🤖</text></svg>">
 <script src="/static/components/toolsMultiselect.js"></script>
     <script src="/static/components/workspaceCombo.js"></script>
+    <script src="/static/components/historySessionCombo.js"></script>
 <script src="/static/components/historyDrawer.js"></script>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/css/auth.css">
     <link rel="stylesheet" href="/static/css/workspaceCombo.css">
+    <link rel="stylesheet" href="/static/css/historySessionCombo.css">
     <link rel="stylesheet" href="/static/css/historyDrawer.css">
     <link rel="stylesheet" href="/static/css/themeSwitcher.css">
     <link rel="stylesheet" href="/static/css/migration.css">
@@ -97,8 +99,7 @@
 
             <div class="nav-footer">
                 <div class="auth-section" id="auth-section">
-                    <button class="auth-btn" id="auth-login-btn">登录</button>
-                    <button class="auth-btn auth-btn-primary" id="auth-register-btn">注册</button>
+                    <!-- 登录/注册按钮已移除 -->
                 </div>
                 <button class="nav-toggle" id="nav-toggle" title="收起/展开菜单">◀</button>
             </div>
@@ -122,6 +123,13 @@
                             <span class="info-label">工作目录</span>
                             <div id="workspace-combo-container" class="workspace-combo-container">
                                 <!-- WorkspaceCombo 组件将在此动态创建 -->
+                            </div>
+                        </span>
+                        <!-- v12.0.0.4 - 历史会话下拉框 -->
+                        <span class="info-item">
+                            <span class="info-label">历史会话</span>
+                            <div id="history-session-combo-container" class="history-session-combo-container">
+                                <!-- HistorySessionCombo 组件将在此动态创建 -->
                             </div>
                         </span>
                         <span class="info-item">
@@ -167,13 +175,10 @@
                         </span>
                     </div>
 
-                    <!-- 中间：空白区域 -->
-                    <div class="session-middle-spacer"></div>
-
                     <!-- 底部：对话区和输入区 -->
                     <div class="session-bottom-container">
                         <!-- 对话输出区 -->
-                        <div id="output-container-wrapper"></div>
+                        <div id="output-container-wrapper" class="output-container"></div>
 
                         <!-- 统计信息（悬浮显示） -->
                         <div class="stats-floating" id="task-stats-floating" style="display: none;">
@@ -377,7 +382,7 @@
                                     </div>
                                     <div class="status-item">
                                         <span class="status-label">权限模式</span>
-                                        <span class="status-value" id="permission-mode">-</span>
+                                        <span class="status-value" id="permission-mode-display">-</span>
                                     </div>
                                     <div class="status-item status-item-full">
                                         <span class="status-label">可用工具</span>

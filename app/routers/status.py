@@ -1,8 +1,11 @@
 """状态和工具相关 API"""
 
 import asyncio
+import os
+from pathlib import Path
 
 from fastapi import APIRouter
+from dotenv import load_dotenv
 
 router = APIRouter(prefix="/api", tags=["status"])
 
@@ -12,10 +15,29 @@ active_tasks: dict[str, asyncio.Task] = {}
 
 @router.get("/status")
 async def get_status(working_dir: str = "."):
-    """获取服务状态"""
+    """
+    获取服务状态
+
+    v12.0.0.7: 返回实际的工作目录，而不是传入的参数
+    """
+    # 加载环境变量
+    load_dotenv()
+
+    # 获取实际的工作目录
+    # 优先使用环境变量 WORKING_DIR
+    actual_working_dir = os.getenv("WORKING_DIR")
+
+    # 如果环境变量未设置，使用传入的 working_dir 并解析为绝对路径
+    if not actual_working_dir:
+        if working_dir and working_dir != ".":
+            actual_working_dir = working_dir
+        else:
+            # 使用当前工作目录
+            actual_working_dir = str(Path.cwd())
+
     return {
         "status": "running",
-        "working_dir": working_dir,
+        "working_dir": actual_working_dir,
         "active_tasks": len(active_tasks),
     }
 

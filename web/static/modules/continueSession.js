@@ -13,13 +13,25 @@ class ContinueSessionManager {
     }
 
     /**
+     * 获取当前工作目录
+     * @returns {string} 当前工作目录
+     */
+    static _getCurrentWorkingDir() {
+        // v12: 优先使用 state.workspace，其次使用 workspaceCombo，最后使用 workingDirInput
+        return this.app.state?.workspace ||
+               this.app.workspaceCombo?.getValue?.() ||
+               this.app.workingDirInput?.value ||
+               '.';
+    }
+
+    /**
      * 获取最近的会话ID
      * @param {string} workingDir - 工作目录（可选，默认使用当前输入的工作目录）
      * @returns {Promise<string|null>} 最近会话ID或null
      */
     static async getLatestSessionId(workingDir = null) {
         try {
-            const dir = workingDir || this.app.workingDirInput?.value || '.';
+            const dir = workingDir || this._getCurrentWorkingDir();
             const encodedDir = encodeURIComponent(dir);
             const response = await fetch(`/api/sessions?working_dir=${encodedDir}&limit=1`);
             if (!response.ok) {
@@ -57,7 +69,8 @@ class ContinueSessionManager {
      */
     static getCachedLatestSessionId() {
         try {
-            const workingDir = this.app.workingDirInput?.value || '.';
+            // v12.0.0.6: 使用统一的 _getCurrentWorkingDir() 方法获取工作目录
+            const workingDir = this._getCurrentWorkingDir();
             const cacheKey = this._getCacheKey(workingDir);
             const cached = localStorage.getItem(cacheKey);
             const timestampKey = `${cacheKey}_timestamp`;
@@ -81,7 +94,8 @@ class ContinueSessionManager {
      */
     static cacheLatestSessionId(sessionId) {
         try {
-            const workingDir = this.app.workingDirInput?.value || '.';
+            // v12.0.0.6: 使用统一的 _getCurrentWorkingDir() 方法获取工作目录
+            const workingDir = this._getCurrentWorkingDir();
             const cacheKey = this._getCacheKey(workingDir);
             const timestampKey = `${cacheKey}_timestamp`;
             localStorage.setItem(cacheKey, sessionId);
@@ -96,7 +110,7 @@ class ContinueSessionManager {
      * @param {boolean} forceRefresh - 是否强制刷新（忽略缓存）
      */
     static async updateContinueConversationState(forceRefresh = false) {
-        const workingDir = this.app.workingDirInput?.value || '.';
+        const workingDir = this._getCurrentWorkingDir();
 
         // 首先尝试从缓存获取（除非强制刷新）
         let latestSessionId = null;
@@ -112,21 +126,31 @@ class ContinueSessionManager {
             }
         }
 
-        // 更新UI状态
+        // 更新UI状态 - 添加安全检查
+        const checkbox = this.app.continueConversationCheckbox;
+        const resumeInput = this.app.resumeInput;
+
+        if (!checkbox) {
+            console.warn('[继续会话] continueConversationCheckbox 未找到');
+            return;
+        }
+
         if (latestSessionId) {
-            this.app.continueConversationCheckbox.disabled = false;
-            this.app.continueConversationCheckbox.title = `延续最近会话的对话历史 (${workingDir})`;
+            checkbox.disabled = false;
+            checkbox.title = `延续最近会话的对话历史 (${workingDir})`;
             // 如果复选框已勾选，更新resume字段
-            if (this.app.continueConversationCheckbox.checked) {
-                this.app.resumeInput.value = latestSessionId;
-                this.app.resumeInput.title = latestSessionId;
+            if (checkbox.checked && resumeInput) {
+                resumeInput.value = latestSessionId;
+                resumeInput.title = latestSessionId;
             }
         } else {
-            this.app.continueConversationCheckbox.disabled = true;
-            this.app.continueConversationCheckbox.checked = false;
-            this.app.continueConversationCheckbox.title = `无历史会话可继续 (${workingDir})`;
-            this.app.resumeInput.value = '';
-            this.app.resumeInput.title = '';
+            checkbox.disabled = true;
+            checkbox.checked = false;
+            checkbox.title = `无历史会话可继续 (${workingDir})`;
+            if (resumeInput) {
+                resumeInput.value = '';
+                resumeInput.title = '';
+            }
         }
     }
 
@@ -135,9 +159,12 @@ class ContinueSessionManager {
      * @param {boolean} checked - 复选框是否勾选
      */
     static async handleContinueConversationChange(checked) {
+        const checkbox = this.app.continueConversationCheckbox;
+        const resumeInput = this.app.resumeInput;
+
         if (checked) {
             // 获取当前工作目录
-            const workingDir = this.app.workingDirInput?.value || '.';
+            const workingDir = this._getCurrentWorkingDir();
 
             // 勾选时，获取最近会话ID并填充 resume 字段
             let latestSessionId = this.getCachedLatestSessionId();
@@ -150,20 +177,33 @@ class ContinueSessionManager {
             }
 
             if (latestSessionId) {
-                this.app.resumeInput.value = latestSessionId;
-                this.app.resumeInput.title = latestSessionId;
+                if (resumeInput) {
+                    resumeInput.value = latestSessionId;
+                    resumeInput.title = latestSessionId;
+                }
                 console.log('[继续会话] 已勾选，自动填充会话ID:', latestSessionId);
             } else {
                 // 没有最近的会话ID，取消勾选并提示
-                this.app.continueConversationCheckbox.checked = false;
-                Task.addMessage(this.app, 'text', '⚠️ 没有可继续的会话，请先执行一个任务');
-                this.app.resumeInput.value = '';
-                this.app.resumeInput.title = '';
+                if (checkbox) {
+                    checkbox.checked = false;
+                }
+                // 安全调用 Task.addMessage
+                if (typeof Task !== 'undefined' && Task.addMessage) {
+                    Task.addMessage(this.app, 'text', '⚠️ 没有可继续的会话，请先执行一个任务');
+                } else {
+                    console.warn('[继续会话] 没有可继续的会话，请先执行一个任务');
+                }
+                if (resumeInput) {
+                    resumeInput.value = '';
+                    resumeInput.title = '';
+                }
             }
         } else {
             // 取消勾选时，清空 resume 字段
-            this.app.resumeInput.value = '';
-            this.app.resumeInput.title = '';
+            if (resumeInput) {
+                resumeInput.value = '';
+                resumeInput.title = '';
+            }
             console.log('[继续会话] 已取消，清空会话ID');
         }
     }
@@ -172,14 +212,19 @@ class ContinueSessionManager {
      * 处理工作目录变更
      */
     static async handleWorkingDirChange() {
-        const newDir = this.app.workingDirInput?.value || '.';
+        const newDir = this._getCurrentWorkingDir();
         console.log('[继续会话] 工作目录已变更:', newDir);
 
+        const checkbox = this.app.continueConversationCheckbox;
+        const resumeInput = this.app.resumeInput;
+
         // 清空当前的 resume 值（因为会话可能不在新目录中）
-        if (this.app.continueConversationCheckbox?.checked) {
-            this.app.continueConversationCheckbox.checked = false;
-            this.app.resumeInput.value = '';
-            this.app.resumeInput.title = '';
+        if (checkbox?.checked) {
+            checkbox.checked = false;
+            if (resumeInput) {
+                resumeInput.value = '';
+                resumeInput.title = '';
+            }
         }
 
         // 强制刷新继续会话状态（获取新目录的最近会话）
@@ -191,9 +236,10 @@ class ContinueSessionManager {
      * @param {boolean} enabled - 是否启用复选框
      */
     static updateContinueConversationCheckbox(enabled) {
-        if (this.app.continueConversationCheckbox) {
-            this.app.continueConversationCheckbox.disabled = !enabled;
-            this.app.continueConversationCheckbox.title = enabled
+        const checkbox = this.app.continueConversationCheckbox;
+        if (checkbox) {
+            checkbox.disabled = !enabled;
+            checkbox.title = enabled
                 ? '延续最近会话的对话历史'
                 : '当前会话模式下不可用';
         }

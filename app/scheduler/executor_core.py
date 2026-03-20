@@ -33,6 +33,7 @@ class ExecutionResult:
     duration_ms: Optional[int] = None
     files_changed: list[str] = field(default_factory=list)
     tools_used: list[str] = field(default_factory=list)
+    model: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -235,6 +236,7 @@ class TaskExecutor:
             task.tools_used = client_result.tools_used
             task.cost_usd = client_result.cost_usd
             task.duration_ms = client_result.duration_ms
+            task.model = client_result.model
 
             return ExecutionResult(
                 success=client_result.success,
@@ -243,6 +245,7 @@ class TaskExecutor:
                 duration_ms=client_result.duration_ms,
                 files_changed=client_result.files_changed,
                 tools_used=client_result.tools_used,
+                model=client_result.model,
                 error=None if client_result.success else client_result.message,
             )
 
@@ -275,6 +278,7 @@ class TaskExecutor:
             {
                 "duration_ms": task.duration_ms,
                 "cost_usd": task.cost_usd,
+                "model": task.model,
                 "files_changed": task.files_changed,
                 "tools_used": task.tools_used,
                 "message": result.message,
@@ -283,8 +287,9 @@ class TaskExecutor:
 
         logger.info(
             f"Task {task.id} completed in {task.duration_ms}ms, "
+            f"model: {task.model or 'N/A'}, "
             f"cost: ${task.cost_usd:.4f}" if task.cost_usd is not None
-            else f"Task {task.id} completed in {task.duration_ms}ms, cost: $0.0000"
+            else f"Task {task.id} completed in {task.duration_ms}ms, model: {task.model or 'N/A'}, cost: $0.0000"
         )
         return result
 

@@ -34,7 +34,14 @@
       "mcp__memory__*",
       "mcp__sequential-thinking__*",
       "mcp__4_5v_mcp__*",
-      "mcp__web_reader__*"
+      "mcp__web_reader__*",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_console_messages",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_type",
+      "mcp__playwright__browser_wait_for"
     ]
   }
 }

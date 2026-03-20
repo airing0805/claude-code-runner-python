@@ -1,0 +1,223 @@
+/**
+ * 历史会话下拉组件样式
+ * v12.0.0.4 - 级联下拉选择
+ */
+
+.history-session-combo {
+    position: relative;
+    display: inline-block !important;
+    min-width: 200px;
+    max-width: 300px;
+    visibility: visible !important;
+}
+
+.history-session-combo-input-group {
+    display: flex;
+    align-items: center;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.history-session-combo-input-group:hover {
+    border-color: #9ca3af;
+}
+
+.history-session-combo.focused .history-session-combo-input-group {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.history-session-combo.disabled .history-session-combo-input-group {
+    background-color: #f3f4f6;
+    border-color: #e5e7eb;
+    cursor: not-allowed;
+}
+
+.history-session-combo-input {
+    flex: 1;
+    padding: 6px 10px;
+    border: none;
+    outline: none;
+    font-size: 13px;
+    background: transparent;
+    color: #374151;
+    cursor: pointer;
+}
+
+.history-session-combo-input:disabled {
+    cursor: not-allowed;
+    color: #9ca3af;
+}
+
+.history-session-combo-input::placeholder {
+    color: #9ca3af;
+}
+
+.history-session-combo-dropdown-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: #6b7280;
+    transition: color 0.2s;
+}
+
+.history-session-combo-dropdown-btn:hover:not(:disabled) {
+    color: #374151;
+}
+
+.history-session-combo-dropdown-btn:disabled {
+    cursor: not-allowed;
+    color: #d1d5db;
+}
+
+.dropdown-icon {
+    font-size: 10px;
+    transition: transform 0.2s;
+}
+
+/* 下拉列表 */
+.history-session-combo-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    display: none;
+}
+
+.history-session-combo-dropdown.open {
+    display: block;
+}
+
+.history-session-combo-dropdown-content {
+    padding: 4px 0;
+}
+
+/* 选项样式 */
+.history-session-combo-option {
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.history-session-combo-option:hover,
+.history-session-combo-option:focus {
+    background-color: #f3f4f6;
+    outline: none;
+}
+
+.history-session-combo-option.selected {
+    background-color: #e0e7ff;
+}
+
+.option-summary {
+    font-size: 13px;
+    color: #374151;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.option-meta {
+    font-size: 11px;
+    color: #9ca3af;
+}
+
+/* 空状态 */
+.history-session-combo-empty {
+    padding: 16px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+/* 加载状态 */
+.history-session-combo-loading {
+    padding: 16px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+/* 禁用状态 */
+.history-session-combo.disabled {
+    opacity: 0.6;
+}
+
+/* 容器样式 */
+.history-session-combo-container {
+    display: inline-block !important;
+    vertical-align: middle;
+    visibility: visible !important;
+}
+
+/* 暗色主题支持 */
+@media (prefers-color-scheme: dark) {
+    .history-session-combo-input-group {
+        border-color: #4b5563;
+        background: #1f2937;
+    }
+
+    .history-session-combo-input-group:hover {
+        border-color: #6b7280;
+    }
+
+    .history-session-combo.focused .history-session-combo-input-group {
+        border-color: #60a5fa;
+    }
+
+    .history-session-combo.disabled .history-session-combo-input-group {
+        background-color: #111827;
+        border-color: #374151;
+    }
+
+    .history-session-combo-input {
+        color: #f3f4f6;
+    }
+
+    .history-session-combo-input:disabled {
+        color: #6b7280;
+    }
+
+    .history-session-combo-dropdown-btn {
+        color: #9ca3af;
+    }
+
+    .history-session-combo-dropdown {
+        background: #1f2937;
+        border-color: #4b5563;
+    }
+
+    .history-session-combo-option:hover,
+    .history-session-combo-option:focus {
+        background-color: #374151;
+    }
+
+    .history-session-combo-option.selected {
+        background-color: #312e81;
+    }
+
+    .option-summary {
+        color: #f3f4f6;
+    }
+
+    .history-session-combo-empty {
+        color: #6b7280;
+    }
+}

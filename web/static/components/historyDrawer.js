@@ -205,8 +205,16 @@ class HistoryDrawer {
         this.showLoading();
 
         try {
+            // 获取当前工作目录（从全局 runner 实例）
+            const runner = window.runner;
+            const workingDir = runner?.workingDirInput?.value || runner?.state?.workspace || '';
+
             // 调用后端 API 获取会话列表
-            const response = await fetch('/api/sessions?limit=50');
+            const url = workingDir
+                ? `/api/sessions?working_dir=${encodeURIComponent(workingDir)}&limit=50`
+                : `/api/sessions?limit=50`;
+
+            const response = await fetch(url);
 
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -216,7 +224,11 @@ class HistoryDrawer {
 
             // 处理响应数据
             if (result.success && Array.isArray(result.data)) {
+                // 格式: { success: true, data: [...] }
                 this.sessions = result.data;
+            } else if (Array.isArray(result.sessions)) {
+                // 格式: { sessions: [...], total: 10, ... } (后端实际返回的格式)
+                this.sessions = result.sessions;
             } else if (Array.isArray(result)) {
                 // 兼容直接返回数组的情况
                 this.sessions = result;
@@ -224,6 +236,7 @@ class HistoryDrawer {
                 this.sessions = [];
             }
 
+            console.log('[HistoryDrawer] 加载会话列表成功，数量:', this.sessions.length);
             this.renderSessions();
 
         } catch (error) {

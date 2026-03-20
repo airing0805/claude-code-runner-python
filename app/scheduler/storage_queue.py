@@ -37,11 +37,31 @@ class QueueStorage(BaseStorage):
         1. 重复 ID：同一 ID 出现多次时，为后续重复条目重新生成 UUID
            注意：只修改 id 字段，绝对不修改 prompt 及其他业务字段
         2. 时间字段格式：将 created_at/started_at/finished_at 统一为 'YYYY-MM-DD HH:MM:SS'
+        3. 兼容 scheduled 格式：将 scheduled.json 格式的任务转换为队列格式
+           - 移除 name, cron, enabled, last_run, next_run, updated_at 等字段
+           - 只保留队列任务需要的字段
         """
         changed = False
         seen_ids: set[str] = set()
 
         for task in tasks:
+            # --- 规则3: 兼容 scheduled 格式 ---
+            # 检测是否是 scheduled 格式：包含 scheduled 相关字段
+            is_scheduled_format = any(f in task for f in ["cron", "name", "scheduled_id", "scheduled_name", "enabled", "last_run", "next_run", "updated_at"])
+            if is_scheduled_format:
+                # scheduled 格式转换为队列格式，移除不需要的字段
+                scheduled_only_fields = ["name", "cron", "enabled", "last_run", "next_run", "updated_at", "scheduled_id", "scheduled_name"]
+                for field in scheduled_only_fields:
+                    if field in task:
+                        task.pop(field)
+                        changed = True
+                # source 字段统一设为 manual
+                if "source" in task:
+                    task["source"] = "manual"
+                    changed = True
+                from .storage_base import logger
+                logger.debug(f"[QueueStorage] 已转换 scheduled 格式任务: id={task.get('id')}")
+
             task_id = task.get("id", "")
             if task_id in seen_ids:
                 new_id = str(uuid.uuid4())

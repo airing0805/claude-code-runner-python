@@ -302,8 +302,8 @@
     background: var(--bg-color);
     border-radius: 8px;
     padding: 16px;
-    min-height: 300px;
-    max-height: 500px;
+    flex: 1;  /* 占据剩余空间 */
+    min-height: 0;  /* 允许缩小 */
     overflow-y: auto;
     font-family: 'Consolas', 'Monaco', monospace;
     font-size: 0.9rem;
@@ -464,7 +464,7 @@
     color: var(--sky-300);
 }
 
-.message-ask_user_question {
+.message-ask-question {
     background: color-mix(in srgb, var(--message-ask-user-question-bg) 20%, transparent); /* 紫色背景 #a855f7 */
     border-left: 3px solid var(--message-ask-user-question-border); /* 紫色边框 #a855f7 */
     color: var(--violet-300);

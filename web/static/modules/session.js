@@ -146,12 +146,30 @@ const Session = {
         // 重置工具配置为默认状态（全选）
         this._resetToolsConfig(runner);
 
-        // 启用"继续会话"复选框
+        // v12.0.0.5: 新会话时取消勾选"继续会话"，确保创建新会话
+        // 修复问题：之前勾选会导致前端发送 new_session=false，后端尝试恢复会话
         if (typeof ContinueSessionManager !== 'undefined') {
             ContinueSessionManager.updateContinueConversationCheckbox(true);
         }
         if (runner.continueConversationCheckbox) {
-            runner.continueConversationCheckbox.checked = false;
+            runner.continueConversationCheckbox.disabled = false;
+            runner.continueConversationCheckbox.checked = false;  // 取消勾选，确保新会话
+        }
+
+        // v12.0.0.4: 重置历史会话下拉组件
+        if (runner.historySessionCombo) {
+            runner.historySessionCombo.clear();
+            runner.historySessionCombo.enable();
+            // 如果有工作空间，重新加载历史会话
+            if (runner.state.workspace) {
+                runner.historySessionCombo.setWorkspace(runner.state.workspace);
+            }
+        }
+
+        // v12.0.0.4: 解锁工作空间
+        runner.state.workspaceLocked = false;
+        if (runner.workspaceCombo) {
+            runner.workspaceCombo.setDisabled(false);
         }
 
         // 允许编辑

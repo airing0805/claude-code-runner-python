@@ -1,8 +1,10 @@
 """Claude Agent SDK 客户端封装 - 支持流式输出"""
 
 import asyncio
+import json
 import logging
 import os
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -39,6 +41,7 @@ class MessageType(Enum):
     THINKING = "thinking"
     ERROR = "error"
     COMPLETE = "complete"
+    ASK_USER_QUESTION = "ask_user_question"  # 用户问答类型
 
 
 class QuestionStatus(Enum):
@@ -104,6 +107,7 @@ class StreamMessage:
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     tool_name: Optional[str] = None
     tool_input: Optional[dict] = None
+    tool_use_id: Optional[str] = None  # 工具调用 ID，用于 tool_use 和 tool_result 配对
     metadata: dict = field(default_factory=dict)
     question: Optional[QuestionData] = None  # 问答数据（SDK 当前不支持）
 
@@ -114,6 +118,7 @@ class TaskResult:
     success: bool
     message: str
     session_id: Optional[str] = None
+    model: Optional[str] = None  # 使用的模型
     cost_usd: Optional[float] = None
     duration_ms: Optional[int] = None
     files_changed: list[str] = field(default_factory=list)
@@ -141,6 +146,7 @@ class ClaudeCodeClient:
         self.permission_mode = permission_mode
         self.resume = resume
         self._session_id: Optional[str] = None  # 会话 ID
+        self._model: Optional[str] = None  # 使用的模型
         self._files_changed: list[str] = []
         self._tools_used: list[str] = []
         # 问答相关状态（SDK 当前不支持问答功能）
@@ -171,15 +177,172 @@ class ClaudeCodeClient:
         )
 
     async def _track_tool_use(self, tool_name: str, tool_input: dict) -> None:
-        """跟踪工具使用"""
+        """跟踪工具使用和文件变更"""
         if tool_name not in self._tools_used:
             self._tools_used.append(tool_name)
 
-        # 跟踪文件变更
+        # 跟踪文件变更 - Write 和 Edit
         if tool_name in ("Write", "Edit"):
             file_path = tool_input.get("file_path", "")
             if file_path and file_path not in self._files_changed:
                 self._files_changed.append(file_path)
+
+        # 跟踪文件变更 - Bash 命令
+        elif tool_name == "Bash":
+            command = tool_input.get("command", "")
+            if command:
+                # 提取 Bash 命令中的文件路径
+                file_paths = self._extract_bash_file_paths(command)
+                for file_path in file_paths:
+                    if file_path and file_path not in self._files_changed:
+                        self._files_changed.append(file_path)
+
+    def _extract_bash_file_paths(self, command: str) -> list[str]:
+        """
+        从 Bash 命令中提取文件路径
+
+        支持的命令模式:
+        - rm <file>
+        - mv <src> <dst>
+        - cp <src> <dst>
+        - echo "..." > <file>
+        - cat ... > <file>
+        - tee <file>
+        - touch <file>
+        - mkdir -p <dir> (不跟踪目录)
+        - install <src> <dst>
+
+        Args:
+            command: Bash 命令字符串
+
+        Returns:
+            文件路径列表
+        """
+        import re
+
+        file_paths: list[str] = []
+        command = command.strip()
+
+        # 重定向模式: > file 或 >> file
+        # 匹配 "anything > file" 或 "anything >> file"
+        redirect_pattern = r'>\s*([^\s>]+)'
+        matches = re.findall(redirect_pattern, command)
+        for match in matches:
+            # 清理引号
+            file_path = match.strip('"\'')
+            if file_path and file_path not in file_paths:
+                file_paths.append(file_path)
+
+        # tee 命令: tee [options] file
+        if command.startswith('tee '):
+            # 匹配 tee 后的文件参数（不是以 - 开头的）
+            parts = command[4:].split()
+            for part in parts:
+                if not part.startswith('-') and part not in ('>', '>>'):
+                    if part not in file_paths:
+                        file_paths.append(part)
+
+        # touch 命令: touch file1 file2 ...
+        if command.startswith('touch '):
+            parts = command[6:].split()
+            for part in parts:
+                if not part.startswith('-'):
+                    if part not in file_paths:
+                        file_paths.append(part)
+
+        # rm 命令: rm [options] file1 file2 ...
+        # 但排除 rf/r 之类的选项
+        if command.startswith('rm '):
+            parts = command[3:].split()
+            for part in parts:
+                if part.startswith('-'):
+                    continue  # 跳过选项
+                if part not in file_paths:
+                    file_paths.append(part)
+
+        # mv 命令: mv src dst
+        if command.startswith('mv '):
+            parts = command[3:].split()
+            # 跳过前两个参数（src），第三个开始可能是 dst 或选项
+            if len(parts) >= 2:
+                # 最后一个非选项参数通常是目标
+                for part in reversed(parts):
+                    if not part.startswith('-'):
+                        if part not in file_paths:
+                            file_paths.append(part)
+                        break
+
+        # cp 命令: cp src dst
+        if command.startswith('cp '):
+            parts = command[3:].split()
+            # 跳过前两个参数（src），第三个开始可能是 dst 或选项
+            if len(parts) >= 2:
+                for part in reversed(parts):
+                    if not part.startswith('-'):
+                        if part not in file_paths:
+                            file_paths.append(part)
+                        break
+
+        return file_paths
+
+    def _parse_question_from_tool(
+        self, tool_name: str, tool_input: dict, tool_use_id: Optional[str]
+    ) -> "QuestionData":
+        """
+        从工具调用中解析问答数据
+
+        Args:
+            tool_name: 工具名称
+            tool_input: 工具输入参数
+            tool_use_id: 工具调用 ID
+
+        Returns:
+            QuestionData: 解析后的问答数据
+        """
+        question_id = tool_use_id or str(uuid.uuid4())
+
+        # 尝试从工具输入中提取问题文本
+        question_text = (
+            tool_input.get("prompt")
+            or tool_input.get("question")
+            or tool_input.get("message")
+            or tool_input.get("reason")
+            or str(tool_input)
+        )
+
+        # 尝试提取问题类型
+        question_type = tool_input.get("type", "single_choice")
+
+        # 尝试提取标题
+        header = tool_input.get("header", "需要您的确认")
+
+        # 尝试提取描述
+        description = tool_input.get("description", "")
+
+        # 尝试提取选项
+        options = None
+        if "options" in tool_input:
+            raw_options = tool_input["options"]
+            if isinstance(raw_options, list):
+                options = [
+                    QuestionOption(
+                        id=opt.get("id", str(idx)),
+                        label=opt.get("label", str(opt)),
+                        description=opt.get("description", ""),
+                        default=opt.get("default"),
+                    )
+                    for idx, opt in enumerate(raw_options)
+                ]
+
+        return QuestionData(
+            question_id=question_id,
+            question_text=question_text,
+            type=question_type,
+            header=header,
+            description=description,
+            required=True,
+            raw_tool_input=tool_input,
+        )
 
     async def run_stream(
         self,
@@ -201,8 +364,8 @@ class ClaudeCodeClient:
 
         # 保存并清除 CLAUDECODE 环境变量，允许嵌套调用
         # 必须在创建 options 之前清除，否则 SDK 会继承这个环境变量
-        old_claudedecode = os.environ.pop("CLAUDECODE", None)
-        logger.info(f"[Client] 清除 CLAUDECODE 环境变量, 原值={old_claudedecode}")
+        old_claudecode = os.environ.pop("CLAUDECODE", None)
+        logger.info(f"[Client] 清除 CLAUDECODE 环境变量, 原值={old_claudecode}")
 
         options = self._create_options()
         logger.info(f"[Client] 开始执行任务, prompt长度={len(prompt)}")
@@ -235,6 +398,11 @@ class ClaudeCodeClient:
                 stream_msg = None
 
                 if isinstance(message, AssistantMessage):
+                    # 记录使用的模型（首次捕获）
+                    if not self._model and hasattr(message, 'model'):
+                        self._model = message.model
+                        logger.info(f"[Client] 使用模型: {self._model}")
+
                     for block in message.content:
                         # 文本内容
                         if hasattr(block, "text") and block.text:
@@ -242,18 +410,78 @@ class ClaudeCodeClient:
                                 type=MessageType.TEXT,
                                 content=block.text,
                             )
+                        # 思考过程
+                        elif hasattr(block, "thinking") and block.thinking:
+                            stream_msg = StreamMessage(
+                                type=MessageType.THINKING,
+                                content=block.thinking,
+                            )
                         # 工具调用
                         elif hasattr(block, "name"):
                             tool_name = block.name
                             tool_input = getattr(block, "input", {})
+                            tool_use_id = getattr(block, "id", None)  # 获取工具调用 ID
 
                             await self._track_tool_use(tool_name, tool_input)
 
+                            # 检测权限请求/问答工具调用
+                            # 这些工具名称表示 SDK 正在等待用户回答
+                            is_permission_tool = tool_name in (
+                                "AskUserQuestion",
+                                "ask_user_question",
+                                "AskPermission",
+                                "ask_permission",
+                                "PermissionAsk",
+                                "permission_ask",
+                            ) or tool_name.lower().startswith(("ask", "permission"))
+
+                            if is_permission_tool:
+                                # 设置等待状态
+                                self._is_waiting_for_answer = True
+                                self._is_waiting_answer = True
+                                self._pending_question_id = tool_use_id or str(uuid.uuid4())
+
+                                logger.info(
+                                    f"[Client] 检测到权限请求工具: tool_name={tool_name}, "
+                                    f"question_id={self._pending_question_id}"
+                                )
+
+                                # 生成问答消息
+                                question_data = self._parse_question_from_tool(tool_name, tool_input, tool_use_id)
+                                stream_msg = StreamMessage(
+                                    type=MessageType.ASK_USER_QUESTION,
+                                    content=tool_input.get("prompt", "") or tool_input.get("question", "") or f"需要确认: {tool_name}",
+                                    tool_name=tool_name,
+                                    tool_input=tool_input,
+                                    tool_use_id=tool_use_id,
+                                    question=question_data,
+                                )
+                            else:
+                                stream_msg = StreamMessage(
+                                    type=MessageType.TOOL_USE,
+                                    content=f"调用工具: {tool_name}",
+                                    tool_name=tool_name,
+                                    tool_input=tool_input,
+                                    tool_use_id=tool_use_id,  # 传递工具调用 ID
+                                )
+                        # 工具结果
+                        elif hasattr(block, "tool_use_id"):
+                            tool_result_content = getattr(block, "content", None)
+                            if isinstance(tool_result_content, str):
+                                content_str = tool_result_content
+                            elif isinstance(tool_result_content, list):
+                                content_str = json.dumps(tool_result_content, ensure_ascii=False)
+                            else:
+                                content_str = str(tool_result_content) if tool_result_content else ""
+
+                            is_error = getattr(block, "is_error", False)
+                            tool_use_id = block.tool_use_id  # 获取关联的工具调用 ID
+
                             stream_msg = StreamMessage(
-                                type=MessageType.TOOL_USE,
-                                content=f"调用工具: {tool_name}",
-                                tool_name=tool_name,
-                                tool_input=tool_input,
+                                type=MessageType.TOOL_RESULT,
+                                content=content_str,
+                                tool_use_id=tool_use_id,  # 传递工具调用 ID，用于与 tool_use 配对
+                                metadata={"is_error": is_error, "tool_use_id": tool_use_id} if is_error else {"tool_use_id": tool_use_id},
                             )
 
                 elif isinstance(message, ResultMessage):
@@ -265,6 +493,7 @@ class ClaudeCodeClient:
                         content="任务完成" if not message.is_error else "任务失败",
                         metadata={
                             "session_id": message.session_id,
+                            "model": self._model,
                             "cost_usd": message.total_cost_usd,
                             "duration_ms": message.duration_ms,
                             "is_error": message.is_error,
@@ -295,15 +524,12 @@ class ClaudeCodeClient:
                     f"[Client] 会话完整性等待完成 (session_id={self._session_id})"
                 )
 
-            # 正常完成，标记不需要清理
-            cleanup_needed = False
-
-        except (GeneratorExit, asyncio.CancelledError):
+        except asyncio.CancelledError:
             # 外部取消迭代（如 SSE 连接断开、调度器取消任务）
-            logger.warning("[Client] run_stream 被外部取消")
-            # 不再 yield，避免再次触发异常处理
-            cleanup_needed = False  # 取消时不再清理，避免跨任务问题
-            raise  # 重新抛出，让调用方处理
+            logger.warning("[Client] run_stream 被外部取消 (CancelledError)")
+            # 重新抛出，让 finally 块处理清理
+            # Python 的 CancelledError 会在 finally 执行后继续传播
+            raise
 
         except Exception as e:
             import traceback
@@ -316,19 +542,25 @@ class ClaudeCodeClient:
             if on_message:
                 on_message(error_msg)
             yield error_msg
-            cleanup_needed = False  # 错误已处理
 
         finally:
-            # 只在需要时清理
-            if cleanup_needed and sdk_client is not None:
+            # 始终尝试清理 SDK 客户端
+            # 注意：如果在已取消的任务中调用 __aexit__，可能会抛出 cancel scope 错误
+            # 这是 asyncio 的限制，我们需要捕获并记录，但不应影响环境变量恢复
+            if sdk_client is not None:
                 try:
                     await sdk_client.__aexit__(None, None, None)
+                    logger.info("[Client] SDK 客户端已清理")
                 except Exception as e:
-                    logger.warning(f"[Client] SDK 清理失败: {e}")
+                    # 记录错误但不传播
+                    # 常见错误："Attempted to exit cancel scope in a different task"
+                    # 这通常发生在任务被取消后的清理过程中
+                    logger.warning(f"[Client] SDK 清理失败（可能因任务取消）: {e}")
 
-            # 恢复环境变量
-            if old_claudedecode is not None:
-                os.environ["CLAUDECODE"] = old_claudedecode
+            # 恢复环境变量（无论清理是否成功）
+            if old_claudecode is not None:
+                os.environ["CLAUDECODE"] = old_claudecode
+                logger.debug("[Client] CLAUDECODE 环境变量已恢复")
 
     async def run(self, prompt: str) -> TaskResult:
         """
@@ -342,6 +574,7 @@ class ClaudeCodeClient:
         """
         texts: list[str] = []
         session_id = None
+        model = None
         cost_usd = 0.0
         duration_ms = 0
         is_error = False
@@ -351,6 +584,7 @@ class ClaudeCodeClient:
                 texts.append(msg.content)
             elif msg.type == MessageType.COMPLETE:
                 session_id = msg.metadata.get("session_id")
+                model = msg.metadata.get("model")
                 cost_usd = msg.metadata.get("cost_usd", 0.0)
                 duration_ms = msg.metadata.get("duration_ms", 0)
                 is_error = msg.metadata.get("is_error", False)
@@ -364,6 +598,7 @@ class ClaudeCodeClient:
             success=not is_error,
             message="".join(texts),
             session_id=session_id,
+            model=model,
             cost_usd=cost_usd,
             duration_ms=duration_ms,
             files_changed=self._files_changed.copy(),
@@ -380,15 +615,14 @@ class ClaudeCodeClient:
         """获取当前会话 ID"""
         return self._session_id
 
-    # ========== 问答功能相关方法（占位实现）=========
-    # 注意: claude-agent-sdk v0.0.25 不支持问答功能
-    # 以下方法为占位实现，等待 SDK 支持后完善
+    # ========== 问答功能相关方法 ==========
 
     def is_waiting_answer(self) -> bool:
         """
         检查是否正在等待用户回答
 
-        当前 SDK 版本不支持问答功能，始终返回 False
+        Returns:
+            bool: 如果正在等待用户回答返回 True，否则返回 False
         """
         return self._is_waiting_answer or self._is_waiting_for_answer
 
@@ -396,7 +630,8 @@ class ClaudeCodeClient:
         """
         获取待处理的问题 ID
 
-        当前 SDK 版本不支持问答功能，始终返回 None
+        Returns:
+            Optional[str]: 待处理的问题 ID，如果没有则返回 None
         """
         return self._pending_question_id
 
@@ -462,7 +697,7 @@ class ClaudeCodeClient:
             "metadata": {}
         }
 
-    async def wait_for_answer(self, question_id: str, timeout: float = 30.0) -> Optional[dict]:
+    async def wait_for_answer(self, question_id: str, timeout: float = 300.0) -> Optional[dict]:
         """
         等待用户答案（占位，返回 None 表示超时）
 

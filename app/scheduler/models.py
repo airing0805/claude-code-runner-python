@@ -59,6 +59,7 @@ class Task:
     tools_used: list[str] = field(default_factory=list)  # 使用过的工具列表
     cost_usd: Optional[float] = None  # 消耗费用（美元）
     duration_ms: Optional[int] = None  # 执行耗时（毫秒）
+    model: Optional[str] = None  # 使用的模型（如 claude-sonnet-4-6）
 
     def to_dict(self) -> dict[str, Any]:
         """转换为字典"""
@@ -83,6 +84,7 @@ class Task:
             "tools_used": self.tools_used,
             "cost_usd": self.cost_usd,
             "duration_ms": self.duration_ms,
+            "model": self.model,
         }
 
     @classmethod
@@ -96,7 +98,7 @@ class Task:
             "allowed_tools", "created_at", "started_at", "finished_at",
             "retries", "status", "source", "scheduled_id", "scheduled_name",
             "result", "error", "files_changed", "tools_used", "cost_usd",
-            "duration_ms",
+            "duration_ms", "model",
         }
 
         # 过滤未知字段（防止因旧数据或混合数据导致错误）
